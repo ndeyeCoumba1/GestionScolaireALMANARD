@@ -1,5 +1,6 @@
 package com.example.GestionScolaire.Model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -27,6 +28,7 @@ public class Parent {
 
     private String profession;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "parent")
     private List<Eleve> eleves;
 }

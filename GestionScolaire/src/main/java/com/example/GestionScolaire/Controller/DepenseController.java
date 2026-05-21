@@ -15,6 +15,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/depenses")
+@CrossOrigin(origins = "*")
 public class DepenseController {
 
     private final DepenseService depenseService;

@@ -2,9 +2,11 @@ package com.example.GestionScolaire.Service;
 
 import com.example.GestionScolaire.Enum.StatutEleve;
 import com.example.GestionScolaire.Model.Annee;
+import com.example.GestionScolaire.Model.Classe;
 import com.example.GestionScolaire.Model.Eleve;
 import com.example.GestionScolaire.Model.Inscription;
 import com.example.GestionScolaire.Repository.EleveRepository;
+import com.example.GestionScolaire.Repository.ClasseRepository;
 import com.example.GestionScolaire.Repository.InscriptionRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,8 @@ public class InscriptionService {
     private final EleveRepository eleveRepository;
     private final AnneeService anneeService;
     private final EleveService eleveService;
+    private final ClasseRepository classeRepository;
+
 
     public List<Inscription> findAll() {
         return inscriptionRepository.findAll();
@@ -37,10 +41,14 @@ public class InscriptionService {
         return inscriptionRepository.countByAnnee(annee);
     }
 
+
     @Transactional
     public Inscription inscrire(Long eleveId, Long classeId, double fraisInscription) {
         Annee anneeActive = anneeService.findAnneeActive();
         Eleve eleve = eleveService.findById(eleveId);
+        Classe classe = classeRepository.findById(classeId)
+                .orElseThrow(() -> new RuntimeException("Classe non trouvée avec ID: " + classeId));
+
         // Vérifier doublon
         if (inscriptionRepository.existsByEleveAndAnnee(eleve, anneeActive)) {
             throw new RuntimeException(
@@ -50,9 +58,11 @@ public class InscriptionService {
 
         Inscription inscription = new Inscription();
         inscription.setEleve(eleve);
+        inscription.setClasse(classe); // Ajouter cette ligne
         inscription.setAnnee(anneeActive);
         inscription.setDateInscription(LocalDate.now());
         inscription.setFraisInscription(fraisInscription);
+
         // Mettre à jour le statut de l'élève
         eleve.setStatut(StatutEleve.INSCRIT);
         eleveRepository.save(eleve);

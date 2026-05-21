@@ -14,6 +14,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/inscription")
+@CrossOrigin(origins = "*")
 public class InscriptionController {
     private final InscriptionService inscriptionService;
     private final AnneeService anneeService;

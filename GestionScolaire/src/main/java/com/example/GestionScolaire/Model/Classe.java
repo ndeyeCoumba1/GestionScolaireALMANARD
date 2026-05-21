@@ -2,6 +2,7 @@ package com.example.GestionScolaire.Model;
 
 import com.example.GestionScolaire.Enum.NiveauClasse;
 import com.example.GestionScolaire.Enum.StatutEleve;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -24,9 +25,9 @@ public class Classe {
     private Integer capaciteMax;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable=false)
     private StatutEleve statut;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "classe" , cascade = CascadeType.ALL)
     private List<Eleve> eleves;
 
