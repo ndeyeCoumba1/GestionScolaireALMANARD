@@ -3,6 +3,7 @@ package com.example.GestionScolaire.Service;
 
 import com.example.GestionScolaire.Enum.MotifPaiement;
 import com.example.GestionScolaire.Enum.StatutPaiement;
+import com.example.GestionScolaire.Enum.TypePaiement;
 import com.example.GestionScolaire.Model.*;
 import com.example.GestionScolaire.Repository.MoisRepository;
 import com.example.GestionScolaire.Repository.PaiementRepository;
@@ -57,7 +58,7 @@ public class PaiementService {
     }
     @Transactional
     public Paiement enregistrer(Long eleveId, Double montant,
-                                MotifPaiement motif, Long moisId, User enregistrePar) {
+                                TypePaiement typePaiement, MotifPaiement motif, Long moisId, User enregistrePar) {
         Eleve eleve = eleveService.findById(eleveId);
         Annee anneeActive = anneeService.findAnneeActive();
 
@@ -78,6 +79,7 @@ public class PaiementService {
         paiement.setEleve(eleve);
         paiement.setMontant(montant);
         paiement.setMotif(motif);
+        paiement.setTypePaiement(typePaiement);
         paiement.setStatut(StatutPaiement.PAYE);
         paiement.setDatePaiement(LocalDate.now());
         paiement.setAnnee(anneeActive);

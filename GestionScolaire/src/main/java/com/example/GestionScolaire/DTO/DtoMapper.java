@@ -82,6 +82,7 @@ public class DtoMapper {
         dto.setMontant(p.getMontant());
         dto.setDatePaiement(p.getDatePaiement());
         dto.setMotif(p.getMotif());
+        dto.setTypePaiement(p.getTypePaiement());
         dto.setStatut(p.getStatut());
         if (p.getEleve() != null) {
             dto.setEleveNom(p.getEleve().getNom());

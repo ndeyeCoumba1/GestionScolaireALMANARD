@@ -2,6 +2,7 @@ package com.example.GestionScolaire.Model;
 
 import com.example.GestionScolaire.Enum.MotifPaiement;
 import com.example.GestionScolaire.Enum.StatutPaiement;
+import com.example.GestionScolaire.Enum.TypePaiement;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -28,6 +29,10 @@ public class Paiement {
     @Enumerated(EnumType.STRING)
     @Column(nullable=false)
     private StatutPaiement statut;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type_paiement")
+    private TypePaiement typePaiement;
 
     @ManyToOne
     @JoinColumn(name = "eleve_id")

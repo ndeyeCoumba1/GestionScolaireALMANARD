@@ -1,6 +1,7 @@
 package com.example.GestionScolaire.Controller;
 
 import com.example.GestionScolaire.Enum.MotifPaiement;
+import com.example.GestionScolaire.Enum.TypePaiement;
 import com.example.GestionScolaire.Model.Paiement;
 import com.example.GestionScolaire.Model.User;
 import com.example.GestionScolaire.Service.PaiementService;
@@ -65,6 +66,7 @@ public class PaiementController {
     public ResponseEntity<Paiement> enregistrer(@RequestParam Long eleveId,
                                                 @RequestParam Double montant,
                                                 @RequestParam MotifPaiement motif,
+                                                @RequestParam TypePaiement typePaiement,
                                                 @RequestParam(required = false) Long moisId) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || auth.getName() == null) {
@@ -73,7 +75,7 @@ public class PaiementController {
         String email = auth.getName();
         User user = userService.findByEmail(email);
         return ResponseEntity.ok(
-                paiementService.enregistrer(eleveId, montant, motif, moisId, user)
+                paiementService.enregistrer(eleveId, montant,typePaiement, motif, moisId, user)
         );
     }
 
