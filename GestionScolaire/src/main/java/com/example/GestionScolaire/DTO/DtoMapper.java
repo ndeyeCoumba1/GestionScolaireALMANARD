@@ -19,26 +19,44 @@ public class DtoMapper {
         return dto;
     }
 
-    public EleveDTO toEleveDTO(Eleve eleve) {
+    public EleveDTO toEleveDTO(Eleve e) {
         EleveDTO dto = new EleveDTO();
-        dto.setId(eleve.getId());
-        dto.setNom(eleve.getNom());
-        dto.setPrenom(eleve.getPrenom());
-        dto.setDateNaissance(eleve.getDateNaissance());
-        dto.setSexe(eleve.getSexe());
-        dto.setAdresse(eleve.getAdresse());
-        dto.setStatut(eleve.getStatut());
-        if (eleve.getClasse() != null) {
-            dto.setClasseId(eleve.getClasse().getId());
-            dto.setClasseNiveau(eleve.getClasse().getNiveau().name());
+        dto.setId(e.getId());
+        dto.setNom(e.getNom());
+        dto.setPrenom(e.getPrenom());
+        dto.setDateNaissance(e.getDateNaissance());
+        dto.setSexe(e.getSexe());
+        dto.setAdresse(e.getAdresse());
+        dto.setPhotoUrl(e.getPhotoUrl());
+        dto.setStatut(e.getStatut());
+
+        if (e.getClasse() != null) {
+            dto.setClasseId(e.getClasse().getId());
+            dto.setClasseRegime(e.getClasse().getNiveau());       // ✅ enum direct, plus de conversion String
+            dto.setClasseStatut(e.getClasse().getStatut());
+            dto.setClasseCapaciteMax(e.getClasse().getCapaciteMax());
+
+            if (e.getClasse().getEnseignant() != null) {
+                dto.setEnseignantId(e.getClasse().getEnseignant().getId());
+                dto.setEnseignantNom(e.getClasse().getEnseignant().getNom());
+                dto.setEnseignantPrenom(e.getClasse().getEnseignant().getPrenom());
+            }
         }
-        if (eleve.getParent() != null) {
-            dto.setParentId(eleve.getParent().getId());
-            dto.setParentNom(eleve.getParent().getNom() + " " + eleve.getParent().getPrenom());
-            dto.setParentTelephone(eleve.getParent().getTelephone());
+
+        if (e.getParent() != null) {
+            dto.setParentId(e.getParent().getId());
+            dto.setParentNom(e.getParent().getNom());
+            dto.setParentPrenom(e.getParent().getPrenom());
+            dto.setParentTelephone(e.getParent().getTelephone());
+            dto.setParentEmail(e.getParent().getEmail());
+            dto.setParentAdresse(e.getParent().getAdresse());
+            dto.setParentProfession(e.getParent().getProfession());
         }
+
         return dto;
     }
+
+
 
     public ParentDTO toParentDTO(Parent parent) {
         ParentDTO dto = new ParentDTO();

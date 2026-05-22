@@ -14,13 +14,22 @@ import java.util.List;
 public class EleveService {
 
     private final EleveRepository eleveRepository;
+
     public List<Eleve> findAll() {
         return eleveRepository.findAll();
     }
+
     public Eleve findById(Long id) {
         return eleveRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Eleve Introuvable :" +id));
+                .orElseThrow(() -> new RuntimeException("Eleve introuvable : " + id));
     }
+
+    // ✅ Toutes les informations de l'élève avec ses relations
+    public Eleve findByIdWithDetails(Long id) {
+        return eleveRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new RuntimeException("Eleve introuvable : " + id));
+    }
+
     public List<Eleve> search(String query) {
         return eleveRepository.searchGlobal(query);
     }
@@ -31,15 +40,17 @@ public class EleveService {
                         e.getClasse().getId().equals(classeId))
                 .toList();
     }
+
     public long countByStatut(StatutEleve statut) {
         return eleveRepository.countByStatut(statut);
     }
 
     @Transactional
     public Eleve create(Eleve eleve) {
-        eleve.setStatut(StatutEleve.NON_INSCRIT); // statut par défaut
+        eleve.setStatut(StatutEleve.NON_INSCRIT);
         return eleveRepository.save(eleve);
     }
+
     @Transactional
     public Eleve update(Long id, Eleve updated) {
         Eleve eleve = findById(id);

@@ -1,6 +1,5 @@
 package com.example.GestionScolaire.Controller;
 
-
 import com.example.GestionScolaire.Enum.MotifPaiement;
 import com.example.GestionScolaire.Model.Paiement;
 import com.example.GestionScolaire.Model.User;
@@ -9,6 +8,8 @@ import com.example.GestionScolaire.Service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -19,7 +20,6 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("/api/paiements")
 @CrossOrigin(origins = "*")
-
 public class PaiementController {
     private final PaiementService paiementService;
     private final UserService userService;
@@ -65,13 +65,18 @@ public class PaiementController {
     public ResponseEntity<Paiement> enregistrer(@RequestParam Long eleveId,
                                                 @RequestParam Double montant,
                                                 @RequestParam MotifPaiement motif,
-                                                @RequestParam(required = false) Long moisId,
-                                                @RequestParam Long userId) {
-        User user = userService.findById(userId);
+                                                @RequestParam(required = false) Long moisId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) {
+            return ResponseEntity.status(401).build();
+        }
+        String email = auth.getName();
+        User user = userService.findByEmail(email);
         return ResponseEntity.ok(
                 paiementService.enregistrer(eleveId, montant, motif, moisId, user)
         );
     }
+
     @PutMapping("/{id}/valider")
     public ResponseEntity<Paiement> valider(@PathVariable Long id) {
         return ResponseEntity.ok(paiementService.valider(id));
@@ -81,5 +86,4 @@ public class PaiementController {
     public ResponseEntity<Paiement> annuler(@PathVariable Long id) {
         return ResponseEntity.ok(paiementService.annuler(id));
     }
-
 }
