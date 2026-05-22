@@ -1,21 +1,24 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import type { Classe } from '../../Types/index';
 import PageHeader from '../../components/Common/PageHeader';
+import { SkeletonCard } from '../../components/Common/SkeletonLoader';
+import Drawer from '../../components/Common/Drawer';
+import ClasseForm from './ClasseForm';
 
-const niveauStyle: Record<string, { bg: string; color: string }> = {
-  INTERNAT:     { bg: '#dbeafe', color: '#1d4ed8' },
-  DEMI_PENSION: { bg: '#ffedd5', color: '#9a3412' },
-  EXTERNAT:     { bg: '#dcfce7', color: '#166534' },
+const niveauStyle: Record<string, { bg: string; color: string; gradient: string; icon: string }> = {
+  INTERNAT:     { bg: '#dbeafe', color: '#1d4ed8', gradient: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', icon: '🏠' },
+  DEMI_PENSION: { bg: '#ffedd5', color: '#9a3412', gradient: 'linear-gradient(135deg, #f97316, #9a3412)', icon: '🍽️' },
+  EXTERNAT:     { bg: '#dcfce7', color: '#166534', gradient: 'linear-gradient(135deg, #22c55e, #166534)', icon: '🎒' },
 };
 
 export default function ClasseList() {
-  const navigate = useNavigate();
   const [classes, setClasses] = useState<Classe[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editingClasseId, setEditingClasseId] = useState<number | undefined>();
 
   useEffect(() => { fetchClasses(); }, []);
 
@@ -38,6 +41,17 @@ export default function ClasseList() {
     }
   };
 
+  const handleOpenDrawer = (classeId?: number) => {
+    setEditingClasseId(classeId);
+    setIsDrawerOpen(true);
+  };
+
+  const handleCloseDrawer = () => {
+    setIsDrawerOpen(false);
+    setEditingClasseId(undefined);
+    fetchClasses();
+  };
+
   const filtered = classes.filter(c =>
     c.niveau.toLowerCase().includes(search.toLowerCase()) ||
     c.id.toString().includes(search)
@@ -54,7 +68,7 @@ export default function ClasseList() {
         countText={`${classes.length} classe(s) disponible(s)`}
         action={
           <button
-            onClick={() => navigate('/classes/nouveau')}
+            onClick={() => handleOpenDrawer()}
             className="btn fw-semibold d-flex align-items-center gap-2 px-4 py-2"
             style={{ backgroundColor: '#fff', color: '#1a5c38', borderRadius: 12, fontSize: 14 }}
           >
@@ -89,71 +103,112 @@ export default function ClasseList() {
 
       {/* ── Grille des classes ── */}
       {loading ? (
-        <div className="text-center py-5 text-muted" style={{ fontSize: 14 }}>Chargement...</div>
+        <SkeletonCard count={3} />
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-4 shadow-sm text-center py-5 text-muted" style={{ border: '1px solid #f0f0f0', fontSize: 14 }}>
           {search ? 'Aucune classe trouvée.' : 'Aucune classe enregistrée.'}
         </div>
       ) : (
-        <div className="row g-3">
+        <div className="row g-4">
           {filtered.map(c => {
-            const style = niveauStyle[c.niveau] ?? { bg: '#f3f4f6', color: '#374151' };
+            const style = niveauStyle[c.niveau] ?? { bg: '#f3f4f6', color: '#374151', gradient: 'linear-gradient(135deg, #9ca3af, #6b7280)', icon: '📚' };
             return (
-              <div key={c.id} className="col-12 col-md-6 col-lg-4">
-                <div className="bg-white rounded-4 shadow-sm h-100 overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
-                  {/* Bande couleur selon niveau */}
-                  <div style={{ height: 4, backgroundColor: style.color, opacity: 0.4 }} />
-                  <div className="p-4">
-                    {/* Badge niveau + boutons actions */}
-                    <div className="d-flex align-items-center justify-content-between mb-3">
-                      <span
-                        className="badge rounded-pill fw-medium"
-                        style={{ backgroundColor: style.bg, color: style.color, fontSize: 12, padding: '5px 12px' }}
-                      >
-                        {c.niveau.replace('_', ' ')}
-                      </span>
+              <div key={c.id} className="col-12 col-md-4">
+                <div
+                  className="bg-white rounded-4 shadow-sm h-100 overflow-hidden position-relative"
+                  style={{
+                    border: '1px solid #f0f0f0',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    cursor: 'pointer',
+                  }}
+                  onMouseEnter={ev => {
+                    const el = ev.currentTarget;
+                    el.style.transform = 'translateY(-4px)';
+                    el.style.boxShadow = '0 12px 24px rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={ev => {
+                    const el = ev.currentTarget;
+                    el.style.transform = 'translateY(0)';
+                    el.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+                  }}
+                >
+                  {/* Header avec gradient */}
+                  <div
+                    className="p-4 text-white position-relative"
+                    style={{ background: style.gradient }}
+                  >
+                    <div className="d-flex align-items-center justify-content-between">
+                      <div className="d-flex align-items-center gap-3">
+                        <div
+                          className="rounded-circle d-flex align-items-center justify-content-center"
+                          style={{ width: 48, height: 48, backgroundColor: 'rgba(255, 255, 255, 0.2)', fontSize: 24 }}
+                        >
+                          {style.icon}
+                        </div>
+                        <div>
+                          <h5 className="fw-bold mb-0" style={{ fontSize: 16 }}>{c.niveau.replace('_', ' ')}</h5>
+                          <small style={{ opacity: 0.9, fontSize: 12 }}>Classe #{c.id}</small>
+                        </div>
+                      </div>
                       <div className="d-flex align-items-center gap-2">
                         <button
-                          onClick={() => navigate(`/classes/${c.id}/modifier`)}
+                          onClick={(e) => { e.stopPropagation(); handleOpenDrawer(c.id); }}
                           title="Modifier"
                           className="btn btn-sm d-flex align-items-center justify-content-center"
-                          style={{ width: 30, height: 30, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
-                          onMouseEnter={ev => { const b = ev.currentTarget; b.style.color='#16a34a'; b.style.backgroundColor='#f0faf4'; b.style.borderColor='#bbf7d0'; }}
-                          onMouseLeave={ev => { const b = ev.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
+                          style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid rgba(255, 255, 255, 0.3)', backgroundColor: 'rgba(255, 255, 255, 0.2)', color: '#fff' }}
+                          onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='rgba(255, 255, 255, 0.3)'; }}
+                          onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='rgba(255, 255, 255, 0.2)'; }}
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z"/>
                           </svg>
                         </button>
                         <button
-                          onClick={() => handleDelete(c.id)}
+                          onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
                           disabled={deletingId === c.id}
                           title="Supprimer"
                           className="btn btn-sm d-flex align-items-center justify-content-center"
-                          style={{ width: 30, height: 30, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af', opacity: deletingId === c.id ? 0.4 : 1 }}
-                          onMouseEnter={ev => { const b = ev.currentTarget; b.style.color='#ef4444'; b.style.backgroundColor='#fef2f2'; b.style.borderColor='#fecaca'; }}
-                          onMouseLeave={ev => { const b = ev.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
+                          style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid rgba(255, 255, 255, 0.3)', backgroundColor: 'rgba(255, 255, 255, 0.2)', color: '#fff', opacity: deletingId === c.id ? 0.4 : 1 }}
+                          onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='rgba(239, 68, 68, 0.3)'; }}
+                          onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='rgba(255, 255, 255, 0.2)'; }}
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a1 1 0 01-1-1V5a1 1 0 011-1h6a1 1 0 011 1v1a1 1 0 01-1 1H9z"/>
                           </svg>
                         </button>
                       </div>
                     </div>
+                  </div>
 
-                    {/* Titre */}
-                    <h6 className="fw-bold mb-1" style={{ color: '#111827' }}>Classe #{c.id}</h6>
-                    <p className="text-muted mb-3" style={{ fontSize: 13 }}>Capacité maximale</p>
+                  {/* Corps */}
+                  <div className="p-4">
+                    <div className="mb-3">
+                      <p className="text-muted mb-1" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Capacité maximale</p>
+                      <div className="d-flex align-items-center justify-content-between">
+                        <span className="fw-bold" style={{ fontSize: 28, color: style.color }}>{c.capaciteMax}</span>
+                        <span
+                          className="badge rounded-pill fw-medium"
+                          style={{ backgroundColor: style.bg, color: style.color, fontSize: 11, padding: '4px 10px' }}
+                        >
+                          Élèves
+                        </span>
+                      </div>
+                    </div>
 
-                    {/* Capacité + statut */}
-                    <div className="d-flex align-items-center justify-content-between">
-                      <span className="fw-bold" style={{ fontSize: 22, color: '#1a5c38' }}>{c.capaciteMax}</span>
-                      <span
-                        className="badge rounded-pill"
-                        style={{ backgroundColor: '#dcfce7', color: '#166534', fontSize: 12, padding: '5px 10px' }}
-                      >
-                        Disponible
-                      </span>
+                    {/* Barre de progression décorative */}
+                    <div
+                      className="rounded-pill"
+                      style={{ height: 6, backgroundColor: '#f3f4f6', overflow: 'hidden' }}
+                    >
+                      <div
+                        className="rounded-pill"
+                        style={{
+                          height: '100%',
+                          width: '100%',
+                          background: style.gradient,
+                          transition: 'width 0.5s ease',
+                        }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -167,6 +222,14 @@ export default function ClasseList() {
       <div className="text-center py-2" style={{ fontSize: 12, color: '#d1d5db' }}>
         © 2026 Al-Manard3s — Tous droits réservés
       </div>
+
+      <Drawer
+        isOpen={isDrawerOpen}
+        onClose={handleCloseDrawer}
+        title={editingClasseId ? 'Modifier la classe' : 'Nouvelle classe'}
+      >
+        <ClasseForm onClose={handleCloseDrawer} classeId={editingClasseId} />
+      </Drawer>
     </div>
   );
 }

@@ -3,13 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import type { Eleve } from '../../Types/index';
 import PageHeader from '../../components/Common/PageHeader';
+import { SkeletonTable } from '../../components/Common/SkeletonLoader';
+import { ConfirmModal } from '../../components/Common/ConfirmModal';
+import Drawer from '../../components/Common/Drawer';
+import EleveForm from './EleveForm';
 
 export default function EleveList() {
+  const navigate = useNavigate();
   const [eleves, setEleves] = useState<Eleve[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const navigate = useNavigate();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [eleveToDelete, setEleveToDelete] = useState<number | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editingEleveId, setEditingEleveId] = useState<number | undefined>();
 
   useEffect(() => { fetchEleves(); }, []);
 
@@ -17,7 +25,29 @@ export default function EleveList() {
     setLoading(true);
     try {
       const res = await api.get('/eleves');
-      setEleves(res.data);
+      const mappedData = res.data.map((item: any) => ({
+        id: item.id,
+        nom: item.nom,
+        prenom: item.prenom,
+        dateNaissance: item.dateNaissance,
+        sexe: item.sexe,
+        adresse: item.adresse,
+        photoUrl: item.photoUrl,
+        status: item.statut || item.status,
+        // Classe
+        classeId: item.classeId,
+        classeNiveau: item.classeRegime || item.classe?.niveau || '',
+        classeCapaciteMax: item.classeCapaciteMax || item.classe?.capaciteMax,
+        // Parent
+        parentId: item.parentId,
+        parentNom: item.parentNom || item.parent?.nom || '',
+        parentPrenom: item.parentPrenom || item.parent?.prenom || '',
+        // Enseignant
+        enseignantId: item.enseignantId,
+        enseignantNom: item.enseignantNom || item.classe?.enseignant?.nom || '',
+        enseignantPrenom: item.enseignantPrenom || item.classe?.enseignant?.prenom || '',
+      }));
+      setEleves(mappedData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -26,16 +56,39 @@ export default function EleveList() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Supprimer cet élève ?')) return;
-    setDeletingId(id);
+    setEleveToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!eleveToDelete) return;
+    setDeletingId(eleveToDelete);
     try {
-      await api.delete(`/eleves/${id}`);
+      await api.delete(`/eleves/${eleveToDelete}`);
       await fetchEleves();
     } catch (err) {
       console.error(err);
     } finally {
       setDeletingId(null);
+      setShowDeleteModal(false);
+      setEleveToDelete(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setEleveToDelete(null);
+  };
+
+  const handleOpenDrawer = (eleveId?: number) => {
+    setEditingEleveId(eleveId);
+    setIsDrawerOpen(true);
+  };
+
+  const handleCloseDrawer = () => {
+    setIsDrawerOpen(false);
+    setEditingEleveId(undefined);
+    fetchEleves();
   };
 
   const filtered = eleves.filter(e =>
@@ -53,7 +106,7 @@ export default function EleveList() {
         countText={`${eleves.length} élève(s) au total`}
         action={
           <button
-            onClick={() => navigate('/eleves/nouveau')}
+            onClick={() => handleOpenDrawer()}
             className="btn fw-semibold d-flex align-items-center gap-2 px-4 py-2"
             style={{ backgroundColor: '#fff', color: '#1a5c38', borderRadius: 12, fontSize: 14 }}
           >
@@ -87,23 +140,24 @@ export default function EleveList() {
         </div>
 
         <div className="table-responsive">
-          <table className="table align-middle mb-0" style={{ fontSize: 14 }}>
-            <thead style={{ backgroundColor: '#f9fafb' }}>
-              <tr>
-                {['Nom', 'Prénom', 'Classe', 'Parent', 'Statut', 'Actions'].map(h => (
-                  <th key={h} className="py-3 px-4 fw-semibold text-uppercase"
-                    style={{ color: '#9ca3af', fontSize: 11, letterSpacing: '0.05em', borderTop: '1px solid #f0f0f0' }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={6} className="text-center py-5 text-muted">Chargement...</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-5 text-muted">{search ? 'Aucun élève trouvé.' : 'Aucun élève enregistré.'}</td></tr>
-              ) : filtered.map(e => (
+          {loading ? (
+            <SkeletonTable rows={5} columns={6} />
+          ) : (
+            <table className="table align-middle mb-0" style={{ fontSize: 14 }}>
+              <thead style={{ backgroundColor: '#f9fafb' }}>
+                <tr>
+                  {['Nom', 'Prénom', 'Classe', 'Parent', 'Statut', 'Actions'].map(h => (
+                    <th key={h} className="py-3 px-4 fw-semibold text-uppercase"
+                      style={{ color: '#9ca3af', fontSize: 11, letterSpacing: '0.05em', borderTop: '1px solid #f0f0f0' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={6} className="text-center py-5 text-muted">{search ? 'Aucun élève trouvé.' : 'Aucun élève enregistré.'}</td></tr>
+                ) : filtered.map(e => (
                 <tr key={e.id} style={{ borderTop: '1px solid #f3f4f6' }}>
                   <td className="py-3 px-4 fw-semibold" style={{ color: '#111827' }}>{e.nom}</td>
                   <td className="py-3 px-4" style={{ color: '#374151' }}>{e.prenom}</td>
@@ -130,7 +184,20 @@ export default function EleveList() {
                   <td className="py-3 px-4">
                     <div className="d-flex align-items-center gap-2">
                       <button
-                        onClick={() => navigate(`/eleves/${e.id}/modifier`)}
+                        onClick={() => navigate(`/eleves/${e.id}`)}
+                        title="Voir"
+                        className="btn btn-sm d-flex align-items-center justify-content-center"
+                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
+                        onMouseEnter={ev => { const b = ev.currentTarget; b.style.color='#3b82f6'; b.style.backgroundColor='#eff6ff'; b.style.borderColor='#bfdbfe'; }}
+                        onMouseLeave={ev => { const b = ev.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleOpenDrawer(e.id)}
                         title="Modifier"
                         className="btn btn-sm d-flex align-items-center justify-content-center"
                         style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
@@ -160,12 +227,32 @@ export default function EleveList() {
               ))}
             </tbody>
           </table>
+          )}
         </div>
 
         <div className="text-center py-3" style={{ borderTop: '1px solid #f3f4f6', fontSize: 12, color: '#d1d5db' }}>
           © 2026 Al-Manard3s — Tous droits réservés
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={cancelDelete}
+        onConfirm={confirmDelete}
+        title="Supprimer l'élève"
+        message="Êtes-vous sûr de vouloir supprimer cet élève ? Cette action est irréversible."
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="danger"
+      />
+
+      <Drawer
+        isOpen={isDrawerOpen}
+        onClose={handleCloseDrawer}
+        title={editingEleveId ? 'Modifier l\'élève' : 'Nouvel élève'}
+      >
+        <EleveForm onClose={handleCloseDrawer} eleveId={editingEleveId} />
+      </Drawer>
     </div>
   );
 }

@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../api/axios';
+
+interface AnneeFormProps {
+  onClose: () => void;
+  anneeId?: number;
+}
 
 const inputStyle = {
   borderRadius: 10,
@@ -17,10 +21,8 @@ const labelStyle = {
   letterSpacing: '0.05em',
 } as const;
 
-export default function AnneeForm() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const isEdit = !!id;
+export default function AnneeForm({ onClose, anneeId }: AnneeFormProps) {
+  const isEdit = !!anneeId;
 
   const [form, setForm] = useState({
     libelle: '',
@@ -33,15 +35,15 @@ export default function AnneeForm() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!isEdit) return;
-    api.get(`/annees/${id}`)
+    if (!isEdit || !anneeId) return;
+    api.get(`/annees/${anneeId}`)
       .then(r => {
         const a = r.data;
         setForm({ libelle: a.libelle, dateDebut: a.dateDebut, dateFin: a.dateFin, actif: a.actif });
       })
       .catch(() => setError('Impossible de charger cette année scolaire.'))
       .finally(() => setFetching(false));
-  }, [id]);
+  }, [anneeId, isEdit]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -57,9 +59,9 @@ export default function AnneeForm() {
     setLoading(true);
     setError('');
     try {
-      if (isEdit) await api.put(`/annees/${id}`, form);
+      if (isEdit && anneeId) await api.put(`/annees/${anneeId}`, form);
       else await api.post('/annees', form);
-      navigate('/annees');
+      onClose();
     } catch {
       setError('Erreur lors de la sauvegarde. Vérifiez les champs.');
     } finally {
@@ -68,143 +70,114 @@ export default function AnneeForm() {
   };
 
   return (
-    <div style={{ maxWidth: 520, margin: '0 auto' }}>
-      <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
-        {/* Bande verte */}
-        <div style={{ height: 5, background: 'linear-gradient(90deg, #1a5c38, #4ade80)' }} />
+    <>
+      {fetching ? (
+        <div className="text-center py-5 text-muted">Chargement...</div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="row g-3 mb-3">
 
-        <div className="p-4">
-          {/* ── Header ── */}
-          <div className="d-flex align-items-center gap-3 mb-4">
-            <button
-              type="button"
-              onClick={() => navigate('/annees')}
-              className="btn btn-sm d-flex align-items-center justify-content-center flex-shrink-0"
-              style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#9ca3af' }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
-              </svg>
-            </button>
-            <div>
-              <h5 className="mb-0 fw-bold text-dark">
-                {isEdit ? 'Modifier l\'année scolaire' : 'Nouvelle année scolaire'}
-              </h5>
-              <small className="text-muted">
-                {isEdit ? 'Mettez à jour les informations de l\'année scolaire.' : 'Renseignez les informations de l\'année scolaire.'}
-              </small>
+            {/* Libellé */}
+            <div className="col-12">
+              <label className="form-label fw-semibold text-uppercase" style={labelStyle}>
+                Libellé <span className="text-danger">*</span>
+              </label>
+              <input
+                type="text"
+                name="libelle"
+                value={form.libelle}
+                onChange={handleChange}
+                placeholder="Ex : 2024-2025"
+                className="form-control"
+                style={inputStyle}
+                required
+              />
             </div>
+
+            {/* Date début */}
+            <div className="col-12 col-md-6">
+              <label className="form-label fw-semibold text-uppercase" style={labelStyle}>
+                Date début <span className="text-danger">*</span>
+              </label>
+              <input
+                type="date"
+                name="dateDebut"
+                value={form.dateDebut}
+                onChange={handleChange}
+                className="form-control"
+                style={inputStyle}
+                required
+              />
+            </div>
+
+            {/* Date fin */}
+            <div className="col-12 col-md-6">
+              <label className="form-label fw-semibold text-uppercase" style={labelStyle}>
+                Date fin <span className="text-danger">*</span>
+              </label>
+              <input
+                type="date"
+                name="dateFin"
+                value={form.dateFin}
+                onChange={handleChange}
+                className="form-control"
+                style={inputStyle}
+                required
+              />
+            </div>
+
+            {/* Actif */}
+            <div className="col-12">
+              <div className="d-flex align-items-center gap-3 p-3 rounded-3" style={{ backgroundColor: '#f9fafb', border: '1px solid #f0f0f0' }}>
+                <input
+                  type="checkbox"
+                  name="actif"
+                  id="actif"
+                  checked={form.actif}
+                  onChange={handleChange}
+                  style={{ width: 18, height: 18, cursor: 'pointer' }}
+                />
+                <label htmlFor="actif" className="fw-semibold mb-0" style={{ fontSize: 14, cursor: 'pointer' }}>
+                  Année active
+                </label>
+              </div>
+            </div>
+
           </div>
 
-          {fetching ? (
-            <div className="text-center py-5 text-muted">Chargement...</div>
-          ) : (
-            <form onSubmit={handleSubmit}>
-              <div className="row g-3 mb-3">
-
-                {/* Libellé */}
-                <div className="col-12">
-                  <label className="form-label fw-semibold text-uppercase" style={labelStyle}>
-                    Libellé <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="libelle"
-                    value={form.libelle}
-                    onChange={handleChange}
-                    placeholder="Ex : 2024-2025"
-                    className="form-control"
-                    style={inputStyle}
-                    required
-                  />
-                </div>
-
-                {/* Date début */}
-                <div className="col-12 col-md-6">
-                  <label className="form-label fw-semibold text-uppercase" style={labelStyle}>
-                    Date début <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    name="dateDebut"
-                    value={form.dateDebut}
-                    onChange={handleChange}
-                    className="form-control"
-                    style={inputStyle}
-                    required
-                  />
-                </div>
-
-                {/* Date fin */}
-                <div className="col-12 col-md-6">
-                  <label className="form-label fw-semibold text-uppercase" style={labelStyle}>
-                    Date fin <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    name="dateFin"
-                    value={form.dateFin}
-                    onChange={handleChange}
-                    className="form-control"
-                    style={inputStyle}
-                    required
-                  />
-                </div>
-
-                {/* Actif */}
-                <div className="col-12">
-                  <div className="d-flex align-items-center gap-3 p-3 rounded-3" style={{ backgroundColor: '#f9fafb', border: '1px solid #f0f0f0' }}>
-                    <input
-                      type="checkbox"
-                      name="actif"
-                      id="actif"
-                      checked={form.actif}
-                      onChange={handleChange}
-                      style={{ width: 18, height: 18, cursor: 'pointer' }}
-                    />
-                    <label htmlFor="actif" className="fw-semibold mb-0" style={{ fontSize: 14, cursor: 'pointer' }}>
-                      Année active
-                    </label>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Erreur */}
-              {error && (
-                <div className="alert d-flex align-items-center gap-2 py-2 px-3 mb-3"
-                  style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#dc2626', fontSize: 14 }}>
-                  <span>⚠️</span>
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {/* Boutons */}
-              <div className="d-flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => navigate('/annees')}
-                  className="btn flex-fill fw-medium"
-                  style={{ border: '1px solid #e5e7eb', color: '#6b7280', borderRadius: 10, padding: '10px 0', fontSize: 14 }}
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="btn flex-fill fw-semibold text-white d-flex align-items-center justify-content-center gap-2"
-                  style={{ background: 'linear-gradient(135deg, #1a5c38, #2d8653)', borderRadius: 10, padding: '10px 0', fontSize: 14, opacity: loading ? 0.7 : 1, border: 'none' }}
-                >
-                  {loading && (
-                    <span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14, borderWidth: 2 }} />
-                  )}
-                  {loading ? 'Sauvegarde...' : isEdit ? 'Enregistrer les modifications' : 'Créer l\'année'}
-                </button>
-              </div>
-            </form>
+          {/* Erreur */}
+          {error && (
+            <div className="alert d-flex align-items-center gap-2 py-2 px-3 mb-3"
+              style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#dc2626', fontSize: 14 }}>
+              <span>⚠️</span>
+              <span>{error}</span>
+            </div>
           )}
-        </div>
-      </div>
-    </div>
+
+          {/* Boutons */}
+          <div className="d-flex gap-3 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn flex-fill fw-medium"
+              style={{ border: '1px solid #e5e7eb', color: '#6b7280', borderRadius: 10, padding: '10px 0', fontSize: 14 }}
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn flex-fill fw-semibold text-white d-flex align-items-center justify-content-center gap-2"
+              style={{ background: 'linear-gradient(135deg, #1a5c38, #2d8653)', borderRadius: 10, padding: '10px 0', fontSize: 14, opacity: loading ? 0.7 : 1, border: 'none' }}
+            >
+              {loading && (
+                <span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14, borderWidth: 2 }} />
+              )}
+              {loading ? 'Sauvegarde...' : isEdit ? 'Enregistrer les modifications' : 'Créer l\'année'}
+            </button>
+          </div>
+        </form>
+      )}
+    </>
   );
 }

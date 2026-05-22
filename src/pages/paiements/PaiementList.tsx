@@ -1,15 +1,22 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import type { Paiement } from '../../Types/index';
 import PageHeader from '../../components/Common/PageHeader';
+import { SkeletonTable } from '../../components/Common/SkeletonLoader';
+import { ConfirmModal } from '../../components/Common/ConfirmModal';
+import Drawer from '../../components/Common/Drawer';
+import PaiementForm from './PaiementForm';
+import { generatePaymentListReport, exportPaymentsToExcel, generateReceipt } from '../../utils/exportUtils';
 
 export default function PaiementList() {
   const [paiements, setPaiements] = useState<Paiement[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const navigate = useNavigate();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [paiementToDelete, setPaiementToDelete] = useState<number | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editingPaiementId, setEditingPaiementId] = useState<number | undefined>();
 
   useEffect(() => { fetchPaiements(); }, []);
 
@@ -17,7 +24,20 @@ export default function PaiementList() {
     setLoading(true);
     try {
       const res = await api.get('/paiements');
-      setPaiements(res.data);
+      const mappedData = res.data.map((item: any) => ({
+        id: item.id,
+        numeroRecu: item.numeroRecu,
+        montant: item.montant,
+        datePaiement: item.datePaiement,
+        motif: item.motif,
+        statut: item.statut,
+        eleveNom: item.eleve?.nom || '',
+        elevePrenom: item.eleve?.prenom || '',
+        moisLibelle: item.mois?.libelle || '',
+        anneeLibelle: item.annee?.libelle || '',
+        enregistreParNom: item.user?.nom || '',
+      }));
+      setPaiements(mappedData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -26,16 +46,59 @@ export default function PaiementList() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Supprimer ce paiement ?')) return;
-    setDeletingId(id);
+    setPaiementToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!paiementToDelete) return;
+    setDeletingId(paiementToDelete);
     try {
-      await api.delete(`/paiements/${id}`);
+      await api.delete(`/paiements/${paiementToDelete}`);
       await fetchPaiements();
     } catch (err) {
       console.error(err);
     } finally {
       setDeletingId(null);
+      setShowDeleteModal(false);
+      setPaiementToDelete(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setPaiementToDelete(null);
+  };
+
+  const handleExportPDF = () => {
+    generatePaymentListReport(filtered);
+  };
+
+  const handleExportExcel = () => {
+    exportPaymentsToExcel(filtered);
+  };
+
+  const handlePrintReceipt = (paiement: Paiement) => {
+    generateReceipt({
+      numeroRecu: paiement.numeroRecu,
+      eleveNom: paiement.eleveNom,
+      elevePrenom: paiement.elevePrenom,
+      montant: paiement.montant,
+      motif: paiement.motif,
+      datePaiement: paiement.datePaiement,
+      moisLibelle: paiement.moisLibelle,
+    });
+  };
+
+  const handleOpenDrawer = (paiementId?: number) => {
+    setEditingPaiementId(paiementId);
+    setIsDrawerOpen(true);
+  };
+
+  const handleCloseDrawer = () => {
+    setIsDrawerOpen(false);
+    setEditingPaiementId(undefined);
+    fetchPaiements();
   };
 
   const filtered = paiements.filter(p =>
@@ -53,7 +116,7 @@ export default function PaiementList() {
         countText={`${paiements.length} paiement(s) au total`}
         action={
           <button
-            onClick={() => navigate('/paiements/nouveau')}
+            onClick={() => handleOpenDrawer()}
             className="btn fw-semibold d-flex align-items-center gap-2 px-4 py-2"
             style={{ backgroundColor: '#fff', color: '#1a5c38', borderRadius: 12, fontSize: 14 }}
           >
@@ -66,7 +129,61 @@ export default function PaiementList() {
       {/* ── Table Card ── */}
       <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
         <div className="px-4 pt-4 pb-3">
-          <p className="fw-semibold text-dark mb-3" style={{ fontSize: 15 }}>Liste des paiements</p>
+          <div className="d-flex justify-content-between align-items-start mb-3">
+            <p className="fw-semibold text-dark mb-0" style={{ fontSize: 15 }}>Liste des paiements</p>
+            <div className="d-flex gap-2">
+              <button
+                onClick={handleExportPDF}
+                className="btn btn-sm d-flex align-items-center gap-2"
+                style={{
+                  border: '1px solid #e5e7eb',
+                  backgroundColor: '#fff',
+                  color: '#6b7280',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  padding: '6px 12px',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f9fafb';
+                  e.currentTarget.style.color = '#1a5c38';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#fff';
+                  e.currentTarget.style.color = '#6b7280';
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                PDF
+              </button>
+              <button
+                onClick={handleExportExcel}
+                className="btn btn-sm d-flex align-items-center gap-2"
+                style={{
+                  border: '1px solid #e5e7eb',
+                  backgroundColor: '#fff',
+                  color: '#6b7280',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  padding: '6px 12px',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f9fafb';
+                  e.currentTarget.style.color = '#1a5c38';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#fff';
+                  e.currentTarget.style.color = '#6b7280';
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                Excel
+              </button>
+            </div>
+          </div>
           <div className="position-relative">
             <span className="position-absolute top-50 translate-middle-y text-muted" style={{ left: 14, pointerEvents: 'none' }}>
               <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -86,23 +203,24 @@ export default function PaiementList() {
         </div>
 
         <div className="table-responsive">
-          <table className="table align-middle mb-0" style={{ fontSize: 14 }}>
-            <thead style={{ backgroundColor: '#f9fafb' }}>
-              <tr>
-                {['Reçu', 'Élève', 'Mois', 'Motif', 'Montant', 'Statut', 'Date', 'Actions'].map(h => (
-                  <th key={h} className="py-3 px-4 fw-semibold text-uppercase"
-                    style={{ color: '#9ca3af', fontSize: 11, letterSpacing: '0.05em', borderTop: '1px solid #f0f0f0' }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={8} className="text-center py-5 text-muted">Chargement...</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-5 text-muted">{search ? 'Aucun paiement trouvé.' : 'Aucun paiement enregistré.'}</td></tr>
-              ) : filtered.map(p => (
+          {loading ? (
+            <SkeletonTable rows={5} columns={8} />
+          ) : (
+            <table className="table align-middle mb-0" style={{ fontSize: 14 }}>
+              <thead style={{ backgroundColor: '#f9fafb' }}>
+                <tr>
+                  {['Reçu', 'Élève', 'Mois', 'Motif', 'Montant', 'Statut', 'Date', 'Actions'].map(h => (
+                    <th key={h} className="py-3 px-4 fw-semibold text-uppercase"
+                      style={{ color: '#9ca3af', fontSize: 11, letterSpacing: '0.05em', borderTop: '1px solid #f0f0f0' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={8} className="text-center py-5 text-muted">{search ? 'Aucun paiement trouvé.' : 'Aucun paiement enregistré.'}</td></tr>
+                ) : filtered.map(p => (
                 <tr key={p.id} style={{ borderTop: '1px solid #f3f4f6' }}>
                   <td className="py-3 px-4 font-monospace small text-muted">{p.numeroRecu}</td>
                   <td className="py-3 px-4 fw-semibold" style={{ color: '#111827' }}>{p.eleveNom} {p.elevePrenom}</td>
@@ -128,7 +246,19 @@ export default function PaiementList() {
                   <td className="py-3 px-4">
                     <div className="d-flex align-items-center gap-2">
                       <button
-                        onClick={() => navigate(`/paiements/${p.id}/modifier`)}
+                        onClick={() => handlePrintReceipt(p)}
+                        title="Imprimer reçu"
+                        className="btn btn-sm d-flex align-items-center justify-content-center"
+                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
+                        onMouseEnter={ev => { const b = ev.currentTarget; b.style.color='#3b82f6'; b.style.backgroundColor='#eff6ff'; b.style.borderColor='#bfdbfe'; }}
+                        onMouseLeave={ev => { const b = ev.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleOpenDrawer(p.id)}
                         title="Modifier"
                         className="btn btn-sm d-flex align-items-center justify-content-center"
                         style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
@@ -158,12 +288,32 @@ export default function PaiementList() {
               ))}
             </tbody>
           </table>
+          )}
         </div>
 
         <div className="text-center py-3" style={{ borderTop: '1px solid #f3f4f6', fontSize: 12, color: '#d1d5db' }}>
           © 2026 Al-Manard3s — Tous droits réservés
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={cancelDelete}
+        onConfirm={confirmDelete}
+        title="Supprimer le paiement"
+        message="Êtes-vous sûr de vouloir supprimer ce paiement ? Cette action est irréversible."
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="danger"
+      />
+
+      <Drawer
+        isOpen={isDrawerOpen}
+        onClose={handleCloseDrawer}
+        title={editingPaiementId ? 'Modifier le paiement' : 'Nouveau paiement'}
+      >
+        <PaiementForm onClose={handleCloseDrawer} paiementId={editingPaiementId} />
+      </Drawer>
     </div>
   );
 }

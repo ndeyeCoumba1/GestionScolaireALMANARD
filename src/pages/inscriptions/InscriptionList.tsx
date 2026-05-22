@@ -1,41 +1,24 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
-import type { Inscription, Eleve, Classe } from '../../Types/index';
+import type { Inscription } from '../../Types/index';
 import PageHeader from '../../components/Common/PageHeader';
-
-const inputStyle = {
-  borderRadius: 10,
-  border: '1px solid #e5e7eb',
-  backgroundColor: '#f9fafb',
-  fontSize: 14,
-  padding: '10px 14px',
-  boxShadow: 'none',
-} as const;
-
-const labelStyle = {
-  fontSize: 11,
-  color: '#6b7280',
-  letterSpacing: '0.05em',
-} as const;
+import { SkeletonTable } from '../../components/Common/SkeletonLoader';
+import { ConfirmModal } from '../../components/Common/ConfirmModal';
+import Drawer from '../../components/Common/Drawer';
+import InscriptionForm from './InscriptionForm';
 
 export default function InscriptionList() {
-  const navigate = useNavigate();
   const [inscriptions, setInscriptions] = useState<Inscription[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState({ eleveId: '', classeId: '', frais: '' });
-  const [error, setError] = useState('');
-  const [eleves, setEleves] = useState<Eleve[]>([]);
-  const [classes, setClasses] = useState<Classe[]>([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [inscriptionToDelete, setInscriptionToDelete] = useState<number | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editingInscriptionId, setEditingInscriptionId] = useState<number | undefined>();
 
   useEffect(() => {
     fetchInscriptions();
-    api.get('/eleves').then(r => setEleves(r.data));
-    api.get('/classes').then(r => setClasses(r.data));
   }, []);
 
   const fetchInscriptions = async () => {
@@ -60,59 +43,44 @@ export default function InscriptionList() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Supprimer cette inscription ?')) return;
-    setDeletingId(id);
+    setInscriptionToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!inscriptionToDelete) return;
+    setDeletingId(inscriptionToDelete);
     try {
-      await api.delete(`/inscription/${id}`);
+      await api.delete(`/inscription/${inscriptionToDelete}`);
       await fetchInscriptions();
     } catch (err) {
       console.error(err);
     } finally {
       setDeletingId(null);
+      setShowDeleteModal(false);
+      setInscriptionToDelete(null);
     }
   };
 
-  const handleEdit = (inscription: Inscription) => {
-    setEditingId(inscription.id);
-    setForm({
-      eleveId: inscription.eleveNom,
-      classeId: inscription.classeNiveau,
-      frais: inscription.fraisInscription.toString(),
-    });
-    setShowForm(true);
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setInscriptionToDelete(null);
+  };
+
+  const handleOpenDrawer = (inscriptionId?: number) => {
+    setEditingInscriptionId(inscriptionId);
+    setIsDrawerOpen(true);
+  };
+
+  const handleCloseDrawer = () => {
+    setIsDrawerOpen(false);
+    setEditingInscriptionId(undefined);
+    fetchInscriptions();
   };
 
   const filtered = inscriptions.filter(i =>
     `${i.eleveNom} ${i.elevePrenom} ${i.classeNiveau}`.toLowerCase().includes(search.toLowerCase())
   );
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    if (error) setError('');
-  };
-
-  const handleInscrire = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    try {
-      if (editingId) {
-        await api.put(`/inscription/${editingId}`, {
-          fraisInscription: Number(form.frais),
-        });
-      } else {
-        await api.post(
-          `/inscription/inscrire?eleveId=${form.eleveId}&classeId=${form.classeId}&fraisInscription=${form.frais}`
-        );
-      }
-      setShowForm(false);
-      setEditingId(null);
-      setForm({ eleveId: '', classeId: '', frais: '' });
-      fetchInscriptions();
-    } catch (err: any) {
-      console.error('Erreur inscription:', err);
-      setError(err.response?.data?.message || err.response?.data || 'Erreur inscription');
-    }
-  };
 
   return (
     <div className="d-flex flex-column gap-4">
@@ -125,123 +93,15 @@ export default function InscriptionList() {
         countText={`${inscriptions.length} inscription(s) au total`}
         action={
           <button
-            onClick={() => {
-              setShowForm(!showForm);
-              setEditingId(null);
-              setForm({ eleveId: '', classeId: '', frais: '' });
-            }}
+            onClick={() => handleOpenDrawer()}
             className="btn fw-semibold d-flex align-items-center gap-2 px-4 py-2"
             style={{ backgroundColor: '#fff', color: '#1a5c38', borderRadius: 12, fontSize: 14 }}
           >
-            <span style={{ fontSize: 18, lineHeight: 1 }}>{showForm ? '−' : '+'}</span>
-            {showForm ? 'Fermer' : 'Nouvelle Inscription'}
+            <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
+            Nouvelle Inscription
           </button>
         }
       />
-
-      {/* ── Formulaire ── */}
-      {showForm && (
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
-          <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
-            {/* Bande verte */}
-            <div style={{ height: 5, background: 'linear-gradient(90deg, #1a5c38, #4ade80)' }} />
-
-            <div className="p-4">
-              <div className="d-flex align-items-center gap-3 mb-4">
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="btn btn-sm d-flex align-items-center justify-content-center flex-shrink-0"
-                  style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#9ca3af' }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-                  </svg>
-                </button>
-                <div>
-                  <h5 className="mb-0 fw-bold text-dark">
-                    {editingId ? 'Modifier l\'inscription' : 'Nouvelle inscription'}
-                  </h5>
-                  <small className="text-muted">
-                    {editingId ? 'Modifiez les frais d\'inscription.' : 'Inscrire un élève dans une classe.'}
-                  </small>
-                </div>
-              </div>
-
-              <form onSubmit={handleInscrire}>
-                <div className="row g-3 mb-3">
-
-                  {/* Élève */}
-                  <div className="col-12 col-md-6">
-                    <label className="form-label fw-semibold text-uppercase" style={labelStyle}>
-                      Élève <span className="text-danger">*</span>
-                    </label>
-                    <select name="eleveId" value={form.eleveId} onChange={handleChange} required disabled={!!editingId}
-                      className="form-select" style={inputStyle}>
-                      <option value="">Choisir un élève</option>
-                      {eleves.map(e => (
-                        <option key={e.id} value={e.id}>{e.nom} {e.prenom}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Classe */}
-                  <div className="col-12 col-md-6">
-                    <label className="form-label fw-semibold text-uppercase" style={labelStyle}>
-                      Classe <span className="text-danger">*</span>
-                    </label>
-                    <select name="classeId" value={form.classeId} onChange={handleChange} required disabled={!!editingId}
-                      className="form-select" style={inputStyle}>
-                      <option value="">Choisir une classe</option>
-                      {classes.map(c => (
-                        <option key={c.id} value={c.id}>{c.niveau}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Frais */}
-                  <div className="col-12">
-                    <label className="form-label fw-semibold text-uppercase" style={labelStyle}>
-                      Frais d'inscription (FCFA) <span className="text-danger">*</span>
-                    </label>
-                    <input type="number" name="frais" value={form.frais} onChange={handleChange} required
-                      placeholder="Ex : 25000" className="form-control" style={inputStyle} />
-                  </div>
-
-                </div>
-
-                {/* Erreur */}
-                {error && (
-                  <div className="alert d-flex align-items-center gap-2 py-2 px-3 mb-3"
-                    style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#dc2626', fontSize: 14 }}>
-                    <span>⚠️</span>
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                {/* Boutons */}
-                <div className="d-flex gap-3 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowForm(false)}
-                    className="btn flex-fill fw-medium"
-                    style={{ border: '1px solid #e5e7eb', color: '#6b7280', borderRadius: 10, padding: '10px 0', fontSize: 14 }}
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn flex-fill fw-semibold text-white d-flex align-items-center justify-content-center gap-2"
-                    style={{ background: 'linear-gradient(135deg, #1a5c38, #2d8653)', borderRadius: 10, padding: '10px 0', fontSize: 14, border: 'none' }}
-                  >
-                    Inscrire l'élève
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Table Card ── */}
       <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
@@ -266,23 +126,24 @@ export default function InscriptionList() {
         </div>
 
         <div className="table-responsive">
-          <table className="table align-middle mb-0" style={{ fontSize: 14 }}>
-            <thead style={{ backgroundColor: '#f9fafb' }}>
-              <tr>
-                {['Élève', 'Classe', 'Année', 'Date', 'Frais', 'Actions'].map(h => (
-                  <th key={h} className="py-3 px-4 fw-semibold text-uppercase"
-                    style={{ color: '#9ca3af', fontSize: 11, letterSpacing: '0.05em', borderTop: '1px solid #f0f0f0' }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={6} className="text-center py-5 text-muted">Chargement...</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-5 text-muted">{search ? 'Aucune inscription trouvée.' : 'Aucune inscription enregistrée.'}</td></tr>
-              ) : filtered.map(i => (
+          {loading ? (
+            <SkeletonTable rows={5} columns={6} />
+          ) : (
+            <table className="table align-middle mb-0" style={{ fontSize: 14 }}>
+              <thead style={{ backgroundColor: '#f9fafb' }}>
+                <tr>
+                  {['Élève', 'Classe', 'Année', 'Date', 'Frais', 'Actions'].map(h => (
+                    <th key={h} className="py-3 px-4 fw-semibold text-uppercase"
+                      style={{ color: '#9ca3af', fontSize: 11, letterSpacing: '0.05em', borderTop: '1px solid #f0f0f0' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={6} className="text-center py-5 text-muted">{search ? 'Aucune inscription trouvée.' : 'Aucune inscription enregistrée.'}</td></tr>
+                ) : filtered.map(i => (
                 <tr key={i.id} style={{ borderTop: '1px solid #f3f4f6' }}>
                   <td className="py-3 px-4 fw-semibold" style={{ color: '#111827' }}>{i.eleveNom} {i.elevePrenom}</td>
                   <td className="py-3 px-4">
@@ -294,7 +155,7 @@ export default function InscriptionList() {
                   <td className="py-3 px-4">
                     <div className="d-flex align-items-center gap-2">
                       <button
-                        onClick={() => handleEdit(i)}
+                        onClick={() => handleOpenDrawer(i.id)}
                         title="Modifier"
                         className="btn btn-sm d-flex align-items-center justify-content-center"
                         style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
@@ -324,12 +185,32 @@ export default function InscriptionList() {
               ))}
             </tbody>
           </table>
+          )}
         </div>
 
         <div className="text-center py-3" style={{ borderTop: '1px solid #f3f4f6', fontSize: 12, color: '#d1d5db' }}>
           © 2026 Al-Manard3s — Tous droits réservés
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={cancelDelete}
+        onConfirm={confirmDelete}
+        title="Supprimer l'inscription"
+        message="Êtes-vous sûr de vouloir supprimer cette inscription ? Cette action est irréversible."
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="danger"
+      />
+
+      <Drawer
+        isOpen={isDrawerOpen}
+        onClose={handleCloseDrawer}
+        title={editingInscriptionId ? 'Modifier l\'inscription' : 'Nouvelle inscription'}
+      >
+        <InscriptionForm onClose={handleCloseDrawer} inscriptionId={editingInscriptionId} />
+      </Drawer>
     </div>
   );
 }

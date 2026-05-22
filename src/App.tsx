@@ -1,10 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './Context/AuthContext';
+import { AuthProvider, useAuth } from './Context/AuthContext';
 import Layout from './components/Layout/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import EleveList from './pages/eleves/EleveList';
 import EleveForm from './pages/eleves/EleveForm';
+import EleveDetail from './pages/eleves/EleveDetail';
 import ParentList from './pages/parents/ParentList';
 import ParentForm from './pages/parents/ParentForm';
 import ClasseList from './pages/classes/ClasseList';
@@ -18,35 +19,46 @@ import DepenseList from './pages/depenses/DepenseList';
 import DepenseForm from './pages/depenses/DepenseForm';
 import UserList from './pages/users/UserList';
 
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+}
+
+function HomeRedirect() {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/" element={<HomeRedirect />} />
           <Route path="/" element={<Layout />}>
-            <Route index element={<Navigate to="/dashboard" />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="eleves" element={<EleveList />} />
-            <Route path="eleves/nouveau" element={<EleveForm />} />
-            <Route path="eleves/:id/modifier" element={<EleveForm />} />
-            <Route path="parents" element={<ParentList />} />
-            <Route path="parents/nouveau" element={<ParentForm />} />
-            <Route path="parents/:id/modifier" element={<ParentForm />} />
-            <Route path="classes" element={<ClasseList />} />
-            <Route path="classes/nouveau" element={<ClasseForm />} />
-            <Route path="classes/:id/modifier" element={<ClasseForm />} />
-            <Route path="annees" element={<AnneeList />} />
-            <Route path="annees/nouveau" element={<AnneeForm />} />
-            <Route path="annees/:id/modifier" element={<AnneeForm />} />
-            <Route path="inscriptions" element={<InscriptionList />} />
-            <Route path="paiements" element={<PaiementList />} />
-            <Route path="paiements/nouveau" element={<PaiementForm />} />
-            <Route path="depenses" element={<DepenseList />} />
-            <Route path="depenses/nouvelle" element={<DepenseForm />} />
-            <Route path="users" element={<UserList />} />
+            <Route path="dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="eleves" element={<ProtectedRoute><EleveList /></ProtectedRoute>} />
+            <Route path="eleves/nouveau" element={<ProtectedRoute><EleveForm /></ProtectedRoute>} />
+            <Route path="eleves/:id" element={<ProtectedRoute><EleveDetail /></ProtectedRoute>} />
+            <Route path="eleves/:id/modifier" element={<ProtectedRoute><EleveForm /></ProtectedRoute>} />
+            <Route path="parents" element={<ProtectedRoute><ParentList /></ProtectedRoute>} />
+            <Route path="parents/nouveau" element={<ProtectedRoute><ParentForm /></ProtectedRoute>} />
+            <Route path="parents/:id/modifier" element={<ProtectedRoute><ParentForm /></ProtectedRoute>} />
+            <Route path="classes" element={<ProtectedRoute><ClasseList /></ProtectedRoute>} />
+            <Route path="classes/nouveau" element={<ProtectedRoute><ClasseForm /></ProtectedRoute>} />
+            <Route path="classes/:id/modifier" element={<ProtectedRoute><ClasseForm /></ProtectedRoute>} />
+            <Route path="annees" element={<ProtectedRoute><AnneeList /></ProtectedRoute>} />
+            <Route path="annees/nouveau" element={<ProtectedRoute><AnneeForm /></ProtectedRoute>} />
+            <Route path="annees/:id/modifier" element={<ProtectedRoute><AnneeForm /></ProtectedRoute>} />
+            <Route path="inscriptions" element={<ProtectedRoute><InscriptionList /></ProtectedRoute>} />
+            <Route path="paiements" element={<ProtectedRoute><PaiementList /></ProtectedRoute>} />
+            <Route path="paiements/nouveau" element={<ProtectedRoute><PaiementForm /></ProtectedRoute>} />
+            <Route path="depenses" element={<ProtectedRoute><DepenseList /></ProtectedRoute>} />
+            <Route path="depenses/nouvelle" element={<ProtectedRoute><DepenseForm /></ProtectedRoute>} />
+            <Route path="users" element={<ProtectedRoute><UserList /></ProtectedRoute>} />
           </Route>
-          <Route path="*" element={<Navigate to="/dashboard" />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

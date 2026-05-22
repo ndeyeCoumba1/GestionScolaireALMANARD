@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import type { Parent } from '../../Types/index';
 import PageHeader from '../../components/Common/PageHeader';
+import { SkeletonTable } from '../../components/Common/SkeletonLoader';
+import { ConfirmModal } from '../../components/Common/ConfirmModal';
+import Drawer from '../../components/Common/Drawer';
+import ParentForm from './ParentForm';
 
 export default function ParentList() {
   const [parents, setParents] = useState<Parent[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const navigate = useNavigate();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [parentToDelete, setParentToDelete] = useState<number | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editingParentId, setEditingParentId] = useState<number | undefined>();
 
   useEffect(() => { fetchParents(); }, []);
 
@@ -22,12 +28,37 @@ export default function ParentList() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Supprimer ce parent ?')) return;
-    setDeletingId(id);
+    setParentToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!parentToDelete) return;
+    setDeletingId(parentToDelete);
     try {
-      await api.delete(`/parents/${id}`);
+      await api.delete(`/parents/${parentToDelete}`);
       await fetchParents();
-    } finally { setDeletingId(null); }
+    } finally {
+      setDeletingId(null);
+      setShowDeleteModal(false);
+      setParentToDelete(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setParentToDelete(null);
+  };
+
+  const handleOpenDrawer = (parentId?: number) => {
+    setEditingParentId(parentId);
+    setIsDrawerOpen(true);
+  };
+
+  const handleCloseDrawer = () => {
+    setIsDrawerOpen(false);
+    setEditingParentId(undefined);
+    fetchParents();
   };
 
   const filtered = parents.filter(p =>
@@ -46,7 +77,7 @@ export default function ParentList() {
         countText={`${parents.length} parent(s) enregistré(s)`}
         action={
           <button
-            onClick={() => navigate('/parents/nouveau')}
+            onClick={() => handleOpenDrawer()}
             className="btn fw-semibold d-flex align-items-center gap-2 px-4 py-2"
             style={{ backgroundColor: '#fff', color: '#0f9d58', borderRadius: 12, fontSize: 14 }}
           >
@@ -80,23 +111,24 @@ export default function ParentList() {
         </div>
 
         <div className="table-responsive">
-          <table className="table align-middle mb-0" style={{ fontSize: 14 }}>
-            <thead style={{ backgroundColor: '#f9fafb' }}>
-              <tr>
-                {['Nom', 'Prénom', 'Téléphone', 'Email', 'Profession', 'Actions'].map(h => (
-                  <th key={h} className="py-3 px-4 fw-semibold text-uppercase"
-                    style={{ color: '#9ca3af', fontSize: 11, letterSpacing: '0.05em', borderTop: '1px solid #f0f0f0' }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={6} className="text-center py-5 text-muted">Chargement...</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-5 text-muted">{search ? 'Aucun parent trouvé.' : 'Aucun parent enregistré.'}</td></tr>
-              ) : filtered.map(p => (
+          {loading ? (
+            <SkeletonTable rows={5} columns={6} />
+          ) : (
+            <table className="table align-middle mb-0" style={{ fontSize: 14 }}>
+              <thead style={{ backgroundColor: '#f9fafb' }}>
+                <tr>
+                  {['Nom', 'Prénom', 'Téléphone', 'Email', 'Profession', 'Actions'].map(h => (
+                    <th key={h} className="py-3 px-4 fw-semibold text-uppercase"
+                      style={{ color: '#9ca3af', fontSize: 11, letterSpacing: '0.05em', borderTop: '1px solid #f0f0f0' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={6} className="text-center py-5 text-muted">{search ? 'Aucun parent trouvé.' : 'Aucun parent enregistré.'}</td></tr>
+                ) : filtered.map(p => (
                 <tr key={p.id} style={{ borderTop: '1px solid #f3f4f6' }}>
                   <td className="py-3 px-4 fw-semibold" style={{ color: '#111827' }}>{p.nom}</td>
                   <td className="py-3 px-4" style={{ color: '#374151' }}>{p.prenom}</td>
@@ -111,7 +143,7 @@ export default function ParentList() {
                   <td className="py-3 px-4">
                     <div className="d-flex align-items-center gap-2">
                       <button
-                        onClick={() => navigate(`/parents/${p.id}/modifier`)}
+                        onClick={() => handleOpenDrawer(p.id)}
                         title="Modifier"
                         className="btn btn-sm d-flex align-items-center justify-content-center"
                         style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
@@ -141,12 +173,32 @@ export default function ParentList() {
               ))}
             </tbody>
           </table>
+          )}
         </div>
 
         <div className="text-center py-3" style={{ borderTop: '1px solid #f3f4f6', fontSize: 12, color: '#d1d5db' }}>
           © 2026 Al-Manard3s — Tous droits réservés
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={cancelDelete}
+        onConfirm={confirmDelete}
+        title="Supprimer le parent"
+        message="Êtes-vous sûr de vouloir supprimer ce parent ? Cette action est irréversible."
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="danger"
+      />
+
+      <Drawer
+        isOpen={isDrawerOpen}
+        onClose={handleCloseDrawer}
+        title={editingParentId ? 'Modifier le parent' : 'Nouveau parent'}
+      >
+        <ParentForm onClose={handleCloseDrawer} parentId={editingParentId} />
+      </Drawer>
     </div>
   );
 }

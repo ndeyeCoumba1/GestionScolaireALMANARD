@@ -2,7 +2,8 @@ export type Role = 'ADMIN' | 'COMPTABLE' | 'ENSEIGNANT';
 export type Sexe = 'M' | 'F';
 export type StatutEleve = 'INSCRIT' | 'NON_INSCRIT';
 export type StatutPaiement = 'PAYE' | 'EN_ATTENTE' | 'ANNULE';
-export type MotifPaiement = 'INSCRIPTION' | 'MENSUALITE' | 'AUTRE';
+export type MotifPaiement = 'INSCRIPTION' | 'MENSUALITE';
+export type TypePaiement = 'ESPECE' | 'WAVE' | 'CHEQUE' | 'ORANGE_MONEY';
 export type NiveauClasse = 'INTERNAT' | 'DEMI_PENSION' | 'EXTERNAT';
 export type TypeDepense = 
   | 'Facture_Eau' | 'Salaire' | 'Fourniture_Scolaire'
@@ -76,6 +77,7 @@ export interface Paiement {
   montant: number;
   datePaiement: string;
   motif: MotifPaiement;
+  typePaiement: TypePaiement;
   statut: StatutPaiement;
   eleveNom: string;
   elevePrenom: string;

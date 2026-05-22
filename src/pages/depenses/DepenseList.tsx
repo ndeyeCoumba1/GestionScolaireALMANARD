@@ -1,85 +1,207 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import type { Depense } from '../../Types/index';
 import PageHeader from '../../components/Common/PageHeader';
+import { SkeletonTable } from '../../components/Common/SkeletonLoader';
+import { ConfirmModal } from '../../components/Common/ConfirmModal';
+import Drawer from '../../components/Common/Drawer';
+import DepenseForm from './DepenseForm';
 
 export default function DepenseList() {
   const [depenses, setDepenses] = useState<Depense[]>([]);
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [depenseToDelete, setDepenseToDelete] = useState<number | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editingDepenseId, setEditingDepenseId] = useState<number | undefined>();
 
   useEffect(() => { fetchDepenses(); }, []);
 
   const fetchDepenses = async () => {
+    setLoading(true);
     try {
       const res = await api.get('/depenses');
-      setDepenses(res.data);
-    } finally { setLoading(false); }
+      const mappedData = res.data.map((item: any) => ({
+        id: item.id,
+        typeDepense: item.typeDepense,
+        description: item.description,
+        montant: item.montant,
+        dateDepense: item.dateDepense,
+        moisLibelle: item.moisLibelle || item.mois?.libelle || '',
+        moisId: item.moisId || item.mois?.id,
+      }));
+      setDepenses(mappedData);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Supprimer cette dépense ?')) return;
-    await api.delete(`/depenses/${id}`);
+    setDepenseToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!depenseToDelete) return;
+    try {
+      await api.delete(`/depenses/${depenseToDelete}`);
+      fetchDepenses();
+    } finally {
+      setShowDeleteModal(false);
+      setDepenseToDelete(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setDepenseToDelete(null);
+  };
+
+  const handleOpenDrawer = (depenseId?: number) => {
+    setEditingDepenseId(depenseId);
+    setIsDrawerOpen(true);
+  };
+
+  const handleCloseDrawer = () => {
+    setIsDrawerOpen(false);
+    setEditingDepenseId(undefined);
     fetchDepenses();
   };
 
+  const filtered = depenses.filter(d =>
+    `${d.typeDepense} ${d.description || ''} ${d.moisLibelle || ''}`.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="d-flex flex-column gap-4">
+
+      {/* ── Header ── */}
       <PageHeader
         subtitle="Gestion des dépenses"
-        title="📉 Dépenses"
+        title="Dépenses"
         description="Consultez les dépenses enregistrées et ajoutez rapidement de nouvelles sorties de fonds."
         countText={`${depenses.length} dépense(s) enregistrée(s)`}
         action={
-          <button onClick={() => navigate('/depenses/nouvelle')} className="btn btn-light rounded-pill px-4 py-2 fw-semibold text-success">
-            + Nouvelle Dépense
+          <button
+            onClick={() => handleOpenDrawer()}
+            className="btn fw-semibold d-flex align-items-center gap-2 px-4 py-2"
+            style={{ backgroundColor: '#fff', color: '#1a5c38', borderRadius: 12, fontSize: 14 }}
+          >
+            <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
+            Nouvelle Dépense
           </button>
         }
       />
 
-      <div className="rounded-4 bg-white shadow-sm overflow-hidden">
+      {/* ── Table Card ── */}
+      <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
+        <div className="px-4 pt-4 pb-3">
+          <p className="fw-semibold text-dark mb-3" style={{ fontSize: 15 }}>Liste des dépenses</p>
+          <div className="position-relative">
+            <span className="position-absolute top-50 translate-middle-y text-muted" style={{ left: 14, pointerEvents: 'none' }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="11" cy="11" r="8"/><path strokeLinecap="round" d="M21 21l-4.35-4.35"/>
+              </svg>
+            </span>
+            <input
+              type="text"
+              placeholder="Rechercher une dépense..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="form-control"
+              style={{ paddingLeft: 38, paddingTop: 10, paddingBottom: 10, borderRadius: 12, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14, boxShadow: 'none' }}
+            />
+          </div>
+        </div>
+
         <div className="table-responsive">
-          <table className="table mb-0">
-            <thead style={{ backgroundColor: '#f1fcf5' }}>
-              <tr>
-                <th className="py-3">Type</th>
-                <th className="py-3">Description</th>
-                <th className="py-3">Mois</th>
-                <th className="py-3">Montant</th>
-                <th className="py-3">Date</th>
-                <th className="py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
+          {loading ? (
+            <SkeletonTable rows={5} columns={6} />
+          ) : (
+            <table className="table align-middle mb-0" style={{ fontSize: 14 }}>
+              <thead style={{ backgroundColor: '#f9fafb' }}>
                 <tr>
-                  <td colSpan={6} className="text-center py-5 text-muted">Chargement...</td>
+                  {['Type', 'Description', 'Mois', 'Montant', 'Date', 'Actions'].map(h => (
+                    <th key={h} className="py-3 px-4 fw-semibold text-uppercase"
+                      style={{ color: '#9ca3af', fontSize: 11, letterSpacing: '0.05em', borderTop: '1px solid #f0f0f0' }}>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ) : depenses.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-5 text-muted">Aucune dépense trouvée</td>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={6} className="text-center py-5 text-muted">{search ? 'Aucune dépense trouvée.' : 'Aucune dépense enregistrée.'}</td></tr>
+                ) : filtered.map(d => (
+                <tr key={d.id} style={{ borderTop: '1px solid #f3f4f6' }}>
+                  <td className="py-3 px-4">
+                    <span className="badge rounded-pill fw-medium" style={{ backgroundColor: '#dcfce7', color: '#166534', fontSize: 12, padding: '5px 10px' }}>{d.typeDepense}</span>
+                  </td>
+                  <td className="py-3 px-4" style={{ color: '#374151' }}>{d.description || '—'}</td>
+                  <td className="py-3 px-4" style={{ color: '#6b7280' }}>{d.moisLibelle || '—'}</td>
+                  <td className="py-3 px-4 fw-semibold" style={{ color: '#166534' }}>{d.montant?.toLocaleString()} FCFA</td>
+                  <td className="py-3 px-4" style={{ color: '#6b7280' }}>{d.dateDepense}</td>
+                  <td className="py-3 px-4">
+                    <div className="d-flex align-items-center gap-2">
+                      <button
+                        onClick={() => handleOpenDrawer(d.id)}
+                        title="Modifier"
+                        className="btn btn-sm d-flex align-items-center justify-content-center"
+                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
+                        onMouseEnter={ev => { const b = ev.currentTarget; b.style.color='#16a34a'; b.style.backgroundColor='#f0faf4'; b.style.borderColor='#bbf7d0'; }}
+                        onMouseLeave={ev => { const b = ev.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z"/>
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(d.id)}
+                        title="Supprimer"
+                        className="btn btn-sm d-flex align-items-center justify-content-center"
+                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
+                        onMouseEnter={ev => { const b = ev.currentTarget; b.style.color='#ef4444'; b.style.backgroundColor='#fef2f2'; b.style.borderColor='#fecaca'; }}
+                        onMouseLeave={ev => { const b = ev.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a1 1 0 01-1-1V5a1 1 0 011-1h6a1 1 0 011 1v1a1 1 0 01-1 1H9z"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
                 </tr>
-              ) : (
-                depenses.map(d => (
-                  <tr key={d.id} className="align-middle border-top">
-                    <td className="py-3">
-                      <span className="badge rounded-pill" style={{ backgroundColor: '#eef9f0', color: '#0f9d58' }}>{d.typeDepense}</span>
-                    </td>
-                    <td className="py-3 text-muted">{d.description || '—'}</td>
-                    <td className="py-3 text-muted">{d.moisLibelle || '—'}</td>
-                    <td className="py-3 fw-semibold" style={{ color: '#0f9d58' }}>{d.montant?.toLocaleString()} FCFA</td>
-                    <td className="py-3 text-muted">{d.dateDepense}</td>
-                    <td className="py-3">
-                      <button onClick={() => handleDelete(d.id)} className="btn btn-sm btn-outline-danger rounded-pill">Supprimer</button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+              ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="text-center py-3" style={{ borderTop: '1px solid #f3f4f6', fontSize: 12, color: '#d1d5db' }}>
+          © 2026 Al-Manard3s — Tous droits réservés
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={cancelDelete}
+        onConfirm={confirmDelete}
+        title="Supprimer la dépense"
+        message="Êtes-vous sûr de vouloir supprimer cette dépense ? Cette action est irréversible."
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="danger"
+      />
+
+      <Drawer
+        isOpen={isDrawerOpen}
+        onClose={handleCloseDrawer}
+        title={editingDepenseId ? 'Modifier la dépense' : 'Nouvelle dépense'}
+      >
+        <DepenseForm onClose={handleCloseDrawer} depenseId={editingDepenseId} />
+      </Drawer>
     </div>
   );
 }

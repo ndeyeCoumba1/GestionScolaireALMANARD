@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import type { Annee } from '../../Types/index';
 import PageHeader from '../../components/Common/PageHeader';
+import { SkeletonTable } from '../../components/Common/SkeletonLoader';
+import { ConfirmModal } from '../../components/Common/ConfirmModal';
+import Drawer from '../../components/Common/Drawer';
+import AnneeForm from './AnneeForm';
 
 export default function AnneeList() {
-  const navigate = useNavigate();
   const [annees, setAnnees] = useState<Annee[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [anneeToDelete, setAnneeToDelete] = useState<number | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editingAnneeId, setEditingAnneeId] = useState<number | undefined>();
 
   useEffect(() => {
     fetchAnnees();
@@ -28,16 +34,39 @@ export default function AnneeList() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Supprimer cette année scolaire ?')) return;
-    setDeletingId(id);
+    setAnneeToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!anneeToDelete) return;
+    setDeletingId(anneeToDelete);
     try {
-      await api.delete(`/annees/${id}`);
+      await api.delete(`/annees/${anneeToDelete}`);
       await fetchAnnees();
     } catch (err) {
       console.error(err);
     } finally {
       setDeletingId(null);
+      setShowDeleteModal(false);
+      setAnneeToDelete(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setAnneeToDelete(null);
+  };
+
+  const handleOpenDrawer = (anneeId?: number) => {
+    setEditingAnneeId(anneeId);
+    setIsDrawerOpen(true);
+  };
+
+  const handleCloseDrawer = () => {
+    setIsDrawerOpen(false);
+    setEditingAnneeId(undefined);
+    fetchAnnees();
   };
 
   const filtered = annees.filter(a =>
@@ -56,7 +85,7 @@ export default function AnneeList() {
         countText={`${annees.length} année(s) enregistrée(s)`}
         action={
           <button
-            onClick={() => navigate('/annees/nouveau')}
+            onClick={() => handleOpenDrawer()}
             className="btn fw-semibold d-flex align-items-center gap-2 px-4 py-2"
             style={{ backgroundColor: '#fff', color: '#1a5c38', borderRadius: 12, fontSize: 14 }}
           >
@@ -92,23 +121,24 @@ export default function AnneeList() {
       {/* ── Tableau ── */}
       <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
         <div className="table-responsive">
-          <table className="table align-middle mb-0" style={{ fontSize: 14 }}>
-            <thead style={{ backgroundColor: '#f9fafb' }}>
-              <tr>
-                {['Libellé', 'Date début', 'Date fin', 'Statut', 'Actions'].map(h => (
-                  <th key={h} className="py-3 px-4 fw-semibold text-uppercase"
-                    style={{ color: '#9ca3af', fontSize: 11, letterSpacing: '0.05em', borderTop: '1px solid #f0f0f0' }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={5} className="text-center py-5 text-muted">Chargement...</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-5 text-muted">{search ? 'Aucune année trouvée.' : 'Aucune année enregistrée.'}</td></tr>
-              ) : filtered.map(a => (
+          {loading ? (
+            <SkeletonTable rows={5} columns={5} />
+          ) : (
+            <table className="table align-middle mb-0" style={{ fontSize: 14 }}>
+              <thead style={{ backgroundColor: '#f9fafb' }}>
+                <tr>
+                  {['Libellé', 'Date début', 'Date fin', 'Statut', 'Actions'].map(h => (
+                    <th key={h} className="py-3 px-4 fw-semibold text-uppercase"
+                      style={{ color: '#9ca3af', fontSize: 11, letterSpacing: '0.05em', borderTop: '1px solid #f0f0f0' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={5} className="text-center py-5 text-muted">{search ? 'Aucune année trouvée.' : 'Aucune année enregistrée.'}</td></tr>
+                ) : filtered.map(a => (
                 <tr key={a.id} style={{ borderTop: '1px solid #f3f4f6' }}>
                   <td className="py-3 px-4 fw-semibold" style={{ color: '#111827' }}>{a.libelle}</td>
                   <td className="py-3 px-4" style={{ color: '#374151' }}>{a.dateDebut}</td>
@@ -126,7 +156,7 @@ export default function AnneeList() {
                   <td className="py-3 px-4">
                     <div className="d-flex align-items-center gap-2">
                       <button
-                        onClick={() => navigate(`/annees/${a.id}/modifier`)}
+                        onClick={() => handleOpenDrawer(a.id)}
                         title="Modifier"
                         className="btn btn-sm d-flex align-items-center justify-content-center"
                         style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
@@ -156,12 +186,32 @@ export default function AnneeList() {
               ))}
             </tbody>
           </table>
+          )}
         </div>
 
         <div className="text-center py-3" style={{ borderTop: '1px solid #f3f4f6', fontSize: 12, color: '#d1d5db' }}>
           © 2026 Al-Manard3s — Tous droits réservés
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={cancelDelete}
+        onConfirm={confirmDelete}
+        title="Supprimer l'année scolaire"
+        message="Êtes-vous sûr de vouloir supprimer cette année scolaire ? Cette action est irréversible."
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="danger"
+      />
+
+      <Drawer
+        isOpen={isDrawerOpen}
+        onClose={handleCloseDrawer}
+        title={editingAnneeId ? 'Modifier l\'année scolaire' : 'Nouvelle année scolaire'}
+      >
+        <AnneeForm onClose={handleCloseDrawer} anneeId={editingAnneeId} />
+      </Drawer>
     </div>
   );
 }
