@@ -6,8 +6,11 @@ import { SkeletonTable } from '../../components/Common/SkeletonLoader';
 import { ConfirmModal } from '../../components/Common/ConfirmModal';
 import Drawer from '../../components/Common/Drawer';
 import DepenseForm from './DepenseForm';
+import { useAuth } from '../../Context/AuthContext';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function DepenseList() {
+  const { role } = useAuth();
   const [depenses, setDepenses] = useState<Depense[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -75,6 +78,19 @@ export default function DepenseList() {
     `${d.typeDepense} ${d.description || ''} ${d.moisLibelle || ''}`.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Calculate chart data
+  const totalMontant = depenses.reduce((sum, d) => sum + (d.montant || 0), 0);
+
+  const typeDepenseData = depenses.reduce((acc: { [key: string]: number }, d) => {
+    const type = d.typeDepense || 'Autre';
+    acc[type] = (acc[type] || 0) + (d.montant || 0);
+    return acc;
+  }, {});
+
+  const typeDepenseChartData = Object.entries(typeDepenseData).map(([name, value]) => ({ name, value }));
+
+  const COLORS = ['#1a5c38', '#0f9d58', '#10b981', '#34d399', '#6ee7b7', '#d97706', '#db2777'];
+
   return (
     <div className="d-flex flex-column gap-4">
 
@@ -85,16 +101,59 @@ export default function DepenseList() {
         description="Consultez les dépenses enregistrées et ajoutez rapidement de nouvelles sorties de fonds."
         countText={`${depenses.length} dépense(s) enregistrée(s)`}
         action={
-          <button
-            onClick={() => handleOpenDrawer()}
-            className="btn fw-semibold d-flex align-items-center gap-2 px-4 py-2"
-            style={{ backgroundColor: '#fff', color: '#1a5c38', borderRadius: 12, fontSize: 14 }}
-          >
-            <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
-            Nouvelle Dépense
-          </button>
+          role !== 'COMPTABLE' && (
+            <button
+              onClick={() => handleOpenDrawer()}
+              className="btn fw-semibold d-flex align-items-center gap-2 px-4 py-2"
+              style={{ backgroundColor: '#fff', color: '#1a5c38', borderRadius: 12, fontSize: 14 }}
+            >
+              <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
+              Nouvelle Dépense
+            </button>
+          )
         }
       />
+
+      {/* ── Statistics Card ── */}
+      <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
+        <div className="d-flex align-items-center gap-3">
+          <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: 56, height: 56, backgroundColor: '#fee2e2', fontSize: 28 }}>
+            💸
+          </div>
+          <div>
+            <p className="text-muted mb-0" style={{ fontSize: 13, fontWeight: 500 }}>Total des Dépenses</p>
+            <p className="fw-bold mb-0" style={{ fontSize: 28, color: '#dc2626' }}>{totalMontant.toLocaleString('fr-FR')} FCFA</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Charts Section ── */}
+      <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
+        <p className="fw-semibold mb-4" style={{ fontSize: 15, color: '#111827' }}>Répartition des Dépenses par Type</p>
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
+            <Pie
+              data={typeDepenseChartData}
+              cx="50%"
+              cy="50%"
+              innerRadius={80}
+              outerRadius={120}
+              paddingAngle={5}
+              dataKey="value"
+            >
+              {typeDepenseChartData.map((_, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip 
+              contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 8 }}
+              itemStyle={{ color: '#374151' }}
+              formatter={(value: number) => `${value.toLocaleString('fr-FR')} FCFA`}
+            />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
 
       {/* ── Table Card ── */}
       <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
@@ -146,30 +205,34 @@ export default function DepenseList() {
                   <td className="py-3 px-4" style={{ color: '#6b7280' }}>{d.dateDepense}</td>
                   <td className="py-3 px-4">
                     <div className="d-flex align-items-center gap-2">
-                      <button
-                        onClick={() => handleOpenDrawer(d.id)}
-                        title="Modifier"
-                        className="btn btn-sm d-flex align-items-center justify-content-center"
-                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
-                        onMouseEnter={ev => { const b = ev.currentTarget; b.style.color='#16a34a'; b.style.backgroundColor='#f0faf4'; b.style.borderColor='#bbf7d0'; }}
-                        onMouseLeave={ev => { const b = ev.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z"/>
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(d.id)}
-                        title="Supprimer"
-                        className="btn btn-sm d-flex align-items-center justify-content-center"
-                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
-                        onMouseEnter={ev => { const b = ev.currentTarget; b.style.color='#ef4444'; b.style.backgroundColor='#fef2f2'; b.style.borderColor='#fecaca'; }}
-                        onMouseLeave={ev => { const b = ev.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a1 1 0 01-1-1V5a1 1 0 011-1h6a1 1 0 011 1v1a1 1 0 01-1 1H9z"/>
-                        </svg>
-                      </button>
+                      {role !== 'COMPTABLE' && (
+                        <>
+                          <button
+                            onClick={() => handleOpenDrawer(d.id)}
+                            title="Modifier"
+                            className="btn btn-sm d-flex align-items-center justify-content-center"
+                            style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #16a34a', backgroundColor: '#f0faf4', color: '#16a34a' }}
+                            onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='#16a34a'; b.style.color='#fff'; }}
+                            onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='#f0faf4'; b.style.color='#16a34a'; }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z"/>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDelete(d.id)}
+                            title="Supprimer"
+                            className="btn btn-sm d-flex align-items-center justify-content-center"
+                            style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #ef4444', backgroundColor: '#fef2f2', color: '#ef4444' }}
+                            onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='#ef4444'; b.style.color='#fff'; }}
+                            onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='#fef2f2'; b.style.color='#ef4444'; }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a1 1 0 01-1-1V5a1 1 0 011-1h6a1 1 0 011 1v1a1 1 0 01-1 1H9z"/>
+                            </svg>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

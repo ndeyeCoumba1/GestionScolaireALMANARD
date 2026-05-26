@@ -87,7 +87,6 @@ export default function ParentList() {
         }
       />
 
-
       {/* ── Table Card ── */}
       <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
         <div className="px-4 pt-4 pb-3">
@@ -146,9 +145,9 @@ export default function ParentList() {
                         onClick={() => handleOpenDrawer(p.id)}
                         title="Modifier"
                         className="btn btn-sm d-flex align-items-center justify-content-center"
-                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
-                        onMouseEnter={e => { const b = e.currentTarget; b.style.color='#16a34a'; b.style.backgroundColor='#f0faf4'; b.style.borderColor='#bbf7d0'; }}
-                        onMouseLeave={e => { const b = e.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
+                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #16a34a', backgroundColor: '#f0faf4', color: '#16a34a' }}
+                        onMouseEnter={e => { const b = e.currentTarget; b.style.backgroundColor='#16a34a'; b.style.color='#fff'; }}
+                        onMouseLeave={e => { const b = e.currentTarget; b.style.backgroundColor='#f0faf4'; b.style.color='#16a34a'; }}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z"/>
@@ -159,9 +158,9 @@ export default function ParentList() {
                         disabled={deletingId === p.id}
                         title="Supprimer"
                         className="btn btn-sm d-flex align-items-center justify-content-center"
-                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af', opacity: deletingId === p.id ? 0.4 : 1 }}
-                        onMouseEnter={e => { const b = e.currentTarget; b.style.color='#ef4444'; b.style.backgroundColor='#fef2f2'; b.style.borderColor='#fecaca'; }}
-                        onMouseLeave={e => { const b = e.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
+                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #ef4444', backgroundColor: '#fef2f2', color: '#ef4444', opacity: deletingId === p.id ? 0.4 : 1 }}
+                        onMouseEnter={e => { const b = e.currentTarget; b.style.backgroundColor='#ef4444'; b.style.color='#fff'; }}
+                        onMouseLeave={e => { const b = e.currentTarget; b.style.backgroundColor='#fef2f2'; b.style.color='#ef4444'; }}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a1 1 0 01-1-1V5a1 1 0 011-1h6a1 1 0 011 1v1a1 1 0 01-1 1H9z"/>

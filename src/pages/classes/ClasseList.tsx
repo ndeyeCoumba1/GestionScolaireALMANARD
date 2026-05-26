@@ -5,6 +5,8 @@ import PageHeader from '../../components/Common/PageHeader';
 import { SkeletonCard } from '../../components/Common/SkeletonLoader';
 import Drawer from '../../components/Common/Drawer';
 import ClasseForm from './ClasseForm';
+import { useAuth } from '../../Context/AuthContext';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const niveauStyle: Record<string, { bg: string; color: string; gradient: string; icon: string }> = {
   INTERNAT:     { bg: '#dbeafe', color: '#1d4ed8', gradient: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', icon: '🏠' },
@@ -13,6 +15,7 @@ const niveauStyle: Record<string, { bg: string; color: string; gradient: string;
 };
 
 export default function ClasseList() {
+  const { role } = useAuth();
   const [classes, setClasses] = useState<Classe[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -57,6 +60,13 @@ export default function ClasseList() {
     c.id.toString().includes(search)
   );
 
+  // Calculate chart data
+  const totalCapacity = classes.reduce((sum, c) => sum + c.capaciteMax, 0);
+  const classeChartData = classes.map(c => ({
+    name: c.niveau.replace('_', ' '),
+    capacity: c.capaciteMax,
+  }));
+
   return (
     <div className="d-flex flex-column gap-4">
 
@@ -67,16 +77,48 @@ export default function ClasseList() {
         description="Consultez et gérez les classes de votre établissement."
         countText={`${classes.length} classe(s) disponible(s)`}
         action={
-          <button
-            onClick={() => handleOpenDrawer()}
-            className="btn fw-semibold d-flex align-items-center gap-2 px-4 py-2"
-            style={{ backgroundColor: '#fff', color: '#1a5c38', borderRadius: 12, fontSize: 14 }}
-          >
-            <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
-            Nouvelle Classe
-          </button>
+          role !== 'COMPTABLE' && (
+            <button
+              onClick={() => handleOpenDrawer()}
+              className="btn fw-semibold d-flex align-items-center gap-2 px-4 py-2"
+              style={{ backgroundColor: '#fff', color: '#1a5c38', borderRadius: 12, fontSize: 14 }}
+            >
+              <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
+              Nouvelle Classe
+            </button>
+          )
         }
       />
+
+      {/* ── Statistics Card ── */}
+      <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
+        <div className="d-flex align-items-center gap-3">
+          <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: 56, height: 56, backgroundColor: '#e8f5e9', fontSize: 28 }}>
+            🏫
+          </div>
+          <div>
+            <p className="text-muted mb-0" style={{ fontSize: 13, fontWeight: 500 }}>Capacité Totale</p>
+            <p className="fw-bold mb-0" style={{ fontSize: 28, color: '#1a5c38' }}>{totalCapacity} places</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Charts Section ── */}
+      <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
+        <p className="fw-semibold mb-4" style={{ fontSize: 15, color: '#111827' }}>Capacité par Classe</p>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={classeChartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
+            <YAxis stroke="#6b7280" fontSize={12} />
+            <Tooltip 
+              contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 8 }}
+              itemStyle={{ color: '#374151' }}
+            />
+            <Bar dataKey="capacity" fill="#1a5c38" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
 
       {/* ── Recherche ── */}
       <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
@@ -151,31 +193,35 @@ export default function ClasseList() {
                         </div>
                       </div>
                       <div className="d-flex align-items-center gap-2">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleOpenDrawer(c.id); }}
-                          title="Modifier"
-                          className="btn btn-sm d-flex align-items-center justify-content-center"
-                          style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid rgba(255, 255, 255, 0.3)', backgroundColor: 'rgba(255, 255, 255, 0.2)', color: '#fff' }}
-                          onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='rgba(255, 255, 255, 0.3)'; }}
-                          onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='rgba(255, 255, 255, 0.2)'; }}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z"/>
-                          </svg>
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
-                          disabled={deletingId === c.id}
-                          title="Supprimer"
-                          className="btn btn-sm d-flex align-items-center justify-content-center"
-                          style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid rgba(255, 255, 255, 0.3)', backgroundColor: 'rgba(255, 255, 255, 0.2)', color: '#fff', opacity: deletingId === c.id ? 0.4 : 1 }}
-                          onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='rgba(239, 68, 68, 0.3)'; }}
-                          onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='rgba(255, 255, 255, 0.2)'; }}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a1 1 0 01-1-1V5a1 1 0 011-1h6a1 1 0 011 1v1a1 1 0 01-1 1H9z"/>
-                          </svg>
-                        </button>
+                        {role !== 'COMPTABLE' && (
+                          <>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleOpenDrawer(c.id); }}
+                              title="Modifier"
+                              className="btn btn-sm d-flex align-items-center justify-content-center"
+                              style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid rgba(255, 255, 255, 0.3)', backgroundColor: 'rgba(255, 255, 255, 0.2)', color: '#fff' }}
+                              onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='rgba(255, 255, 255, 0.3)'; }}
+                              onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='rgba(255, 255, 255, 0.2)'; }}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z"/>
+                              </svg>
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
+                              disabled={deletingId === c.id}
+                              title="Supprimer"
+                              className="btn btn-sm d-flex align-items-center justify-content-center"
+                              style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid rgba(255, 255, 255, 0.3)', backgroundColor: 'rgba(255, 255, 255, 0.2)', color: '#fff', opacity: deletingId === c.id ? 0.4 : 1 }}
+                              onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='rgba(239, 68, 68, 0.3)'; }}
+                              onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='rgba(255, 255, 255, 0.2)'; }}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a1 1 0 01-1-1V5a1 1 0 011-1h6a1 1 0 011 1v1a1 1 0 01-1 1H9z"/>
+                              </svg>
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

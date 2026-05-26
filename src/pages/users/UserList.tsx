@@ -5,6 +5,7 @@ import PageHeader from '../../components/Common/PageHeader';
 import { SkeletonTable } from '../../components/Common/SkeletonLoader';
 import Drawer from '../../components/Common/Drawer';
 import UserForm from './UserForm';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function UserList() {
   const [users, setUsers] = useState<User[]>([]);
@@ -58,6 +59,20 @@ export default function UserList() {
     };
   };
 
+  // Calculate chart data
+  const actifs = users.filter(u => u.actif).length;
+  const inactifs = users.filter(u => !u.actif).length;
+
+  const roleData = users.reduce((acc: { [key: string]: number }, u) => {
+    const role = u.role || 'Autre';
+    acc[role] = (acc[role] || 0) + 1;
+    return acc;
+  }, {});
+
+  const roleChartData = Object.entries(roleData).map(([name, value]) => ({ name, value }));
+
+  const COLORS = ['#1a5c38', '#0f9d58', '#10b981', '#34d399', '#6ee7b7'];
+
   return (
     <div className="d-flex flex-column gap-4">
       <PageHeader
@@ -76,6 +91,59 @@ export default function UserList() {
           </button>
         }
       />
+
+      {/* ── Statistics Cards ── */}
+      <div className="d-flex gap-3 flex-wrap">
+        <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0', flex: '1 1 200px', minWidth: 200 }}>
+          <div className="d-flex align-items-center gap-3">
+            <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#dcfce7', fontSize: 24 }}>
+              ✅
+            </div>
+            <div>
+              <p className="text-muted mb-0" style={{ fontSize: 12, fontWeight: 500 }}>Actifs</p>
+              <p className="fw-bold mb-0" style={{ fontSize: 24, color: '#166534' }}>{actifs}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0', flex: '1 1 200px', minWidth: 200 }}>
+          <div className="d-flex align-items-center gap-3">
+            <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#f3f4f6', fontSize: 24 }}>
+              ⏸️
+            </div>
+            <div>
+              <p className="text-muted mb-0" style={{ fontSize: 12, fontWeight: 500 }}>Inactifs</p>
+              <p className="fw-bold mb-0" style={{ fontSize: 24, color: '#6b7280' }}>{inactifs}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Charts Section ── */}
+      <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
+        <p className="fw-semibold mb-4" style={{ fontSize: 15, color: '#111827' }}>Répartition des Utilisateurs par Rôle</p>
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
+            <Pie
+              data={roleChartData}
+              cx="50%"
+              cy="50%"
+              innerRadius={80}
+              outerRadius={120}
+              paddingAngle={5}
+              dataKey="value"
+            >
+              {roleChartData.map((_, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip 
+              contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 8 }}
+              itemStyle={{ color: '#374151' }}
+            />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
 
       <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
         <div className="px-4 pt-4 pb-3">
@@ -123,12 +191,12 @@ export default function UserList() {
                             height: 32,
                             padding: 0,
                             borderRadius: 8,
-                            border: '1px solid #e5e7eb',
-                            backgroundColor: '#fff',
-                            color: '#9ca3af',
+                            border: '1px solid #ef4444',
+                            backgroundColor: '#fef2f2',
+                            color: '#ef4444',
                           }}
-                          onMouseEnter={ev => { const b = ev.currentTarget; b.style.color='#ef4444'; b.style.backgroundColor='#fef2f2'; b.style.borderColor='#fecaca'; }}
-                          onMouseLeave={ev => { const b = ev.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
+                          onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='#ef4444'; b.style.color='#fff'; }}
+                          onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='#fef2f2'; b.style.color='#ef4444'; }}
                           title="Désactiver"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -144,12 +212,12 @@ export default function UserList() {
                             height: 32,
                             padding: 0,
                             borderRadius: 8,
-                            border: '1px solid #e5e7eb',
-                            backgroundColor: '#fff',
-                            color: '#9ca3af',
+                            border: '1px solid #16a34a',
+                            backgroundColor: '#f0faf4',
+                            color: '#16a34a',
                           }}
-                          onMouseEnter={ev => { const b = ev.currentTarget; b.style.color='#16a34a'; b.style.backgroundColor='#f0faf4'; b.style.borderColor='#bbf7d0'; }}
-                          onMouseLeave={ev => { const b = ev.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
+                          onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='#16a34a'; b.style.color='#fff'; }}
+                          onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='#f0faf4'; b.style.color='#16a34a'; }}
                           title="Réactiver"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

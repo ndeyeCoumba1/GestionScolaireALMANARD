@@ -4,6 +4,11 @@ import * as XLSX from 'xlsx-js-style';
 import { saveAs } from 'file-saver';
 import type { Paiement } from '../Types/index';
 import almanardLogo from '../assets/almanard.jpeg';
+import api from '../api/axios';
+
+// ── Utilitaire formatage montant ──
+const formatMontant = (n: number): string =>
+  n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' FCFA';
 
 // ── PDF Export Functions ──
 
@@ -25,240 +30,237 @@ export interface ReceiptData {
 
 export function generateReceipt(data: ReceiptData) {
   const doc = new jsPDF();
-  
-  // 1. Header - Logo and school name
-  // Add logo
+
+  // Montant formaté sans toLocaleString (évite les espaces insécables)
+  const montantText = typeof data.montant === 'number'
+    ? formatMontant(data.montant)
+    : `${data.montant} FCFA`;
+
+  // 1. Header - Logo et nom de l'école
   try {
     doc.addImage(almanardLogo, 'JPEG', 20, 10, 30, 30);
   } catch (error) {
-    // If logo fails to load, continue without it
     console.warn('Logo could not be loaded');
   }
-  
+
   doc.setFontSize(16);
-  doc.setTextColor(26, 92, 56); // Dark green
+  doc.setTextColor(26, 92, 56);
   doc.setFont('helvetica', 'bold');
   doc.text('GROUPE SCOLAIRE AL-MANARD3S', 105, 25, { align: 'center' });
-  
-  // 2. Visual banner - Green line
+
+  // 2. Ligne verte
   doc.setDrawColor(26, 92, 56);
   doc.setLineWidth(1);
   doc.line(20, 40, 190, 40);
-  
-  // 3. Receipt title with number
+
+  // 3. Titre du reçu
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(17, 24, 39);
-  doc.text(`REÇU DE PAIEMENT N°: ${data.numeroRecu}`, 105, 45, { align: 'center' });
+  doc.text(`RECU DE PAIEMENT N°: ${data.numeroRecu}`, 105, 50, { align: 'center' });
+
   
-  // 4. Student information block with light green background
-  const studentInfoY = 55;
-  doc.setFillColor(220, 252, 231); // Light green background
+  // 4. Bloc informations élève
+  const studentInfoY = 65;
+  doc.setFillColor(220, 252, 231);
   doc.roundedRect(20, studentInfoY, 170, 35, 3, 3, 'F');
-  
+
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(26, 92, 56);
-  doc.text('INFORMATIONS SUR L\'ÉLÈVE', 25, studentInfoY + 8);
-  
+  doc.text("INFORMATIONS SUR L'ELEVE", 25, studentInfoY + 8);
+
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(55, 65, 81);
   doc.text(`Nom Complet: ${data.elevePrenom} ${data.eleveNom}`, 25, studentInfoY + 18);
-  
+
   if (data.matricule) {
     doc.text(`Matricule: ${data.matricule}`, 25, studentInfoY + 26);
   }
-  
   if (data.classe) {
     doc.text(`Classe: ${data.classe}`, 105, studentInfoY + 26);
   }
-  
-  // 5. Payment details block
+
+  // 5. Détails du paiement
   const paymentDetailsY = studentInfoY + 45;
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(26, 92, 56);
-  doc.text('DÉTAILS DU PAIEMENT', 20, paymentDetailsY);
-  
+  doc.text('DETAILS DU PAIEMENT', 20, paymentDetailsY);
+
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(55, 65, 81);
-  
+
   const dateObj = new Date(data.datePaiement);
   const formattedDate = dateObj.toLocaleDateString('fr-FR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   });
-  
-  doc.text(`Date de l'opération: ${formattedDate}`, 20, paymentDetailsY + 10);
-  
+
+  doc.text(`Date de l'operation: ${formattedDate}`, 20, paymentDetailsY + 10);
+
   let motifText = data.motif;
   if (data.moisLibelle) {
     motifText += ` - Mois de ${data.moisLibelle}`;
   }
   doc.text(`Type / Motif: ${motifText}`, 20, paymentDetailsY + 18);
-  
-  // 6. Payment table
-  const tableY = paymentDetailsY + 30;
+
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Montant: ${montantText}`, 20, paymentDetailsY + 28);
+
+  // 6. Tableau de paiement
+  const tableY = paymentDetailsY + 40;
   let description = 'Paiement';
   if (data.typePaiement) {
     const typeLabels: Record<string, string> = {
-      'ESPECE': 'Espèce',
+      'ESPECE': 'Espece',
       'WAVE': 'Wave',
-      'CHEQUE': 'Chèque',
-      'ORANGE_MONEY': 'Orange Money'
+      'CHEQUE': 'Cheque',
+      'ORANGE_MONEY': 'Orange Money',
     };
     description = `Paiement via ${typeLabels[data.typePaiement] || data.typePaiement}`;
     if (data.typePaiement === 'WAVE' || data.typePaiement === 'ORANGE_MONEY') {
       description += ' - Transfert Mobile';
     }
   }
-  
-  const tableData = [
-    [description, `${data.montant.toLocaleString()} FCFA`]
-  ];
-  
+
+  const tableData = [[description, montantText]];
   let tableFinalY = tableY;
-  
+
   autoTable(doc, {
     startY: tableY,
     head: [['Description', 'Montant (FCFA)']],
     body: tableData,
     theme: 'grid',
     headStyles: {
-      fillColor: [15, 157, 88], // Green primary (#0f9d58)
+      fillColor: [15, 157, 88],
       textColor: 255,
       fontStyle: 'bold',
       halign: 'center',
       fontSize: 11,
     },
     bodyStyles: {
-      textColor: [55, 65, 81],
-      halign: 'center',
-      fontSize: 10,
+      textColor: [0, 0, 0],
+      halign: 'right',
+      fontSize: 12,
+      fontStyle: 'bold',
     },
     columnStyles: {
-      0: { cellWidth: 120 },
-      1: { cellWidth: 50 },
+      0: { cellWidth: 110, halign: 'left' },
+      1: { cellWidth: 60, halign: 'right' },
     },
     didDrawPage: (hookData) => {
-      // Add total row
       tableFinalY = hookData.table?.finalY || tableY + 20;
       doc.setDrawColor(26, 92, 56);
       doc.setLineWidth(0.5);
       doc.line(20, tableFinalY + 5, 190, tableFinalY + 5);
       doc.line(20, tableFinalY + 7, 190, tableFinalY + 7);
-      
+
       doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(26, 92, 56);
-      doc.text('MONTANT TOTAL PAYÉ', 20, tableFinalY + 15);
-      doc.text(`${data.montant.toLocaleString()} FCFA`, 190, tableFinalY + 15, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+      doc.text('MONTANT TOTAL PAYE', 20, tableFinalY + 15);
+      doc.text(montantText, 190, tableFinalY + 15, { align: 'right' });
     },
   });
-  
-  // 7. Digital traceability block (for mobile payments)
+
+  // 7. Traçabilité numérique (paiements mobiles)
   if (data.typePaiement === 'WAVE' || data.typePaiement === 'ORANGE_MONEY') {
     const traceabilityY = tableFinalY + 25;
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(26, 92, 56);
-    doc.text('TRAÇABILITÉ NUMÉRIQUE', 20, traceabilityY + 15);
-    
+    doc.text('TRACABILITE NUMERIQUE', 20, traceabilityY + 15);
+
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(55, 65, 81);
-    
+
     const typeLabels: Record<string, string> = {
       'WAVE': 'Wave',
-      'ORANGE_MONEY': 'Orange Money'
+      'ORANGE_MONEY': 'Orange Money',
     };
-    
+
     doc.text(`Moyen de Paiement: ${typeLabels[data.typePaiement!] || data.typePaiement}`, 20, traceabilityY + 25);
-    
+
     if (data.telephone) {
-      doc.text(`Numéro Associé: ${data.telephone}`, 20, traceabilityY + 33);
+      doc.text(`Numero Associe: ${data.telephone}`, 20, traceabilityY + 33);
     }
-    
     if (data.referenceTransaction) {
-      doc.text(`Référence de Transaction: ${data.referenceTransaction}`, 20, traceabilityY + 41);
+      doc.text(`Reference de Transaction: ${data.referenceTransaction}`, 20, traceabilityY + 41);
     }
-    
-    const justificatifText = data.captureJustificatif 
-      ? '✓ Capture d\'écran jointe au dossier' 
-      : '⚠ Capture d\'écran non jointe';
+
     doc.setFontSize(9);
     if (data.captureJustificatif) {
       doc.setTextColor(15, 157, 88);
+      doc.text("Capture d'ecran jointe au dossier", 20, traceabilityY + 49);
     } else {
       doc.setTextColor(239, 68, 68);
+      doc.text("Capture d'ecran non jointe", 20, traceabilityY + 49);
     }
-    doc.text(justificatifText, 20, traceabilityY + 49);
   }
-  
-  // 8. Footer - Signature and stamp
+
+  // 8. Footer - Signature et cachet
   const footerY = doc.internal.pageSize.height - 50;
-  
-  // Signature box
+
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.5);
   doc.rect(140, footerY, 40, 25);
-  
+
   doc.setFontSize(9);
   doc.setTextColor(107, 114, 128);
   doc.text('Signature', 160, footerY + 15, { align: 'center' });
   doc.text('Cachet', 160, footerY + 22, { align: 'center' });
-  
-  // Footer line
+
   doc.setDrawColor(229, 231, 235);
   doc.line(20, footerY + 35, 190, footerY + 35);
-  
-  // Contact info
+
   doc.setFontSize(8);
   doc.setTextColor(107, 114, 128);
   doc.text('GROUPE SCOLAIRE AL-MANARD3S', 105, footerY + 42, { align: 'center' });
-  doc.text('Tél: +221 XX XX XX XX | Email: contact@almanard3s.edu | www.almanard3s.edu', 105, footerY + 48, { align: 'center' });
+  doc.text('Tel: +221 78 120 89 78 | +221 77 520 87 67 | Email: info@almanard3s.com | www.almanard3s.com', 105, footerY + 48, { align: 'center' });
 
   doc.save(`recu_${data.numeroRecu}.pdf`);
 }
 
 export function generatePaymentListReport(paiements: Paiement[], title: string = 'Rapport des Paiements') {
   const doc = new jsPDF();
-  
-  // Header
+
   doc.setFontSize(18);
   doc.setTextColor(26, 92, 56);
   doc.text(title, 105, 20, { align: 'center' });
-  
+
   doc.setFontSize(10);
   doc.setTextColor(107, 114, 128);
-  doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')}`, 105, 28, { align: 'center' });
-  
+  doc.text(`Genere le ${new Date().toLocaleDateString('fr-FR')}`, 105, 28, { align: 'center' });
   doc.text(`Total: ${paiements.length} paiement(s)`, 105, 34, { align: 'center' });
-  
-  // Line separator
+
   doc.setDrawColor(229, 231, 235);
   doc.line(20, 40, 190, 40);
-  
-  // Table
+
   const tableData = paiements.map(p => [
     p.numeroRecu,
     `${p.eleveNom} ${p.elevePrenom}`,
     p.motif,
     p.moisLibelle || '—',
-    `${p.montant.toLocaleString()} FCFA`,
+    formatMontant(p.montant),
     new Date(p.datePaiement).toLocaleDateString('fr-FR'),
   ]);
-  
+
   const totalMontant = paiements.reduce((sum, p) => sum + p.montant, 0);
-  
+
   autoTable(doc, {
     startY: 50,
-    head: [['N° Reçu', 'Élève', 'Motif', 'Mois', 'Montant', 'Date']],
+    head: [['N° Recu', 'Eleve', 'Motif', 'Mois', 'Montant', 'Date']],
     body: tableData,
     theme: 'striped',
     headStyles: {
@@ -281,25 +283,21 @@ export function generatePaymentListReport(paiements: Paiement[], title: string =
       4: { cellWidth: 35 },
       5: { cellWidth: 25 },
     },
-    styles: {
-      overflow: 'linebreak',
-    },
+    styles: { overflow: 'linebreak' },
     didDrawPage: (data) => {
-      // Add total at the bottom of each page
       const finalY = data.cursor?.y || data.table.finalY;
       doc.setFontSize(10);
       doc.setTextColor(26, 92, 56);
       doc.setFont(undefined, 'bold');
       doc.text(
-        `Total: ${totalMontant.toLocaleString()} FCFA`,
+        `Total: ${formatMontant(totalMontant)}`,
         190,
         finalY + 10,
         { align: 'right' }
       );
     },
   });
-  
-  // Footer
+
   const pageCount = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
@@ -319,46 +317,40 @@ export function generatePaymentListReport(paiements: Paiement[], title: string =
 // ── Excel Export Functions ──
 
 export function exportPaymentsToExcel(paiements: Paiement[], filename: string = 'paiements') {
-  // Prepare data for Excel
   const excelData = paiements.map(p => ({
-    'Numéro de Reçu': p.numeroRecu,
-    'Élève': `${p.eleveNom} ${p.elevePrenom}`,
+    'Numero de Recu': p.numeroRecu,
+    'Eleve': `${p.eleveNom} ${p.elevePrenom}`,
     'Motif': p.motif,
     'Mois': p.moisLibelle || '—',
     'Montant (FCFA)': p.montant,
     'Date de Paiement': new Date(p.datePaiement).toLocaleDateString('fr-FR'),
-    'Enregistré par': p.enregistreParNom || '—',
+    'Enregistre par': p.enregistreParNom || '—',
   }));
-  
-  // Calculate totals
+
   const totalMontant = paiements.reduce((sum, p) => sum + p.montant, 0);
-  
-  // Add summary row
+
   excelData.push({
-    'Numéro de Reçu': 'TOTAL',
-    'Élève': '' as string,
+    'Numero de Recu': 'TOTAL',
+    'Eleve': '',
     'Motif': '' as any,
     'Mois': '',
     'Montant (FCFA)': totalMontant,
     'Date de Paiement': '',
-    'Enregistré par': '',
+    'Enregistre par': '',
   });
-  
-  // Create worksheet
+
   const ws = XLSX.utils.json_to_sheet(excelData);
-  
-  // Set column widths
+
   ws['!cols'] = [
-    { wch: 20 }, // Numéro de Reçu
-    { wch: 30 }, // Élève
-    { wch: 15 }, // Motif
-    { wch: 15 }, // Mois
-    { wch: 18 }, // Montant
-    { wch: 18 }, // Date
-    { wch: 20 }, // Enregistré par
+    { wch: 20 },
+    { wch: 30 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 20 },
   ];
-  
-  // Style header row
+
   const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
   for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
     const address = XLSX.utils.encode_col(C) + '1';
@@ -369,24 +361,324 @@ export function exportPaymentsToExcel(paiements: Paiement[], filename: string = 
       alignment: { horizontal: 'center' },
     };
   }
-  
-  // Style total row
+
   const totalRowIndex = excelData.length;
   for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
     const address = XLSX.utils.encode_col(C) + totalRowIndex;
     if (!ws[address]) continue;
     ws[address].s = {
-      fill: { fgColor: { rgb: 'DCFE7' } },
+      fill: { fgColor: { rgb: 'DCFCE7' } },
       font: { bold: true, color: { rgb: '166534' } },
     };
   }
-  
-  // Create workbook
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Paiements');
-  
-  // Generate and save
+
   const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
   saveAs(blob, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+// ── Report Generation Functions ──
+
+export async function generateDailyReport(startDate: string, endDate: string) {
+  try {
+    const [paiementsRes, depensesRes, inscriptionsRes] = await Promise.all([
+      api.get('/paiements'),
+      api.get('/depenses'),
+      api.get('/inscription'),
+    ]);
+
+    const paiements = paiementsRes.data || [];
+    const depenses = depensesRes.data || [];
+    const inscriptions = inscriptionsRes.data || [];
+
+    // Filter by date range
+    const filteredPaiements = paiements.filter((p: any) => {
+      const date = new Date(p.datePaiement).toISOString().split('T')[0];
+      return date >= startDate && date <= endDate;
+    });
+
+    const filteredDepenses = depenses.filter((d: any) => {
+      const date = new Date(d.dateDepense).toISOString().split('T')[0];
+      return date >= startDate && date <= endDate;
+    });
+
+    const filteredInscriptions = inscriptions.filter((i: any) => {
+      const date = new Date(i.dateInscription).toISOString().split('T')[0];
+      return date >= startDate && date <= endDate;
+    });
+
+    const doc = new jsPDF();
+
+    // Header
+    try {
+      doc.addImage(almanardLogo, 'JPEG', 20, 10, 30, 30);
+    } catch (error) {
+      console.warn('Logo could not be loaded');
+    }
+
+    doc.setFontSize(18);
+    doc.setTextColor(26, 92, 56);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RAPPORT JOURNALIER', 105, 25, { align: 'center' });
+
+    doc.setFontSize(12);
+    doc.setTextColor(107, 114, 128);
+    doc.text(`Période: ${new Date(startDate).toLocaleDateString('fr-FR')} - ${new Date(endDate).toLocaleDateString('fr-FR')}`, 105, 33, { align: 'center' });
+
+    doc.setDrawColor(229, 231, 235);
+    doc.line(20, 40, 190, 40);
+
+    // Summary
+    const totalPaiements = filteredPaiements.reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
+    const totalDepenses = filteredDepenses.reduce((sum: number, d: any) => sum + (d.montant || 0), 0);
+
+    doc.setFontSize(12);
+    doc.setTextColor(26, 92, 56);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RÉSUMÉ', 20, 50);
+
+    doc.setFontSize(10);
+    doc.setTextColor(55, 65, 81);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Paiements: ${filteredPaiements.length} transaction(s) - ${formatMontant(totalPaiements)}`, 20, 58);
+    doc.text(`Dépenses: ${filteredDepenses.length} dépense(s) - ${formatMontant(totalDepenses)}`, 20, 65);
+    doc.text(`Nouvelles inscriptions: ${filteredInscriptions.length}`, 20, 72);
+
+    // Paiements table
+    if (filteredPaiements.length > 0) {
+      const paiementData = filteredPaiements.map((p: any) => [
+        p.numeroRecu,
+        `${p.eleveNom} ${p.elevePrenom}`,
+        p.motif,
+        formatMontant(p.montant),
+        new Date(p.datePaiement).toLocaleDateString('fr-FR'),
+      ]);
+
+      autoTable(doc, {
+        startY: 85,
+        head: [['N° Recu', 'Élève', 'Motif', 'Montant', 'Date']],
+        body: paiementData,
+        theme: 'striped',
+        headStyles: { fillColor: [26, 92, 56], textColor: 255, fontSize: 9 },
+        bodyStyles: { textColor: [55, 65, 81], fontSize: 8 },
+      });
+    }
+
+    doc.save(`rapport_journalier_${startDate}_${endDate}.pdf`);
+  } catch (error) {
+    console.error('Error generating daily report:', error);
+    throw error;
+  }
+}
+
+export async function generateWeeklyReport(startDate: string, endDate: string) {
+  try {
+    const [paiementsRes, depensesRes, inscriptionsRes] = await Promise.all([
+      api.get('/paiements'),
+      api.get('/depenses'),
+      api.get('/inscription'),
+    ]);
+
+    const paiements = paiementsRes.data || [];
+    const depenses = depensesRes.data || [];
+    const inscriptions = inscriptionsRes.data || [];
+
+    // Filter by date range
+    const filteredPaiements = paiements.filter((p: any) => {
+      const date = new Date(p.datePaiement).toISOString().split('T')[0];
+      return date >= startDate && date <= endDate;
+    });
+
+    const filteredDepenses = depenses.filter((d: any) => {
+      const date = new Date(d.dateDepense).toISOString().split('T')[0];
+      return date >= startDate && date <= endDate;
+    });
+
+    const filteredInscriptions = inscriptions.filter((i: any) => {
+      const date = new Date(i.dateInscription).toISOString().split('T')[0];
+      return date >= startDate && date <= endDate;
+    });
+
+    const doc = new jsPDF();
+
+    // Header
+    try {
+      doc.addImage(almanardLogo, 'JPEG', 20, 10, 30, 30);
+    } catch (error) {
+      console.warn('Logo could not be loaded');
+    }
+
+    doc.setFontSize(18);
+    doc.setTextColor(26, 92, 56);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RAPPORT HEBDOMADAIRE', 105, 25, { align: 'center' });
+
+    doc.setFontSize(12);
+    doc.setTextColor(107, 114, 128);
+    doc.text(`Période: ${new Date(startDate).toLocaleDateString('fr-FR')} - ${new Date(endDate).toLocaleDateString('fr-FR')}`, 105, 33, { align: 'center' });
+
+    doc.setDrawColor(229, 231, 235);
+    doc.line(20, 40, 190, 40);
+
+    // Summary
+    const totalPaiements = filteredPaiements.reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
+    const totalDepenses = filteredDepenses.reduce((sum: number, d: any) => sum + (d.montant || 0), 0);
+
+    doc.setFontSize(12);
+    doc.setTextColor(26, 92, 56);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RÉSUMÉ HEBDOMADAIRE', 20, 50);
+
+    doc.setFontSize(10);
+    doc.setTextColor(55, 65, 81);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Paiements: ${filteredPaiements.length} transaction(s) - ${formatMontant(totalPaiements)}`, 20, 58);
+    doc.text(`Dépenses: ${filteredDepenses.length} dépense(s) - ${formatMontant(totalDepenses)}`, 20, 65);
+    doc.text(`Nouvelles inscriptions: ${filteredInscriptions.length}`, 20, 72);
+    doc.text(`Solde net: ${formatMontant(totalPaiements - totalDepenses)}`, 20, 79);
+
+    // Paiements table
+    if (filteredPaiements.length > 0) {
+      const paiementData = filteredPaiements.map((p: any) => [
+        p.numeroRecu,
+        `${p.eleveNom} ${p.elevePrenom}`,
+        p.motif,
+        formatMontant(p.montant),
+        new Date(p.datePaiement).toLocaleDateString('fr-FR'),
+      ]);
+
+      autoTable(doc, {
+        startY: 90,
+        head: [['N° Recu', 'Élève', 'Motif', 'Montant', 'Date']],
+        body: paiementData,
+        theme: 'striped',
+        headStyles: { fillColor: [26, 92, 56], textColor: 255, fontSize: 9 },
+        bodyStyles: { textColor: [55, 65, 81], fontSize: 8 },
+      });
+    }
+
+    doc.save(`rapport_hebdomadaire_${startDate}_${endDate}.pdf`);
+  } catch (error) {
+    console.error('Error generating weekly report:', error);
+    throw error;
+  }
+}
+
+export async function generateMonthlyReport(startDate: string, endDate: string) {
+  try {
+    const [paiementsRes, depensesRes, inscriptionsRes, elevesRes] = await Promise.all([
+      api.get('/paiements'),
+      api.get('/depenses'),
+      api.get('/inscription'),
+      api.get('/eleves'),
+    ]);
+
+    const paiements = paiementsRes.data || [];
+    const depenses = depensesRes.data || [];
+    const inscriptions = inscriptionsRes.data || [];
+    const eleves = elevesRes.data || [];
+
+    // Filter by date range
+    const filteredPaiements = paiements.filter((p: any) => {
+      const date = new Date(p.datePaiement).toISOString().split('T')[0];
+      return date >= startDate && date <= endDate;
+    });
+
+    const filteredDepenses = depenses.filter((d: any) => {
+      const date = new Date(d.dateDepense).toISOString().split('T')[0];
+      return date >= startDate && date <= endDate;
+    });
+
+    const filteredInscriptions = inscriptions.filter((i: any) => {
+      const date = new Date(i.dateInscription).toISOString().split('T')[0];
+      return date >= startDate && date <= endDate;
+    });
+
+    const doc = new jsPDF();
+
+    // Header
+    try {
+      doc.addImage(almanardLogo, 'JPEG', 20, 10, 30, 30);
+    } catch (error) {
+      console.warn('Logo could not be loaded');
+    }
+
+    doc.setFontSize(18);
+    doc.setTextColor(26, 92, 56);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RAPPORT MENSUEL', 105, 25, { align: 'center' });
+
+    doc.setFontSize(12);
+    doc.setTextColor(107, 114, 128);
+    doc.text(`Période: ${new Date(startDate).toLocaleDateString('fr-FR')} - ${new Date(endDate).toLocaleDateString('fr-FR')}`, 105, 33, { align: 'center' });
+
+    doc.setDrawColor(229, 231, 235);
+    doc.line(20, 40, 190, 40);
+
+    // Summary
+    const totalPaiements = filteredPaiements.reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
+    const totalDepenses = filteredDepenses.reduce((sum: number, d: any) => sum + (d.montant || 0), 0);
+
+    doc.setFontSize(12);
+    doc.setTextColor(26, 92, 56);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RÉSUMÉ MENSUEL', 20, 50);
+
+    doc.setFontSize(10);
+    doc.setTextColor(55, 65, 81);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total élèves: ${eleves.length}`, 20, 58);
+    doc.text(`Paiements: ${filteredPaiements.length} transaction(s) - ${formatMontant(totalPaiements)}`, 20, 65);
+    doc.text(`Dépenses: ${filteredDepenses.length} dépense(s) - ${formatMontant(totalDepenses)}`, 20, 72);
+    doc.text(`Nouvelles inscriptions: ${filteredInscriptions.length}`, 20, 79);
+    doc.text(`Solde net: ${formatMontant(totalPaiements - totalDepenses)}`, 20, 86);
+
+    // Paiements by motif
+    const paiementsByMotif = filteredPaiements.reduce((acc: any, p: any) => {
+      acc[p.motif] = (acc[p.motif] || 0) + (p.montant || 0);
+      return acc;
+    }, {});
+
+    doc.setFontSize(11);
+    doc.setTextColor(26, 92, 56);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Paiements par Motif', 20, 96);
+
+    let motifY = 104;
+    Object.entries(paiementsByMotif).forEach(([motif, montant]: [string, any]) => {
+      doc.setFontSize(9);
+      doc.setTextColor(55, 65, 81);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${motif}: ${formatMontant(montant)}`, 20, motifY);
+      motifY += 7;
+    });
+
+    // Paiements table
+    if (filteredPaiements.length > 0) {
+      const paiementData = filteredPaiements.map((p: any) => [
+        p.numeroRecu,
+        `${p.eleveNom} ${p.elevePrenom}`,
+        p.motif,
+        formatMontant(p.montant),
+        new Date(p.datePaiement).toLocaleDateString('fr-FR'),
+      ]);
+
+      autoTable(doc, {
+        startY: motifY + 5,
+        head: [['N° Recu', 'Élève', 'Motif', 'Montant', 'Date']],
+        body: paiementData,
+        theme: 'striped',
+        headStyles: { fillColor: [26, 92, 56], textColor: 255, fontSize: 9 },
+        bodyStyles: { textColor: [55, 65, 81], fontSize: 8 },
+      });
+    }
+
+    doc.save(`rapport_mensuel_${startDate}_${endDate}.pdf`);
+  } catch (error) {
+    console.error('Error generating monthly report:', error);
+    throw error;
+  }
 }

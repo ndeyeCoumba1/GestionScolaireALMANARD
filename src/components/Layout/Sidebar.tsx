@@ -5,11 +5,13 @@ const navItems = [
   { to: '/dashboard', emoji: '🏠', label: 'Tableau de bord', roles: ['ADMIN', 'COMPTABLE', 'ENSEIGNANT'] },
   { to: '/eleves', emoji: '🎓', label: 'Élèves', roles: ['ADMIN', 'COMPTABLE', 'ENSEIGNANT'] },
   { to: '/annees', emoji: '📅', label: 'Années', roles: ['ADMIN', 'COMPTABLE', 'ENSEIGNANT'] },
+  { to: '/mois', emoji: '📆', label: 'Mois', roles: ['ADMIN', 'COMPTABLE'] },
   { to: '/parents', emoji: '👨‍👩‍👧', label: 'Parents', roles: ['ADMIN', 'COMPTABLE'] },
-  { to: '/classes', emoji: '🏫', label: 'Classes', roles: ['ADMIN', 'ENSEIGNANT'] },
+  { to: '/classes', emoji: '🏫', label: 'Classes', roles: ['ADMIN', 'COMPTABLE', 'ENSEIGNANT'] },
   { to: '/inscriptions', emoji: '📋', label: 'Inscriptions', roles: ['ADMIN', 'COMPTABLE'] },
   { to: '/paiements', emoji: '💰', label: 'Paiements', roles: ['ADMIN', 'COMPTABLE'] },
   { to: '/depenses', emoji: '📉', label: 'Dépenses', roles: ['ADMIN', 'COMPTABLE'] },
+  { to: '/rapports', emoji: '📊', label: 'Rapports', roles: ['ADMIN', 'COMPTABLE'] },
   { to: '/users', emoji: '👤', label: 'Utilisateurs', roles: ['ADMIN'] },
 ];
 

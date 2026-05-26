@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
-import type { Eleve } from '../../Types/index';
+import type { Eleve, Classe } from '../../Types/index';
 import PageHeader from '../../components/Common/PageHeader';
 import { SkeletonTable } from '../../components/Common/SkeletonLoader';
 import { ConfirmModal } from '../../components/Common/ConfirmModal';
 import Drawer from '../../components/Common/Drawer';
 import EleveForm from './EleveForm';
+import { useAuth } from '../../Context/AuthContext';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function EleveList() {
   const navigate = useNavigate();
+  const { role } = useAuth();
   const [eleves, setEleves] = useState<Eleve[]>([]);
+  const [classes, setClasses] = useState<Classe[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -19,7 +23,19 @@ export default function EleveList() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingEleveId, setEditingEleveId] = useState<number | undefined>();
 
-  useEffect(() => { fetchEleves(); }, []);
+  useEffect(() => {
+    fetchEleves();
+    fetchClasses();
+  }, []);
+
+  const fetchClasses = async () => {
+    try {
+      const res = await api.get('/classes');
+      setClasses(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchEleves = async () => {
     setLoading(true);
@@ -95,26 +111,138 @@ export default function EleveList() {
     `${e.nom} ${e.prenom}`.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Calculate statistics
+  const totalEleves = eleves.length;
+  const inscrits = eleves.filter(e => e.status === 'INSCRIT').length;
+  const garcons = eleves.filter(e => e.sexe === 'M').length;
+  const filles = eleves.filter(e => e.sexe === 'F').length;
+
+  // Calculate students by class
+  const studentsByClass = classes.map(classe => ({
+    name: classe.niveau,
+    value: eleves.filter(e => e.classeNiveau === classe.niveau).length,
+  })).filter(item => item.value > 0);
+
+  // Calculate gender distribution
+  const genderData = [
+    { name: 'Garçons', value: garcons },
+    { name: 'Filles', value: filles },
+  ];
+
   return (
     <div className="d-flex flex-column gap-4">
 
       {/* ── Header ── */}
       <PageHeader
         subtitle="Gestion des élèves"
-        title="Élèves"
+        title="🎓 Élèves"
         description="Consultez et gérez la liste des élèves inscrits dans votre établissement."
         countText={`${eleves.length} élève(s) au total`}
         action={
-          <button
-            onClick={() => handleOpenDrawer()}
-            className="btn fw-semibold d-flex align-items-center gap-2 px-4 py-2"
-            style={{ backgroundColor: '#fff', color: '#1a5c38', borderRadius: 12, fontSize: 14 }}
-          >
-            <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
-            Nouvel Élève
-          </button>
+          role !== 'ENSEIGNANT' && (
+            <button
+              onClick={() => handleOpenDrawer()}
+              className="btn fw-semibold d-flex align-items-center gap-2 px-4 py-2"
+              style={{ backgroundColor: '#fff', color: '#1a5c38', borderRadius: 12, fontSize: 14 }}
+            >
+              <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
+              Nouvel Élève
+            </button>
+          )
         }
       />
+
+      {/* ── Statistics Cards ── */}
+      <div className="d-flex gap-3 flex-wrap">
+        <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0', flex: '1 1 200px', minWidth: 200 }}>
+          <div className="d-flex align-items-center gap-3">
+            <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#e8f5e9', fontSize: 24 }}>
+              🎓
+            </div>
+            <div>
+              <p className="text-muted mb-0" style={{ fontSize: 12, fontWeight: 500 }}>Total Élèves</p>
+              <p className="fw-bold mb-0" style={{ fontSize: 24, color: '#1a5c38' }}>{totalEleves}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0', flex: '1 1 200px', minWidth: 200 }}>
+          <div className="d-flex align-items-center gap-3">
+            <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#dbeafe', fontSize: 24 }}>
+              ✅
+            </div>
+            <div>
+              <p className="text-muted mb-0" style={{ fontSize: 12, fontWeight: 500 }}>Inscrits</p>
+              <p className="fw-bold mb-0" style={{ fontSize: 24, color: '#1d4ed8' }}>{inscrits}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0', flex: '1 1 200px', minWidth: 200 }}>
+          <div className="d-flex align-items-center gap-3">
+            <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#fef3c7', fontSize: 24 }}>
+              👦
+            </div>
+            <div>
+              <p className="text-muted mb-0" style={{ fontSize: 12, fontWeight: 500 }}>Garçons</p>
+              <p className="fw-bold mb-0" style={{ fontSize: 24, color: '#d97706' }}>{garcons}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0', flex: '1 1 200px', minWidth: 200 }}>
+          <div className="d-flex align-items-center gap-3">
+            <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#fce7f3', fontSize: 24 }}>
+              👧
+            </div>
+            <div>
+              <p className="text-muted mb-0" style={{ fontSize: 12, fontWeight: 500 }}>Filles</p>
+              <p className="fw-bold mb-0" style={{ fontSize: 24, color: '#db2777' }}>{filles}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Charts Section ── */}
+      <div className="d-flex gap-3 flex-wrap">
+        <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0', flex: '1 1 400px', minWidth: 350 }}>
+          <p className="fw-semibold mb-4" style={{ fontSize: 15, color: '#111827' }}>Répartition par Classe</p>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={studentsByClass}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
+              <YAxis stroke="#6b7280" fontSize={12} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 8 }}
+                itemStyle={{ color: '#374151' }}
+              />
+              <Bar dataKey="value" fill="#1a5c38" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0', flex: '1 1 400px', minWidth: 350 }}>
+          <p className="fw-semibold mb-4" style={{ fontSize: 15, color: '#111827' }}>Répartition par Sexe</p>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie
+                data={genderData}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={80}
+                paddingAngle={5}
+                dataKey="value"
+              >
+                {genderData.map((_, index) => (
+                  <Cell key={`cell-${index}`} fill={index === 0 ? '#d97706' : '#db2777'} />
+                ))}
+              </Pie>
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 8 }}
+                itemStyle={{ color: '#374151' }}
+              />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
            
 
       {/* ── Table Card ── */}
@@ -147,8 +275,8 @@ export default function EleveList() {
               <thead style={{ backgroundColor: '#f9fafb' }}>
                 <tr>
                   {['Nom', 'Prénom', 'Classe', 'Parent', 'Statut', 'Actions'].map(h => (
-                    <th key={h} className="py-3 px-4 fw-semibold text-uppercase"
-                      style={{ color: '#9ca3af', fontSize: 11, letterSpacing: '0.05em', borderTop: '1px solid #f0f0f0' }}>
+                    <th key={h} className="py-4 px-4 fw-bold text-uppercase"
+                      style={{ color: '#374151', fontSize: 14, letterSpacing: '0.05em', borderTop: '1px solid #f0f0f0' }}>
                       {h}
                     </th>
                   ))}
@@ -187,40 +315,44 @@ export default function EleveList() {
                         onClick={() => navigate(`/eleves/${e.id}`)}
                         title="Voir"
                         className="btn btn-sm d-flex align-items-center justify-content-center"
-                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
-                        onMouseEnter={ev => { const b = ev.currentTarget; b.style.color='#3b82f6'; b.style.backgroundColor='#eff6ff'; b.style.borderColor='#bfdbfe'; }}
-                        onMouseLeave={ev => { const b = ev.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
+                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #3b82f6', backgroundColor: '#eff6ff', color: '#3b82f6' }}
+                        onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='#3b82f6'; b.style.color='#fff'; }}
+                        onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='#eff6ff'; b.style.color='#3b82f6'; }}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                         </svg>
                       </button>
-                      <button
-                        onClick={() => handleOpenDrawer(e.id)}
-                        title="Modifier"
-                        className="btn btn-sm d-flex align-items-center justify-content-center"
-                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af' }}
-                        onMouseEnter={ev => { const b = ev.currentTarget; b.style.color='#16a34a'; b.style.backgroundColor='#f0faf4'; b.style.borderColor='#bbf7d0'; }}
-                        onMouseLeave={ev => { const b = ev.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z"/>
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(e.id)}
-                        disabled={deletingId === e.id}
-                        title="Supprimer"
-                        className="btn btn-sm d-flex align-items-center justify-content-center"
-                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#9ca3af', opacity: deletingId === e.id ? 0.4 : 1 }}
-                        onMouseEnter={ev => { const b = ev.currentTarget; b.style.color='#ef4444'; b.style.backgroundColor='#fef2f2'; b.style.borderColor='#fecaca'; }}
-                        onMouseLeave={ev => { const b = ev.currentTarget; b.style.color='#9ca3af'; b.style.backgroundColor='#fff'; b.style.borderColor='#e5e7eb'; }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a1 1 0 01-1-1V5a1 1 0 011-1h6a1 1 0 011 1v1a1 1 0 01-1 1H9z"/>
-                        </svg>
-                      </button>
+                      {role !== 'ENSEIGNANT' && (
+                        <>
+                          <button
+                            onClick={() => handleOpenDrawer(e.id)}
+                            title="Modifier"
+                            className="btn btn-sm d-flex align-items-center justify-content-center"
+                            style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #16a34a', backgroundColor: '#f0faf4', color: '#16a34a' }}
+                            onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='#16a34a'; b.style.color='#fff'; }}
+                            onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='#f0faf4'; b.style.color='#16a34a'; }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z"/>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDelete(e.id)}
+                            disabled={deletingId === e.id}
+                            title="Supprimer"
+                            className="btn btn-sm d-flex align-items-center justify-content-center"
+                            style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #ef4444', backgroundColor: '#fef2f2', color: '#ef4444', opacity: deletingId === e.id ? 0.4 : 1 }}
+                            onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='#ef4444'; b.style.color='#fff'; }}
+                            onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='#fef2f2'; b.style.color='#ef4444'; }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a1 1 0 01-1-1V5a1 1 0 011-1h6a1 1 0 011 1v1a1 1 0 01-1 1H9z"/>
+                            </svg>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

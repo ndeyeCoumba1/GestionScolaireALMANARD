@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(null);
     setRole(null);
     setNom(null);
-    window.location.href = '/login';
+    window.location.href = '/home';
   };
 
   return (

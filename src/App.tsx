@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './Context/AuthContext';
 import Layout from './components/Layout/Layout';
 import Login from './pages/Login';
+import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import EleveList from './pages/eleves/EleveList';
 import EleveForm from './pages/eleves/EleveForm';
@@ -18,6 +19,8 @@ import InscriptionList from './pages/inscriptions/InscriptionList';
 import DepenseList from './pages/depenses/DepenseList';
 import DepenseForm from './pages/depenses/DepenseForm';
 import UserList from './pages/users/UserList';
+import MoisList from './pages/Mois/MoisList';
+import Reports from './pages/rapports/Reports';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -26,7 +29,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function HomeRedirect() {
   const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />;
+  return isAuthenticated ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />;
 }
 
 export default function App() {
@@ -35,6 +38,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/home" element={<Home />} />
           <Route path="/" element={<HomeRedirect />} />
           <Route path="/" element={<Layout />}>
             <Route path="dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -54,9 +58,11 @@ export default function App() {
             <Route path="inscriptions" element={<ProtectedRoute><InscriptionList /></ProtectedRoute>} />
             <Route path="paiements" element={<ProtectedRoute><PaiementList /></ProtectedRoute>} />
             <Route path="paiements/nouveau" element={<ProtectedRoute><PaiementForm /></ProtectedRoute>} />
+            <Route path="mois" element={<ProtectedRoute><MoisList /></ProtectedRoute>} />
             <Route path="depenses" element={<ProtectedRoute><DepenseList /></ProtectedRoute>} />
             <Route path="depenses/nouvelle" element={<ProtectedRoute><DepenseForm /></ProtectedRoute>} />
             <Route path="users" element={<ProtectedRoute><UserList /></ProtectedRoute>} />
+            <Route path="rapports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
