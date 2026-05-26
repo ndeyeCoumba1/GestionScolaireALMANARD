@@ -55,7 +55,7 @@ public class SecuriteConfig {
                         .requestMatchers("/api/inscriptions/**").hasAnyRole("ADMIN", "COMPTABLE")
                         .requestMatchers("/api/eleves/**").hasAnyRole("ADMIN", "COMPTABLE", "ENSEIGNANT")
                         .requestMatchers("/api/parents/**").hasAnyRole("ADMIN", "COMPTABLE")
-                        .requestMatchers("/api/classes/**").hasAnyRole("ADMIN", "ENSEIGNANT")
+                        .requestMatchers("/api/classes/**").authenticated()
                         .requestMatchers("/api/mois/**").hasAnyRole("ADMIN", "COMPTABLE")
                         .requestMatchers("/api/annees/**").hasAnyRole("ADMIN", "COMPTABLE")
                         .requestMatchers("/api/depenses/**").hasAnyRole("ADMIN", "COMPTABLE")
