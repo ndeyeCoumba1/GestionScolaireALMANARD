@@ -21,6 +21,14 @@ public class Paiement {
 
     private Double montant;
     private String numeroRecu;
+
+    @ManyToOne
+    @JoinColumn(name = "inscription_id")
+    private Inscription inscription;
+
+
+    private Double montantAttendu;
+
     private LocalDate datePaiement;
 
     @Enumerated(EnumType.STRING)

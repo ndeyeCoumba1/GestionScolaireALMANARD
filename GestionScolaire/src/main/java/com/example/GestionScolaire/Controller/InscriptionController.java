@@ -1,5 +1,6 @@
 package com.example.GestionScolaire.Controller;
 
+import com.example.GestionScolaire.DTO.InscriptionDTO;
 import com.example.GestionScolaire.Model.Annee;
 import com.example.GestionScolaire.Model.Inscription;
 import com.example.GestionScolaire.Service.AnneeService;
@@ -13,7 +14,7 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/inscription")
+@RequestMapping("/api/inscriptions")
 @CrossOrigin(origins = "*")
 public class InscriptionController {
     private final InscriptionService inscriptionService;
@@ -45,6 +46,17 @@ public class InscriptionController {
                                                 @RequestParam Long classeId,
                                                 @RequestParam double fraisInscription) {
         return ResponseEntity.ok(inscriptionService.inscrire(eleveId, classeId, fraisInscription));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Inscription> findById(@PathVariable Long id) {
+        return ResponseEntity.ok(inscriptionService.findById(id));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Inscription> update(@PathVariable Long id,
+                                              @RequestBody InscriptionDTO request) {
+        return ResponseEntity.ok(inscriptionService.updateFrais(id, request.getFraisInscription()));
     }
 
     @DeleteMapping("/{id}")

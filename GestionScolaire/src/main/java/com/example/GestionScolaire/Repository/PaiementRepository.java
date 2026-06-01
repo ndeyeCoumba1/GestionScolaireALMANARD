@@ -1,5 +1,6 @@
 package com.example.GestionScolaire.Repository;
 
+import com.example.GestionScolaire.Enum.MotifPaiement;
 import com.example.GestionScolaire.Enum.StatutPaiement;
 import com.example.GestionScolaire.Model.Annee;
 import com.example.GestionScolaire.Model.Eleve;
@@ -53,4 +54,20 @@ public interface PaiementRepository extends JpaRepository<Paiement, Long> {
             "GROUP BY p.mois.libelle")
     List<Object[]> statsParMois(@Param("annee") Annee annee,
                                 @Param("statut") StatutPaiement statut);
+
+    @Query("SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END FROM Paiement p " +
+            "WHERE p.eleve = :eleve AND p.mois = :mois AND p.statut = :statut AND p.id != :id")
+    boolean existsByEleveAndMoisAndStatutAndIdNot(@Param("eleve") Eleve eleve,
+                                                  @Param("mois") Mois mois,
+                                                  @Param("statut") StatutPaiement statut,
+                                                  @Param("id") Long id);
+
+
+    @Query("SELECT COALESCE(SUM(p.montant), 0) FROM Paiement p " +
+            "WHERE p.inscription.id = :inscriptionId " +
+            "AND p.motif = :motif AND p.statut IN ('PAYE', 'PARTIEL')")
+    Double sumMontantByInscriptionAndMotif(@Param("inscriptionId") Long inscriptionId,
+                                           @Param("motif") MotifPaiement motif);
+
+    List<Paiement> findByInscriptionIdOrderByDatePaiementDesc(Long inscriptionId);
 }

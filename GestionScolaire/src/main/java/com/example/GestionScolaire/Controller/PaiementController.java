@@ -63,20 +63,61 @@ public class PaiementController {
     }
 
     @PostMapping("/enregistrer")
-    public ResponseEntity<Paiement> enregistrer(@RequestParam Long eleveId,
-                                                @RequestParam Double montant,
-                                                @RequestParam MotifPaiement motif,
-                                                @RequestParam TypePaiement typePaiement,
-                                                @RequestParam(required = false) Long moisId) {
+    public ResponseEntity<Paiement> enregistrer(
+            @RequestParam Long eleveId,
+            @RequestParam Double montant,  // ✅ Changé de 'montantpaye' à 'montant'
+            @RequestParam(required = false) Double montantAttendu,
+            @RequestParam MotifPaiement motif,
+            @RequestParam TypePaiement typePaiement,
+            @RequestParam(required = false) Long moisId,
+            @RequestParam(required = false) Long inscriptionId) {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || auth.getName() == null) {
             return ResponseEntity.status(401).build();
         }
         String email = auth.getName();
         User user = userService.findByEmail(email);
+
+
         return ResponseEntity.ok(
-                paiementService.enregistrer(eleveId, montant,typePaiement, motif, moisId, user)
+                paiementService.enregistrer(eleveId, montant, montantAttendu, typePaiement, motif, moisId, inscriptionId, user)
         );
+    }
+
+    // ✅ NOUVEAU: Modifier un paiement
+    @PutMapping("/{id}/modifier")
+    public ResponseEntity<Paiement> modifier(
+            @PathVariable Long id,
+            @RequestParam Double montant,
+            @RequestParam(required = false) Double montantAttendu,
+            @RequestParam MotifPaiement motif,
+            @RequestParam TypePaiement typePaiement,
+            @RequestParam(required = false) Long moisId,
+            @RequestParam(required = false) Long inscriptionId) {
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) {
+            return ResponseEntity.status(401).build();
+        }
+        String email = auth.getName();
+        User user = userService.findByEmail(email);
+
+        return ResponseEntity.ok(
+                paiementService.modifier(id, montant, montantAttendu, typePaiement, motif, moisId, inscriptionId, user)
+        );
+    }
+
+    // ✅ NOUVEAU: Supprimer un paiement
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> supprimer(@PathVariable Long id) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        paiementService.supprimer(id);
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}/valider")

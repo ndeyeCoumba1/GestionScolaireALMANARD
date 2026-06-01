@@ -70,6 +70,17 @@ public class InscriptionService {
         return inscriptionRepository.save(inscription);
     }
 
+    public Inscription findById(Long id) {
+        return inscriptionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Inscription introuvable : " + id));
+    }
+
+    public Inscription updateFrais(Long id, double fraisInscription) {
+        Inscription inscription = findById(id);
+        inscription.setFraisInscription(fraisInscription);
+        return inscriptionRepository.save(inscription);
+    }
+
     public void delete(Long id) {
         inscriptionRepository.deleteById(id);
     }

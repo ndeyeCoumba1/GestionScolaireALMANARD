@@ -1,6 +1,7 @@
 package com.example.GestionScolaire.Model;
 
 
+import com.example.GestionScolaire.Enum.StatutPaiement;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -18,6 +19,10 @@ public class Inscription {
 
     private LocalDate dateInscription;
 
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = true)
+    private StatutPaiement statutPaiement = StatutPaiement.IMPAYE;
 
     @Column(nullable = false)
     private Double fraisInscription;
