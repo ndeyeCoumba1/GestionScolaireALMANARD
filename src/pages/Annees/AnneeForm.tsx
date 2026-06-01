@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
+import { formatDateForInput } from '../../utils/dateUtils';
 
 interface AnneeFormProps {
   onClose: () => void;
@@ -39,7 +40,12 @@ export default function AnneeForm({ onClose, anneeId }: AnneeFormProps) {
     api.get(`/annees/${anneeId}`)
       .then(r => {
         const a = r.data;
-        setForm({ libelle: a.libelle, dateDebut: a.dateDebut, dateFin: a.dateFin, actif: a.actif });
+        setForm({
+          libelle: a.libelle,
+          dateDebut: formatDateForInput(a.dateDebut),
+          dateFin: formatDateForInput(a.dateFin),
+          actif: a.actif
+        });
       })
       .catch(() => setError('Impossible de charger cette année scolaire.'))
       .finally(() => setFetching(false));

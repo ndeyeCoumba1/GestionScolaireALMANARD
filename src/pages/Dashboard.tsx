@@ -13,12 +13,19 @@ interface Stats {
   totalClasses: number;
   totalPaiements: number;
   totalDepenses: number;
+  totalImpayes: number;
 }
 
 interface ChartData {
   mois: string;
   paiements: number;
   depenses: number;
+}
+
+interface YearComparisonData {
+  mois: string;
+  anneeActuelle: number;
+  anneePrecedente: number;
 }
 
 interface ClasseData {
@@ -33,11 +40,12 @@ export default function Dashboard() {
   const { nom, role } = useAuth();
   const [stats, setStats] = useState<Stats>({
     totalEleves: 0, totalParents: 0, totalClasses: 0,
-    totalPaiements: 0, totalDepenses: 0,
+    totalPaiements: 0, totalDepenses: 0, totalImpayes: 0,
   });
   const [loading, setLoading] = useState(true);
   const [recentActions, setRecentActions] = useState<string[]>([]);
   const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [yearComparisonData, setYearComparisonData] = useState<YearComparisonData[]>([]);
   const [classeData, setClasseData] = useState<ClasseData[]>([]);
 
   useEffect(() => {
@@ -60,6 +68,10 @@ export default function Dashboard() {
           .filter((p: any) => p.statut === 'PAYE')
           .reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
 
+        const totalImpayes = paiements
+          .filter((p: any) => p.statut === 'PARTIEL' || p.statut === 'IMPAYE')
+          .reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
+
         const totalDepenses = depenses
           .reduce((sum: number, d: any) => sum + (d.montant || 0), 0);
 
@@ -69,6 +81,7 @@ export default function Dashboard() {
           totalClasses: classes.length,
           totalPaiements,
           totalDepenses,
+          totalImpayes,
         });
 
         // Generate dynamic chart data based on actual payments and expenses
@@ -97,6 +110,36 @@ export default function Dashboard() {
           };
         });
         setChartData(dynamicChartData);
+
+        // Generate year comparison data
+        const currentYear = new Date().getFullYear();
+        const previousYear = currentYear - 1;
+        const yearComparison: YearComparisonData[] = months.map((mois, index) => {
+          const currentYearPayments = paiements
+            .filter((p: any) => {
+              const paymentDate = new Date(p.datePaiement);
+              const paymentYear = paymentDate.getFullYear();
+              const monthIndex = paymentDate.getMonth();
+              return paymentYear === currentYear && monthIndex === (index + 9) % 12;
+            })
+            .reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
+
+          const previousYearPayments = paiements
+            .filter((p: any) => {
+              const paymentDate = new Date(p.datePaiement);
+              const paymentYear = paymentDate.getFullYear();
+              const monthIndex = paymentDate.getMonth();
+              return paymentYear === previousYear && monthIndex === (index + 9) % 12;
+            })
+            .reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
+
+          return {
+            mois,
+            anneeActuelle: currentYearPayments || 0,
+            anneePrecedente: previousYearPayments || 0,
+          };
+        });
+        setYearComparisonData(yearComparison);
 
         // Generate class distribution data
         const classeDistribution: ClasseData[] = classes.map((c: any, index: number) => ({
@@ -131,6 +174,11 @@ export default function Dashboard() {
       icon: '💰',
     },
     {
+      label: 'Impayés (Partiel + Non-payé)',
+      value: `${stats.totalImpayes.toLocaleString()} FCFA`,
+      icon: '⚠️',
+    },
+    {
       label: 'Dépenses (Ce mois)',
       value: `${stats.totalDepenses.toLocaleString()} FCFA`,
       icon: '🛒',
@@ -148,14 +196,14 @@ export default function Dashboard() {
               <div className="d-flex align-items-center gap-3">
                 <div
                   className="rounded-circle d-flex align-items-center justify-content-center"
-                  style={{ width: 56, height: 56, backgroundColor: '#d4edda', fontSize: 24 }}
+                  style={{ width: 48, height: 48, backgroundColor: '#d4edda', fontSize: 20 }}
                 >
                   👤
                 </div>
                 <div>
-                  <h4 className="fw-bold mb-0" style={{ color: '#1a1a1a' }}>
+                  <h5 className="fw-bold mb-0" style={{ color: '#1a1a1a', fontSize: 18 }}>
                     Bonjour {nom},
-                  </h4>
+                  </h5>
                   <span className="text-muted small">#{role?.toLowerCase()}</span>
                 </div>
               </div>
@@ -189,12 +237,12 @@ export default function Dashboard() {
               <div className="row g-3 mb-4">
                 {statCards.map(({ label, value, icon }) => (
                   <div key={label} className="col-12 col-sm-6 col-lg">
-                    <div className="card border-0 shadow-sm rounded-4 h-100 p-4">
-                      <div className="d-flex align-items-start justify-content-between mb-3">
-                        <p className="text-muted small mb-0" style={{ lineHeight: 1.3 }}>{label}</p>
-                        <span style={{ fontSize: 22 }}>{icon}</span>
+                    <div className="card border-0 shadow-sm rounded-4 h-100 p-3">
+                      <div className="d-flex align-items-start justify-content-between mb-2">
+                        <p className="text-muted small mb-0" style={{ lineHeight: 1.3, fontSize: 11 }}>{label}</p>
+                        <span style={{ fontSize: 18 }}>{icon}</span>
                       </div>
-                      <h3 className="fw-bold mb-0" style={{ color: '#1a1a1a' }}>{value}</h3>
+                      <h5 className="fw-bold mb-0" style={{ color: '#1a1a1a', fontSize: 16 }}>{value}</h5>
                     </div>
                   </div>
                 ))}
@@ -219,17 +267,17 @@ export default function Dashboard() {
                     </div>
 
                     {/* Barres */}
-                    <ResponsiveContainer width="100%" height={220}>
+                    <ResponsiveContainer width="100%" height={180}>
                       <BarChart data={chartData} barCategoryGap="35%">
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                         <XAxis
                           dataKey="mois"
-                          tick={{ fontSize: 12, fill: '#9ca3af' }}
+                          tick={{ fontSize: 11, fill: '#9ca3af' }}
                           axisLine={false}
                           tickLine={false}
                         />
                         <YAxis
-                          tick={{ fontSize: 12, fill: '#9ca3af' }}
+                          tick={{ fontSize: 11, fill: '#9ca3af' }}
                           axisLine={false}
                           tickLine={false}
                         />
@@ -241,7 +289,7 @@ export default function Dashboard() {
                           }}
                         />
                         <Legend
-                          wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+                          wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
                         />
                         <Bar
                           dataKey="paiements"
@@ -259,7 +307,7 @@ export default function Dashboard() {
                     </ResponsiveContainer>
 
                     {/* Ligne de tendance */}
-                    <ResponsiveContainer width="100%" height={60}>
+                    <ResponsiveContainer width="100%" height={50}>
                       <LineChart data={chartData}>
                         <Line
                           type="monotone"
@@ -294,14 +342,14 @@ export default function Dashboard() {
                         Dynamique
                       </span>
                     </div>
-                    <ResponsiveContainer width="100%" height={280}>
+                    <ResponsiveContainer width="100%" height={220}>
                       <PieChart>
                         <Pie
                           data={classeData}
                           cx="50%"
                           cy="50%"
-                          innerRadius={40}
-                          outerRadius={80}
+                          innerRadius={35}
+                          outerRadius={70}
                           paddingAngle={5}
                           dataKey="value"
                         >
@@ -317,11 +365,68 @@ export default function Dashboard() {
                           }}
                         />
                         <Legend
-                          wrapperStyle={{ fontSize: 11, paddingTop: 10 }}
+                          wrapperStyle={{ fontSize: 10, paddingTop: 8 }}
                           verticalAlign="bottom"
-                          height={60}
+                          height={50}
                         />
                       </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              {/* Graphique comparaison année précédente vs année actuelle */}
+              <div className="row g-3 mb-4">
+                <div className="col-12">
+                  <div className="card border-0 shadow-sm rounded-4 p-4">
+                    <div className="d-flex align-items-center justify-content-between mb-3">
+                      <h6 className="fw-semibold mb-0" style={{ color: '#1a1a1a' }}>
+                        Comparaison Année Précédente vs Année Actuelle
+                      </h6>
+                      <span
+                        className="badge rounded-pill px-3 py-2"
+                        style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', fontSize: 12 }}
+                      >
+                        Évolution
+                      </span>
+                    </div>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={yearComparisonData} barCategoryGap="20%">
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                        <XAxis
+                          dataKey="mois"
+                          tick={{ fontSize: 11, fill: '#9ca3af' }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 11, fill: '#9ca3af' }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            borderRadius: 12,
+                            border: 'none',
+                            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                          }}
+                        />
+                        <Legend
+                          wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                        />
+                        <Bar
+                          dataKey="anneePrecedente"
+                          name={`Année ${new Date().getFullYear() - 1}`}
+                          fill="#9ca3af"
+                          radius={[4, 4, 0, 0]}
+                        />
+                        <Bar
+                          dataKey="anneeActuelle"
+                          name={`Année ${new Date().getFullYear()}`}
+                          fill="#0f9d58"
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
                     </ResponsiveContainer>
                   </div>
                 </div>

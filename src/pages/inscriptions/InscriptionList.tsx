@@ -25,7 +25,7 @@ export default function InscriptionList() {
   const fetchInscriptions = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/inscription');
+      const res = await api.get('/inscriptions');
       const mappedData = res.data.map((item: any) => ({
         id: item.id,
         dateInscription: item.dateInscription,
@@ -52,7 +52,7 @@ export default function InscriptionList() {
     if (!inscriptionToDelete) return;
     setDeletingId(inscriptionToDelete);
     try {
-      await api.delete(`/inscription/${inscriptionToDelete}`);
+      await api.delete(`/inscriptions/${inscriptionToDelete}`);
       await fetchInscriptions();
     } catch (err) {
       console.error(err);

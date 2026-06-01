@@ -24,24 +24,47 @@ const labelStyle = {
 
 export default function InscriptionForm({ onClose, inscriptionId }: InscriptionFormProps) {
   const isEdit = !!inscriptionId;
-  const [form, setForm] = useState({ eleveId: '', classeId: '', frais: '' });
+  const [form, setForm] = useState({ 
+    eleveId: '', 
+    classeId: '', 
+    frais: '',
+    montantPaye: '',
+    montantAttendu: '',
+    inscriptionId: ''
+  });
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(isEdit);
   const [error, setError] = useState('');
   const [eleves, setEleves] = useState<Eleve[]>([]);
   const [classes, setClasses] = useState<Classe[]>([]);
 
+  // Calculate payment status
+  const getPaymentStatus = () => {
+    const paye = Number(form.montantPaye) || 0;
+    const attendu = Number(form.montantAttendu) || 0;
+    
+    if (attendu === 0) return null;
+    if (paye >= attendu) return 'SOLDÉ';
+    if (paye > 0) return 'PARTIEL';
+    return null;
+  };
+
+  const paymentStatus = getPaymentStatus();
+
   useEffect(() => {
     api.get('/eleves').then(r => setEleves(r.data));
     api.get('/classes').then(r => setClasses(r.data));
     if (isEdit && inscriptionId) {
-      api.get(`/inscription/${inscriptionId}`)
+      api.get(`/inscriptions/${inscriptionId}`)
         .then(r => {
           const i = r.data;
           setForm({
             eleveId: i.eleve?.id?.toString() || '',
             classeId: i.classe?.id?.toString() || '',
             frais: i.fraisInscription?.toString() || '',
+            montantPaye: i.montantPaye?.toString() || '',
+            montantAttendu: i.montantAttendu?.toString() || '',
+            inscriptionId: i.id?.toString() || '',
           });
         })
         .catch(() => setError('Impossible de charger cette inscription.'))
@@ -60,12 +83,14 @@ export default function InscriptionForm({ onClose, inscriptionId }: InscriptionF
     setError('');
     try {
       if (isEdit && inscriptionId) {
-        await api.put(`/inscription/${inscriptionId}`, {
+        await api.put(`/inscriptions/${inscriptionId}`, {
           fraisInscription: Number(form.frais),
+          montantPaye: form.montantPaye ? Number(form.montantPaye) : undefined,
+          montantAttendu: form.montantAttendu ? Number(form.montantAttendu) : undefined,
         });
       } else {
         await api.post(
-          `/inscription/inscrire?eleveId=${form.eleveId}&classeId=${form.classeId}&fraisInscription=${form.frais}`
+          `/inscriptions/inscrire?eleveId=${form.eleveId}&classeId=${form.classeId}&fraisInscription=${form.frais}`
         );
       }
       onClose();
@@ -121,6 +146,51 @@ export default function InscriptionForm({ onClose, inscriptionId }: InscriptionF
               <input type="number" name="frais" value={form.frais} onChange={handleChange} required
                 placeholder="Ex : 25000" className="form-control" style={inputStyle} />
             </div>
+
+            {/* Montant Payé */}
+            <div className="col-12 col-md-6">
+              <label className="form-label fw-semibold text-uppercase" style={labelStyle}>
+                Montant payé (FCFA)
+              </label>
+              <input type="number" name="montantPaye" value={form.montantPaye} onChange={handleChange}
+                placeholder="Ex : 15000" className="form-control" style={inputStyle} />
+            </div>
+
+            {/* Montant Attendu */}
+            <div className="col-12 col-md-6">
+              <label className="form-label fw-semibold text-uppercase" style={labelStyle}>
+                Montant attendu (FCFA)
+              </label>
+              <input type="number" name="montantAttendu" value={form.montantAttendu} onChange={handleChange}
+                placeholder="Ex : 25000" className="form-control" style={inputStyle} />
+            </div>
+
+            {/* Inscription ID */}
+            <div className="col-12">
+              <label className="form-label fw-semibold text-uppercase" style={labelStyle}>
+                Inscription ID (optionnel)
+              </label>
+              <input type="number" name="inscriptionId" value={form.inscriptionId} onChange={handleChange}
+                placeholder="Ex : 1" className="form-control" style={inputStyle} />
+            </div>
+
+            {/* Payment Status Badge */}
+            {paymentStatus && (
+              <div className="col-12">
+                <span 
+                  className="badge rounded-pill fw-semibold px-3 py-2"
+                  style={{
+                    backgroundColor: paymentStatus === 'SOLDÉ' ? '#dcfce7' : '#ffedd5',
+                    color: paymentStatus === 'SOLDÉ' ? '#166534' : '#c2410c',
+                    fontSize: 12,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
+                  }}
+                >
+                  {paymentStatus === 'SOLDÉ' ? '✅ SOLDÉ' : '⚠️ PARTIEL'}
+                </span>
+              </div>
+            )}
 
           </div>
 

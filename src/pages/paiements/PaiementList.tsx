@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import React from 'react';
 import api from '../../api/axios';
 import type { Paiement } from '../../Types/index';
 import PageHeader from '../../components/Common/PageHeader';
@@ -19,8 +20,19 @@ export default function PaiementList() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingPaiementId, setEditingPaiementId] = useState<number | undefined>();
   const [motifFilter, setMotifFilter] = useState<string>('');
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
   useEffect(() => { fetchPaiements(); }, []);
+
+  const toggleRow = (id: number) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedRows(newExpanded);
+  };
 
   const fetchPaiements = async () => {
     setLoading(true);
@@ -30,6 +42,7 @@ export default function PaiementList() {
         id: item.id,
         numeroRecu: item.numeroRecu,
         montant: item.montant,
+        montantAttendu: item.montantAttendu,
         datePaiement: item.datePaiement,
         motif: item.motif,
         statut: item.statut,
@@ -111,7 +124,7 @@ export default function PaiementList() {
 
   const formatTypePaiement = (type: string) => {
     const typeMap: { [key: string]: string } = {
-      'ESPECE': 'Espèces',
+      'ESPECES': 'Espèces',
       'WAVE': 'Wave',
       'CHEQUE': 'Chèque',
       'ORANGE_MONEY': 'Orange Money',
@@ -123,6 +136,10 @@ export default function PaiementList() {
   const totalMontant = paiements.reduce((sum, p) => sum + (p.montant || 0), 0);
   const payes = paiements.filter(p => p.statut === 'PAYE').length;
   const enAttente = paiements.filter(p => p.statut === 'EN_ATTENTE').length;
+  const impayes = paiements.filter(p => p.statut === 'PARTIEL' || p.statut === 'IMPAYE').length;
+  const totalMontantImpayes = paiements
+    .filter(p => p.statut === 'PARTIEL' || p.statut === 'IMPAYE')
+    .reduce((sum, p) => sum + (p.montant || 0), 0);
 
   const motifData = [
     { name: 'Inscriptions', value: paiements.filter(p => p.motif === 'INSCRIPTION').length },
@@ -130,7 +147,7 @@ export default function PaiementList() {
   ];
 
   const typePaiementData = [
-    { name: 'Espèces', value: paiements.filter(p => p.typePaiement === 'ESPECE').length },
+    { name: 'Espèces', value: paiements.filter(p => p.typePaiement === 'ESPECES').length },
     { name: 'Wave', value: paiements.filter(p => p.typePaiement === 'WAVE').length },
     { name: 'Chèque', value: paiements.filter(p => p.typePaiement === 'CHEQUE').length },
     { name: 'Orange Money', value: paiements.filter(p => p.typePaiement === 'ORANGE_MONEY').length },
@@ -189,6 +206,18 @@ export default function PaiementList() {
             <div>
               <p className="text-muted mb-0" style={{ fontSize: 12, fontWeight: 500 }}>En attente</p>
               <p className="fw-bold mb-0" style={{ fontSize: 24, color: '#d97706' }}>{enAttente}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0', flex: '1 1 200px', minWidth: 200 }}>
+          <div className="d-flex align-items-center gap-3">
+            <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#fee2e2', fontSize: 24 }}>
+              ⚠️
+            </div>
+            <div>
+              <p className="text-muted mb-0" style={{ fontSize: 12, fontWeight: 500 }}>Impayés (Partiel + Non-payé)</p>
+              <p className="fw-bold mb-0" style={{ fontSize: 20, color: '#dc2626' }}>{totalMontantImpayes.toLocaleString('fr-FR')} FCFA</p>
+              <p className="text-muted mb-0" style={{ fontSize: 11 }}>{impayes} paiement(s)</p>
             </div>
           </div>
         </div>
@@ -430,77 +459,140 @@ export default function PaiementList() {
                 {filtered.length === 0 ? (
                   <tr><td colSpan={9} className="text-center py-5 text-muted">{search ? 'Aucun paiement trouvé.' : 'Aucun paiement enregistré.'}</td></tr>
                 ) : filtered.map(p => (
-                <tr key={p.id} style={{ borderTop: '1px solid #f3f4f6' }}>
-                  <td className="py-3 px-4 font-monospace small text-muted">{p.numeroRecu}</td>
-                  <td className="py-3 px-4 fw-semibold" style={{ color: '#111827' }}>{p.eleveNom} {p.elevePrenom}</td>
-                  <td className="py-3 px-4" style={{ color: '#374151' }}>{p.moisLibelle || '—'}</td>
-                  <td className="py-3 px-4">
-                    <span className="badge rounded-full fw-medium" style={{
-                      backgroundColor: p.motif === 'INSCRIPTION' ? '#dbeafe' : '#ccfbf1',
-                      color: p.motif === 'INSCRIPTION' ? '#1d4ed8' : '#0f766e',
-                      fontSize: 12,
-                      padding: '6px 12px',
-                    }}>{p.motif}</span>
-                  </td>
-                  <td className="py-3 px-4 fw-semibold text-end" style={{ color: '#0f9d58' }}>{p.montant?.toLocaleString('fr-FR')} FCFA</td>
-                  <td className="py-3 px-4" style={{ color: '#374151' }}>{formatTypePaiement(p.typePaiement)}</td>
-                  <td className="py-3 px-4">
-                    <span
-                      className="badge rounded-full fw-medium"
-                      style={{
-                        backgroundColor: p.statut === 'PAYE' ? '#dcfce7' : p.statut === 'EN_ATTENTE' ? '#ffedd5' : '#fee2e2',
-                        color: p.statut === 'PAYE' ? '#166534' : p.statut === 'EN_ATTENTE' ? '#9a3412' : '#991b1b',
-                        fontSize: 12,
-                        padding: '6px 12px',
-                      }}
-                    >
-                      {p.statut}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4" style={{ color: '#9ca3af' }}>{p.datePaiement}</td>
-                  <td className="py-3 px-4">
-                    <div className="d-flex align-items-center gap-2">
-                      <button
-                        onClick={() => handlePrintReceipt(p)}
-                        title="Imprimer reçu"
-                        className="btn btn-sm d-flex align-items-center justify-content-center"
-                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #3b82f6', backgroundColor: '#eff6ff', color: '#3b82f6' }}
-                        onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='#3b82f6'; b.style.color='#fff'; }}
-                        onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='#eff6ff'; b.style.color='#3b82f6'; }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleOpenDrawer(p.id)}
-                        title="Modifier"
-                        className="btn btn-sm d-flex align-items-center justify-content-center"
-                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #16a34a', backgroundColor: '#f0faf4', color: '#16a34a' }}
-                        onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='#16a34a'; b.style.color='#fff'; }}
-                        onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='#f0faf4'; b.style.color='#16a34a'; }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z"/>
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(p.id)}
-                        disabled={deletingId === p.id}
-                        title="Supprimer"
-                        className="btn btn-sm d-flex align-items-center justify-content-center"
-                        style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #ef4444', backgroundColor: '#fef2f2', color: '#ef4444', opacity: deletingId === p.id ? 0.4 : 1 }}
-                        onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='#ef4444'; b.style.color='#fff'; }}
-                        onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='#fef2f2'; b.style.color='#ef4444'; }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a1 1 0 01-1-1V5a1 1 0 011-1h6a1 1 0 011 1v1a1 1 0 01-1 1H9z"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                  <React.Fragment key={p.id}>
+                    <tr style={{ borderTop: '1px solid #f3f4f6' }}>
+                      <td className="py-3 px-4 font-monospace small text-muted">{p.numeroRecu}</td>
+                      <td className="py-3 px-4 fw-semibold" style={{ color: '#111827' }}>{p.eleveNom} {p.elevePrenom}</td>
+                      <td className="py-3 px-4" style={{ color: '#374151' }}>{p.moisLibelle || '—'}</td>
+                      <td className="py-3 px-4">
+                        <span className="badge rounded-full fw-medium" style={{
+                          backgroundColor: p.motif === 'INSCRIPTION' ? '#dbeafe' : '#ccfbf1',
+                          color: p.motif === 'INSCRIPTION' ? '#1d4ed8' : '#0f766e',
+                          fontSize: 12,
+                          padding: '6px 12px',
+                        }}>{p.motif}</span>
+                      </td>
+                      <td className="py-3 px-4 fw-semibold text-end" style={{ color: '#0f9d58' }}>
+                        {p.statut === 'PARTIEL' && p.montantAttendu ? (
+                          <button
+                            onClick={() => toggleRow(p.id)}
+                            className="btn btn-sm d-flex flex-column align-items-end gap-1"
+                            style={{
+                              backgroundColor: expandedRows.has(p.id) ? '#fef3c7' : '#fff7ed',
+                              border: '1px solid #fcd34d',
+                              borderRadius: 8,
+                              padding: '6px 12px',
+                              minWidth: 120,
+                            }}
+                          >
+                            <span style={{ fontSize: 13, color: '#92400e' }}>
+                              {p.montant?.toLocaleString('fr-FR')} FCFA
+                            </span>
+                            <span style={{ fontSize: 10, color: '#b45309' }}>
+                              {expandedRows.has(p.id) ? '▼ Masquer détails' : '▶ Voir reliquat'}
+                            </span>
+                          </button>
+                        ) : (
+                          <span>{p.montant?.toLocaleString('fr-FR')} FCFA</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4" style={{ color: '#374151' }}>{formatTypePaiement(p.typePaiement)}</td>
+                      <td className="py-3 px-4">
+                        <span
+                          className="badge rounded-full fw-medium"
+                          style={{
+                            backgroundColor: p.statut === 'PAYE' ? '#dcfce7' : p.statut === 'EN_ATTENTE' ? '#ffedd5' : '#fee2e2',
+                            color: p.statut === 'PAYE' ? '#166534' : p.statut === 'EN_ATTENTE' ? '#9a3412' : '#991b1b',
+                            fontSize: 12,
+                            padding: '6px 12px',
+                          }}
+                        >
+                          {p.statut}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4" style={{ color: '#9ca3af' }}>{p.datePaiement}</td>
+                      <td className="py-3 px-4">
+                        <div className="d-flex align-items-center gap-2">
+                          <button
+                            onClick={() => handlePrintReceipt(p)}
+                            title="Imprimer reçu"
+                            className="btn btn-sm d-flex align-items-center justify-content-center"
+                            style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #3b82f6', backgroundColor: '#eff6ff', color: '#3b82f6' }}
+                            onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='#3b82f6'; b.style.color='#fff'; }}
+                            onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='#eff6ff'; b.style.color='#3b82f6'; }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleOpenDrawer(p.id)}
+                            title="Modifier"
+                            className="btn btn-sm d-flex align-items-center justify-content-center"
+                            style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #16a34a', backgroundColor: '#f0faf4', color: '#16a34a' }}
+                            onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='#16a34a'; b.style.color='#fff'; }}
+                            onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='#f0faf4'; b.style.color='#16a34a'; }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z"/>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDelete(p.id)}
+                            disabled={deletingId === p.id}
+                            title="Supprimer"
+                            className="btn btn-sm d-flex align-items-center justify-content-center"
+                            style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: '1px solid #ef4444', backgroundColor: '#fef2f2', color: '#ef4444', opacity: deletingId === p.id ? 0.4 : 1 }}
+                            onMouseEnter={ev => { const b = ev.currentTarget; b.style.backgroundColor='#ef4444'; b.style.color='#fff'; }}
+                            onMouseLeave={ev => { const b = ev.currentTarget; b.style.backgroundColor='#fef2f2'; b.style.color='#ef4444'; }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a1 1 0 01-1-1V5a1 1 0 011-1h6a1 1 0 011 1v1a1 1 0 01-1 1H9z"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {/* Ligne dépliante pour paiements partiels */}
+                    {p.statut === 'PARTIEL' && p.montantAttendu && expandedRows.has(p.id) ? (
+                      <tr style={{ backgroundColor: '#fffbeb' }}>
+                        <td colSpan={9} className="py-3 px-4">
+                          <div className="d-flex align-items-center gap-4 p-3 rounded-3" style={{ backgroundColor: '#fef3c7', border: '1px solid #fcd34d' }}>
+                            <div className="d-flex align-items-center gap-2">
+                              <span style={{ fontSize: 24 }}>⚠️</span>
+                              <div>
+                                <div className="fw-semibold" style={{ color: '#92400e', fontSize: 13 }}>Détails du paiement partiel</div>
+                                <div className="small text-muted" style={{ fontSize: 11 }}>
+                                  {p.motif === 'MENSUALITE' ? `Mensualité de ${p.moisLibelle}` : p.motif}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="d-flex gap-4 ms-auto">
+                              <div className="text-center">
+                                <div className="small text-muted" style={{ fontSize: 10 }}>Total attendu</div>
+                                <div className="fw-bold" style={{ color: '#92400e', fontSize: 14 }}>
+                                  {p.montantAttendu?.toLocaleString('fr-FR')} FCFA
+                                </div>
+                              </div>
+                              <div className="text-center">
+                                <div className="small text-muted" style={{ fontSize: 10 }}>Montant payé</div>
+                                <div className="fw-bold" style={{ color: '#166534', fontSize: 14 }}>
+                                  {p.montant?.toLocaleString('fr-FR')} FCFA
+                                </div>
+                              </div>
+                              <div className="text-center">
+                                <div className="small text-muted" style={{ fontSize: 10 }}>Reste à payer</div>
+                                <div className="fw-bold" style={{ color: '#dc2626', fontSize: 14 }}>
+                                  {(p.montantAttendu! - p.montant).toLocaleString('fr-FR')} FCFA
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </React.Fragment>
+                ))}
             </tbody>
           </table>
           )}

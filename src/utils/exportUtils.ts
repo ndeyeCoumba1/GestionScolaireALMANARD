@@ -17,6 +17,8 @@ export interface ReceiptData {
   eleveNom: string;
   elevePrenom: string;
   montant: number;
+  montantAttendu?: number;
+  statut?: string;
   motif: string;
   datePaiement: string;
   moisLibelle?: string;
@@ -25,16 +27,60 @@ export interface ReceiptData {
   referenceTransaction?: string;
   classe?: string;
   matricule?: string;
+  anneeScolaire?: string;
   captureJustificatif?: boolean;
+}
+
+export interface DailyReportData {
+  dateRapport: string;
+  dateDebut: string;
+  dateFin: string;
+  paiements: Array<{
+    numeroRecu: string;
+    eleveNom: string;
+    elevePrenom: string;
+    moisLibelle: string;
+    motif: string;
+    montant: number;
+    montantAttendu?: number;
+    statut: string;
+    typePaiement: string;
+  }>;
+  depenses: Array<{
+    id: string;
+    description: string;
+    periode: string;
+    montant: number;
+    date: string;
+  }>;
+  nouvellesInscriptions: Array<{
+    nom: string;
+    prenom: string;
+    classe: string;
+  }>;
+  modificationsSysteme: Array<{
+    utilisateur: string;
+    action: string;
+    date: string;
+  }>;
 }
 
 export function generateReceipt(data: ReceiptData) {
   const doc = new jsPDF();
 
+  // Calcul du reste à payer et statut
+  const montantAttendu = data.montantAttendu || data.montant;
+  const resteAPayer = Math.max(0, montantAttendu - data.montant);
+  const estPaiementPartiel = data.statut === 'PARTIEL' || (data.montantAttendu && data.montant < data.montantAttendu);
+  const statutAffiche = estPaiementPartiel ? 'PARTIEL' : 'SOLDÉ';
+
   // Montant formaté sans toLocaleString (évite les espaces insécables)
   const montantText = typeof data.montant === 'number'
     ? formatMontant(data.montant)
     : `${data.montant} FCFA`;
+
+  const montantAttenduText = formatMontant(montantAttendu);
+  const resteAPayerText = formatMontant(resteAPayer);
 
   // 1. Header - Logo et nom de l'école
   try {
@@ -63,7 +109,7 @@ export function generateReceipt(data: ReceiptData) {
   // 4. Bloc informations élève
   const studentInfoY = 65;
   doc.setFillColor(220, 252, 231);
-  doc.roundedRect(20, studentInfoY, 170, 35, 3, 3, 'F');
+  doc.roundedRect(20, studentInfoY, 170, 40, 3, 3, 'F');
 
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
@@ -75,11 +121,11 @@ export function generateReceipt(data: ReceiptData) {
   doc.setTextColor(55, 65, 81);
   doc.text(`Nom Complet: ${data.elevePrenom} ${data.eleveNom}`, 25, studentInfoY + 18);
 
-  if (data.matricule) {
-    doc.text(`Matricule: ${data.matricule}`, 25, studentInfoY + 26);
-  }
   if (data.classe) {
-    doc.text(`Classe: ${data.classe}`, 105, studentInfoY + 26);
+    doc.text(`Classe: ${data.classe}`, 25, studentInfoY + 26);
+  }
+  if (data.anneeScolaire) {
+    doc.text(`Année scolaire: ${data.anneeScolaire}`, 105, studentInfoY + 26);
   }
 
   // 5. Détails du paiement
@@ -98,41 +144,34 @@ export function generateReceipt(data: ReceiptData) {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
   });
 
   doc.text(`Date de l'operation: ${formattedDate}`, 20, paymentDetailsY + 10);
 
   let motifText = data.motif;
   if (data.moisLibelle) {
-    motifText += ` - Mois de ${data.moisLibelle}`;
+    motifText += ` - ${data.moisLibelle}`;
   }
   doc.text(`Type / Motif: ${motifText}`, 20, paymentDetailsY + 18);
 
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'normal');
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0, 0, 0);
-  doc.text(`Montant: ${montantText}`, 20, paymentDetailsY + 28);
+  // 6. Tableau des montants
+  const tableY = paymentDetailsY + 30;
 
-  // 6. Tableau de paiement
-  const tableY = paymentDetailsY + 40;
-  let description = 'Paiement';
-  if (data.typePaiement) {
-    const typeLabels: Record<string, string> = {
-      'ESPECE': 'Espece',
-      'WAVE': 'Wave',
-      'CHEQUE': 'Cheque',
-      'ORANGE_MONEY': 'Orange Money',
-    };
-    description = `Paiement via ${typeLabels[data.typePaiement] || data.typePaiement}`;
-    if (data.typePaiement === 'WAVE' || data.typePaiement === 'ORANGE_MONEY') {
-      description += ' - Transfert Mobile';
-    }
+  // Déterminer la description selon le motif
+  let descriptionMontant = 'Montant';
+  if (data.motif === 'MENSUALITE') {
+    descriptionMontant = 'Scolarité mensuelle';
+  } else if (data.motif === 'INSCRIPTION') {
+    descriptionMontant = 'Frais d\'inscription';
   }
 
-  const tableData = [[description, montantText]];
+  const tableData = [
+    [descriptionMontant, montantAttenduText],
+    ['Montant payé', montantText],
+    ['Statut', statutAffiche],
+    ['Reste à payer', resteAPayerText],
+  ];
+
   let tableFinalY = tableY;
 
   autoTable(doc, {
@@ -145,13 +184,12 @@ export function generateReceipt(data: ReceiptData) {
       textColor: 255,
       fontStyle: 'bold',
       halign: 'center',
-      fontSize: 11,
+      fontSize: 10,
     },
     bodyStyles: {
       textColor: [0, 0, 0],
       halign: 'right',
-      fontSize: 12,
-      fontStyle: 'bold',
+      fontSize: 11,
     },
     columnStyles: {
       0: { cellWidth: 110, halign: 'left' },
@@ -168,12 +206,48 @@ export function generateReceipt(data: ReceiptData) {
       doc.setFont('helvetica', 'normal');
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 0, 0);
-      doc.text('MONTANT TOTAL PAYE', 20, tableFinalY + 15);
+      doc.text('MONTANT TOTAL PAYE AUJOURD\'HUI', 20, tableFinalY + 15);
       doc.text(montantText, 190, tableFinalY + 15, { align: 'right' });
     },
   });
 
-  // 7. Traçabilité numérique (paiements mobiles)
+  // 7. Message d'information pour paiements partiels
+  if (estPaiementPartiel && resteAPayer > 0) {
+    const infoY = tableFinalY + 25;
+    doc.setFillColor(254, 243, 242);
+    doc.roundedRect(20, infoY, 170, 30, 3, 3, 'F');
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(220, 38, 38);
+    doc.text('⚠️ INFORMATION IMPORTANTE', 25, infoY + 8);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(55, 65, 81);
+    
+    let messageInfo = `Ce paiement est PARTIEL. Un solde de ${resteAPayerText} reste dû`;
+    if (data.moisLibelle) {
+      messageInfo += ` pour le mois de ${data.moisLibelle}`;
+    }
+    messageInfo += '. Veuillez régulariser la situation.';
+    
+    doc.text(messageInfo, 25, infoY + 16);
+
+    // Date de rappel (15 jours après)
+    const dateRappel = new Date(dateObj);
+    dateRappel.setDate(dateRappel.getDate() + 15);
+    const dateRappelText = dateRappel.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+    doc.text(`Prochain rappel prévu le : ${dateRappelText}`, 25, infoY + 24);
+
+    tableFinalY = infoY + 30;
+  }
+
+  // 8. Traçabilité numérique (paiements mobiles)
   if (data.typePaiement === 'WAVE' || data.typePaiement === 'ORANGE_MONEY') {
     const traceabilityY = tableFinalY + 25;
     doc.setFontSize(11);
@@ -209,7 +283,7 @@ export function generateReceipt(data: ReceiptData) {
     }
   }
 
-  // 8. Footer - Signature et cachet
+  // 9. Footer - Signature et cachet
   const footerY = doc.internal.pageSize.height - 50;
 
   doc.setDrawColor(200, 200, 200);
@@ -248,19 +322,20 @@ export function generatePaymentListReport(paiements: Paiement[], title: string =
   doc.line(20, 40, 190, 40);
 
   const tableData = paiements.map(p => [
-    p.numeroRecu,
-    `${p.eleveNom} ${p.elevePrenom}`,
-    p.motif,
+    p.numeroRecu || '—',
+    `${p.eleveNom || ''} ${p.elevePrenom || ''}`.trim() || '—',
+    p.motif || '—',
     p.moisLibelle || '—',
-    formatMontant(p.montant),
-    new Date(p.datePaiement).toLocaleDateString('fr-FR'),
+    formatMontant(p.montant || 0),
+    p.datePaiement ? new Date(p.datePaiement).toLocaleDateString('fr-FR') : '—',
+    `${p.enregistreParNom || '—'}${p.enregistreParRole ? ` (${p.enregistreParRole})` : ''}`,
   ]);
 
   const totalMontant = paiements.reduce((sum, p) => sum + p.montant, 0);
 
   autoTable(doc, {
     startY: 50,
-    head: [['N° Recu', 'Eleve', 'Motif', 'Mois', 'Montant', 'Date']],
+    head: [['N° Recu', 'Eleve', 'Motif', 'Mois', 'Montant', 'Date', 'Enregistré par']],
     body: tableData,
     theme: 'striped',
     headStyles: {
@@ -276,12 +351,13 @@ export function generatePaymentListReport(paiements: Paiement[], title: string =
       fontSize: 8,
     },
     columnStyles: {
-      0: { cellWidth: 25 },
-      1: { cellWidth: 40 },
-      2: { cellWidth: 30 },
-      3: { cellWidth: 25 },
-      4: { cellWidth: 35 },
-      5: { cellWidth: 25 },
+      0: { cellWidth: 22 },
+      1: { cellWidth: 35 },
+      2: { cellWidth: 25 },
+      3: { cellWidth: 22 },
+      4: { cellWidth: 30 },
+      5: { cellWidth: 22 },
+      6: { cellWidth: 32 },
     },
     styles: { overflow: 'linebreak' },
     didDrawPage: (data) => {
@@ -318,13 +394,13 @@ export function generatePaymentListReport(paiements: Paiement[], title: string =
 
 export function exportPaymentsToExcel(paiements: Paiement[], filename: string = 'paiements') {
   const excelData = paiements.map(p => ({
-    'Numero de Recu': p.numeroRecu,
-    'Eleve': `${p.eleveNom} ${p.elevePrenom}`,
-    'Motif': p.motif,
+    'Numero de Recu': p.numeroRecu || '—',
+    'Eleve': `${p.eleveNom || ''} ${p.elevePrenom || ''}`.trim() || '—',
+    'Motif': p.motif || '—',
     'Mois': p.moisLibelle || '—',
-    'Montant (FCFA)': p.montant,
-    'Date de Paiement': new Date(p.datePaiement).toLocaleDateString('fr-FR'),
-    'Enregistre par': p.enregistreParNom || '—',
+    'Montant (FCFA)': p.montant || 0,
+    'Date de Paiement': p.datePaiement ? new Date(p.datePaiement).toLocaleDateString('fr-FR') : '—',
+    'Enregistre par': `${p.enregistreParNom || '—'}${p.enregistreParRole ? ` (${p.enregistreParRole})` : ''}`,
   }));
 
   const totalMontant = paiements.reduce((sum, p) => sum + p.montant, 0);
@@ -387,7 +463,7 @@ export async function generateDailyReport(startDate: string, endDate: string) {
     const [paiementsRes, depensesRes, inscriptionsRes] = await Promise.all([
       api.get('/paiements'),
       api.get('/depenses'),
-      api.get('/inscription'),
+      api.get('/inscriptions'),
     ]);
 
     const paiements = paiementsRes.data || [];
@@ -479,7 +555,7 @@ export async function generateWeeklyReport(startDate: string, endDate: string) {
     const [paiementsRes, depensesRes, inscriptionsRes] = await Promise.all([
       api.get('/paiements'),
       api.get('/depenses'),
-      api.get('/inscription'),
+      api.get('/inscriptions'),
     ]);
 
     const paiements = paiementsRes.data || [];
@@ -572,7 +648,7 @@ export async function generateMonthlyReport(startDate: string, endDate: string) 
     const [paiementsRes, depensesRes, inscriptionsRes, elevesRes] = await Promise.all([
       api.get('/paiements'),
       api.get('/depenses'),
-      api.get('/inscription'),
+      api.get('/inscriptions'),
       api.get('/eleves'),
     ]);
 
