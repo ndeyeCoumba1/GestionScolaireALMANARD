@@ -35,11 +35,15 @@ export interface DailyReportData {
   dateRapport: string;
   dateDebut: string;
   dateFin: string;
+  reportId: string;
+  totalRecettes: number;
+  totalDepenses: number;
+  soldeNet: number;
   paiements: Array<{
     numeroRecu: string;
     eleveNom: string;
     elevePrenom: string;
-    moisLibelle: string;
+    moisLibelle?: string;
     motif: string;
     montant: number;
     montantAttendu?: number;
@@ -47,9 +51,9 @@ export interface DailyReportData {
     typePaiement: string;
   }>;
   depenses: Array<{
-    id: string;
+    numeroDepense: string;
     description: string;
-    periode: string;
+    periode?: string;
     montant: number;
     date: string;
   }>;
@@ -67,77 +71,94 @@ export interface DailyReportData {
 
 export function generateReceipt(data: ReceiptData) {
   const doc = new jsPDF();
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const margin = 15;
+
+  // Couleurs - Dégradé vert
+  const darkGreen: [number, number, number] = [10, 110, 63]; // #0A6E3F
+  const mediumGreen: [number, number, number] = [15, 157, 88]; // #0F9D58
+  const lightGreen: [number, number, number] = [220, 252, 231]; // #DCFCED
+  const grayText: [number, number, number] = [55, 65, 81];
+  const lightGray: [number, number, number] = [229, 231, 235];
 
   // Calcul du reste à payer et statut
   const montantAttendu = data.montantAttendu || data.montant;
   const resteAPayer = Math.max(0, montantAttendu - data.montant);
   const estPaiementPartiel = data.statut === 'PARTIEL' || (data.montantAttendu && data.montant < data.montantAttendu);
-  const statutAffiche = estPaiementPartiel ? 'PARTIEL' : 'SOLDÉ';
 
-  // Montant formaté sans toLocaleString (évite les espaces insécables)
-  const montantText = typeof data.montant === 'number'
-    ? formatMontant(data.montant)
-    : `${data.montant} FCFA`;
-
+  // Montant formaté
+  const montantText = formatMontant(data.montant);
   const montantAttenduText = formatMontant(montantAttendu);
   const resteAPayerText = formatMontant(resteAPayer);
 
-  // 1. Header - Logo et nom de l'école
+  // ── HEADER ──
+  // Logo à gauche
   try {
-    doc.addImage(almanardLogo, 'JPEG', 20, 10, 30, 30);
+    doc.addImage(almanardLogo, 'JPEG', margin, 12, 28, 28);
   } catch (error) {
     console.warn('Logo could not be loaded');
   }
 
-  doc.setFontSize(16);
-  doc.setTextColor(26, 92, 56);
+  // Titre à droite
+  doc.setFontSize(22);
+  doc.setTextColor(darkGreen[0], darkGreen[1], darkGreen[2]);
   doc.setFont('helvetica', 'bold');
-  doc.text('GROUPE SCOLAIRE AL-MANARD3S', 105, 25, { align: 'center' });
+  doc.text('REÇU DE PAIEMENT', pageWidth - margin, 20, { align: 'right' });
 
-  // 2. Ligne verte
-  doc.setDrawColor(26, 92, 56);
+  // Numéro du reçu dans un encadré moderne
+  doc.setDrawColor(darkGreen[0], darkGreen[1], darkGreen[2]);
   doc.setLineWidth(1);
-  doc.line(20, 40, 190, 40);
-
-  // 3. Titre du reçu
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(17, 24, 39);
-  doc.text(`RECU DE PAIEMENT N°: ${data.numeroRecu}`, 105, 50, { align: 'center' });
-
+  doc.roundedRect(pageWidth - margin - 60, 28, 60, 20, 5, 5, 'S');
   
-  // 4. Bloc informations élève
-  const studentInfoY = 65;
-  doc.setFillColor(220, 252, 231);
-  doc.roundedRect(20, studentInfoY, 170, 40, 3, 3, 'F');
-
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(26, 92, 56);
-  doc.text("INFORMATIONS SUR L'ELEVE", 25, studentInfoY + 8);
-
-  doc.setFontSize(10);
+  doc.setFontSize(8);
+  doc.setTextColor(grayText[0], grayText[1], grayText[2]);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(55, 65, 81);
-  doc.text(`Nom Complet: ${data.elevePrenom} ${data.eleveNom}`, 25, studentInfoY + 18);
+  doc.text('N° REÇU', pageWidth - margin - 55, 35);
+  
+  doc.setFontSize(12);
+  doc.setTextColor(darkGreen[0], darkGreen[1], darkGreen[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text(data.numeroRecu, pageWidth - margin - 55, 42);
 
+  // Ligne de séparation
+  doc.setDrawColor(lightGreen[0], lightGreen[1], lightGreen[2]);
+  doc.setLineWidth(2);
+  doc.line(margin, 50, pageWidth - margin, 50);
+
+  let currentY = 58;
+
+  // ── SECTION INFORMATIONS SUR L'ÉLÈVE ──
+  doc.setFontSize(10);
+  doc.setTextColor(darkGreen[0], darkGreen[1], darkGreen[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text('👤 INFORMATIONS SUR L\'ÉLÈVE', margin, currentY);
+  currentY += 8;
+
+  // Bloc élève avec fond léger
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 30, 5, 5, 'F');
+  
+  doc.setFontSize(9);
+  doc.setTextColor(grayText[0], grayText[1], grayText[2]);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Nom complet : ${data.elevePrenom} ${data.eleveNom}`, margin + 8, currentY + 12);
+  
   if (data.classe) {
-    doc.text(`Classe: ${data.classe}`, 25, studentInfoY + 26);
+    doc.text(`Classe : ${data.classe}`, margin + 8, currentY + 22);
   }
   if (data.anneeScolaire) {
-    doc.text(`Année scolaire: ${data.anneeScolaire}`, 105, studentInfoY + 26);
+    doc.text(`Année scolaire : ${data.anneeScolaire}`, pageWidth - margin - 8, currentY + 22, { align: 'right' });
   }
 
-  // 5. Détails du paiement
-  const paymentDetailsY = studentInfoY + 45;
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(26, 92, 56);
-  doc.text('DETAILS DU PAIEMENT', 20, paymentDetailsY);
+  currentY += 40;
 
+  // ── SECTION DÉTAILS DU PAIEMENT ──
   doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(55, 65, 81);
+  doc.setTextColor(darkGreen[0], darkGreen[1], darkGreen[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text('💳 DÉTAILS DU PAIEMENT', margin, currentY);
+  currentY += 8;
 
   const dateObj = new Date(data.datePaiement);
   const formattedDate = dateObj.toLocaleDateString('fr-FR', {
@@ -146,162 +167,179 @@ export function generateReceipt(data: ReceiptData) {
     year: 'numeric',
   });
 
-  doc.text(`Date de l'operation: ${formattedDate}`, 20, paymentDetailsY + 10);
+  doc.setFontSize(9);
+  doc.setTextColor(grayText[0], grayText[1], grayText[2]);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`📅 Date : ${formattedDate}`, margin + 8, currentY);
 
   let motifText = data.motif;
   if (data.moisLibelle) {
     motifText += ` - ${data.moisLibelle}`;
   }
-  doc.text(`Type / Motif: ${motifText}`, 20, paymentDetailsY + 18);
+  doc.text(`📝 Motif : ${motifText}`, margin + 8, currentY + 8);
 
-  // 6. Tableau des montants
-  const tableY = paymentDetailsY + 30;
+  currentY += 18;
 
-  // Déterminer la description selon le motif
-  let descriptionMontant = 'Montant';
-  if (data.motif === 'MENSUALITE') {
-    descriptionMontant = 'Scolarité mensuelle';
-  } else if (data.motif === 'INSCRIPTION') {
-    descriptionMontant = 'Frais d\'inscription';
-  }
-
-  const tableData = [
-    [descriptionMontant, montantAttenduText],
-    ['Montant payé', montantText],
-    ['Statut', statutAffiche],
-    ['Reste à payer', resteAPayerText],
+  // ── TABLEAU ÉLÉGANT ──
+  const tableRows = [
+    ['Montant total attendu', montantAttenduText],
+    ['Montant versé', montantText],
   ];
 
-  let tableFinalY = tableY;
+  if (estPaiementPartiel) {
+    tableRows.push(['Statut', 'PARTIEL']);
+  } else {
+    tableRows.push(['Statut', 'PAYÉ']);
+  }
+
+  let tableFinalY = currentY;
 
   autoTable(doc, {
-    startY: tableY,
-    head: [['Description', 'Montant (FCFA)']],
-    body: tableData,
-    theme: 'grid',
+    startY: currentY,
+    head: [['Description', 'Montant']],
+    body: tableRows,
+    theme: 'plain',
     headStyles: {
-      fillColor: [15, 157, 88],
-      textColor: 255,
+      fillColor: [255, 255, 255],
+      textColor: darkGreen,
       fontStyle: 'bold',
-      halign: 'center',
-      fontSize: 10,
+      halign: 'left',
+      fontSize: 9,
     },
     bodyStyles: {
-      textColor: [0, 0, 0],
-      halign: 'right',
-      fontSize: 11,
+      textColor: grayText,
+      fontSize: 10,
     },
     columnStyles: {
-      0: { cellWidth: 110, halign: 'left' },
-      1: { cellWidth: 60, halign: 'right' },
+      0: { cellWidth: 120, halign: 'left' },
+      1: { cellWidth: 50, halign: 'right', fontStyle: 'bold' },
+    },
+    didDrawCell: (hookData) => {
+      if (hookData.section === 'body') {
+        const cell = hookData.cell;
+        // Bordure arrondie pour chaque cellule
+        doc.setDrawColor(lightGray[0], lightGray[1], lightGray[2]);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(cell.x, cell.y, cell.width, cell.height, 2, 2, 'S');
+        
+        // Statut en vert
+        if (hookData.row.raw[0] === 'Statut') {
+          doc.setTextColor(mediumGreen[0], mediumGreen[1], mediumGreen[2]);
+        }
+      }
     },
     didDrawPage: (hookData) => {
-      tableFinalY = hookData.table?.finalY || tableY + 20;
-      doc.setDrawColor(26, 92, 56);
-      doc.setLineWidth(0.5);
-      doc.line(20, tableFinalY + 5, 190, tableFinalY + 5);
-      doc.line(20, tableFinalY + 7, 190, tableFinalY + 7);
-
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'normal');
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(0, 0, 0);
-      doc.text('MONTANT TOTAL PAYE AUJOURD\'HUI', 20, tableFinalY + 15);
-      doc.text(montantText, 190, tableFinalY + 15, { align: 'right' });
+      tableFinalY = hookData.table?.finalY || currentY + 30;
     },
   });
 
-  // 7. Message d'information pour paiements partiels
+  currentY = tableFinalY + 12;
+
+  // ── SECTION RÉSUMÉ AVEC DESIGN VISUEL MODERNE ──
+  // Bloc Reste à payer (vert foncé)
+  doc.setFillColor(darkGreen[0], darkGreen[1], darkGreen[2]);
+  doc.roundedRect(margin, currentY, (pageWidth - 2 * margin) / 2 - 5, 35, 8, 8, 'F');
+  
+  doc.setFontSize(8);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'normal');
+  doc.text('RESTE À PAYER', margin + 10, currentY + 12);
+  
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text(resteAPayerText, margin + 10, currentY + 24);
+
+  // Bloc Montant versé aujourd'hui (mis en valeur)
+  const summaryBlockX = margin + (pageWidth - 2 * margin) / 2 + 5;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(mediumGreen[0], mediumGreen[1], mediumGreen[2]);
+  doc.setLineWidth(2);
+  doc.roundedRect(summaryBlockX, currentY, (pageWidth - 2 * margin) / 2 - 5, 35, 8, 8, 'FD');
+  
+  doc.setFontSize(8);
+  doc.setTextColor(grayText[0], grayText[1], grayText[2]);
+  doc.setFont('helvetica', 'normal');
+  doc.text('MONTANT VERSÉ AUJOURD\'HUI', summaryBlockX + 10, currentY + 12);
+  
+  doc.setFontSize(14);
+  doc.setTextColor(mediumGreen[0], mediumGreen[1], mediumGreen[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text(montantText, summaryBlockX + 10, currentY + 24);
+
+  currentY += 45;
+
+  // ── MESSAGE POUR PAIEMENT PARTIEL ──
   if (estPaiementPartiel && resteAPayer > 0) {
-    const infoY = tableFinalY + 25;
     doc.setFillColor(254, 243, 242);
-    doc.roundedRect(20, infoY, 170, 30, 3, 3, 'F');
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
+    doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 25, 5, 5, 'F');
+    
+    doc.setFontSize(8);
     doc.setTextColor(220, 38, 38);
-    doc.text('⚠️ INFORMATION IMPORTANTE', 25, infoY + 8);
-
-    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('⚠️ Paiement partiel - Un solde de ' + resteAPayerText + ' reste dû', margin + 8, currentY + 12);
+    
+    doc.setFontSize(7);
+    doc.setTextColor(grayText[0], grayText[1], grayText[2]);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(55, 65, 81);
+    doc.text('Veuillez régulariser la situation dans les plus brefs délais.', margin + 8, currentY + 20);
     
-    let messageInfo = `Ce paiement est PARTIEL. Un solde de ${resteAPayerText} reste dû`;
-    if (data.moisLibelle) {
-      messageInfo += ` pour le mois de ${data.moisLibelle}`;
-    }
-    messageInfo += '. Veuillez régulariser la situation.';
-    
-    doc.text(messageInfo, 25, infoY + 16);
-
-    // Date de rappel (15 jours après)
-    const dateRappel = new Date(dateObj);
-    dateRappel.setDate(dateRappel.getDate() + 15);
-    const dateRappelText = dateRappel.toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-    doc.text(`Prochain rappel prévu le : ${dateRappelText}`, 25, infoY + 24);
-
-    tableFinalY = infoY + 30;
+    currentY += 30;
   }
 
-  // 8. Traçabilité numérique (paiements mobiles)
+  // ── TRACABILITÉ NUMÉRIQUE ──
   if (data.typePaiement === 'WAVE' || data.typePaiement === 'ORANGE_MONEY') {
-    const traceabilityY = tableFinalY + 25;
-    doc.setFontSize(11);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 30, 5, 5, 'F');
+    
+    doc.setFontSize(9);
+    doc.setTextColor(darkGreen[0], darkGreen[1], darkGreen[2]);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(26, 92, 56);
-    doc.text('TRACABILITE NUMERIQUE', 20, traceabilityY + 15);
-
-    doc.setFontSize(10);
+    doc.text('📱 TRACABILITÉ NUMÉRIQUE', margin + 8, currentY + 10);
+    
+    doc.setFontSize(8);
+    doc.setTextColor(grayText[0], grayText[1], grayText[2]);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(55, 65, 81);
-
+    
     const typeLabels: Record<string, string> = {
       'WAVE': 'Wave',
       'ORANGE_MONEY': 'Orange Money',
     };
-
-    doc.text(`Moyen de Paiement: ${typeLabels[data.typePaiement!] || data.typePaiement}`, 20, traceabilityY + 25);
-
+    
+    doc.text(`Moyen : ${typeLabels[data.typePaiement!] || data.typePaiement}`, margin + 8, currentY + 18);
+    
     if (data.telephone) {
-      doc.text(`Numero Associe: ${data.telephone}`, 20, traceabilityY + 33);
+      doc.text(`Téléphone : ${data.telephone}`, margin + 8, currentY + 26);
     }
-    if (data.referenceTransaction) {
-      doc.text(`Reference de Transaction: ${data.referenceTransaction}`, 20, traceabilityY + 41);
-    }
-
-    doc.setFontSize(9);
-    if (data.captureJustificatif) {
-      doc.setTextColor(15, 157, 88);
-      doc.text("Capture d'ecran jointe au dossier", 20, traceabilityY + 49);
-    } else {
-      doc.setTextColor(239, 68, 68);
-      doc.text("Capture d'ecran non jointe", 20, traceabilityY + 49);
-    }
+    
+    currentY += 38;
   }
 
-  // 9. Footer - Signature et cachet
-  const footerY = doc.internal.pageSize.height - 50;
-
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.5);
-  doc.rect(140, footerY, 40, 25);
-
-  doc.setFontSize(9);
-  doc.setTextColor(107, 114, 128);
-  doc.text('Signature', 160, footerY + 15, { align: 'center' });
-  doc.text('Cachet', 160, footerY + 22, { align: 'center' });
-
-  doc.setDrawColor(229, 231, 235);
-  doc.line(20, footerY + 35, 190, footerY + 35);
-
+  // ── SIGNATURE ET CACHET ──
+  const signatureY = pageHeight - 60;
+  
+  doc.setDrawColor(lightGray[0], lightGray[1], lightGray[2]);
+  doc.setLineWidth(1);
+  doc.roundedRect(pageWidth - margin - 50, signatureY, 50, 40, 5, 5, 'S');
+  
   doc.setFontSize(8);
-  doc.setTextColor(107, 114, 128);
-  doc.text('GROUPE SCOLAIRE AL-MANARD3S', 105, footerY + 42, { align: 'center' });
-  doc.text('Tel: +221 78 120 89 78 | +221 77 520 87 67 | Email: info@almanard3s.com | www.almanard3s.com', 105, footerY + 48, { align: 'center' });
+  doc.setTextColor(grayText[0], grayText[1], grayText[2]);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Signature', pageWidth - margin - 25, signatureY + 20, { align: 'center' });
+  doc.text('Cachet', pageWidth - margin - 25, signatureY + 30, { align: 'center' });
+
+  // ── FOOTER ──
+  const footerY = pageHeight - 40;
+  
+  doc.setDrawColor(lightGreen[0], lightGreen[1], lightGreen[2]);
+  doc.setLineWidth(1);
+  doc.line(margin, footerY, pageWidth - margin, footerY);
+  
+  doc.setFontSize(7);
+  doc.setTextColor(grayText[0], grayText[1], grayText[2]);
+  doc.setFont('helvetica', 'normal');
+  doc.text('GROUPE SCOLAIRE AL-MANAR D3S', pageWidth / 2, footerY + 8, { align: 'center' });
+  doc.text('📞 +221 78 120 89 78 | +221 77 520 87 67', pageWidth / 2, footerY + 15, { align: 'center' });
+  doc.text('✉️ info@almanard3s.com | 🌐 www.almanard3s.com', pageWidth / 2, footerY + 22, { align: 'center' });
 
   doc.save(`recu_${data.numeroRecu}.pdf`);
 }
@@ -486,64 +524,58 @@ export async function generateDailyReport(startDate: string, endDate: string) {
       return date >= startDate && date <= endDate;
     });
 
-    const doc = new jsPDF();
-
-    // Header
-    try {
-      doc.addImage(almanardLogo, 'JPEG', 20, 10, 30, 30);
-    } catch (error) {
-      console.warn('Logo could not be loaded');
-    }
-
-    doc.setFontSize(18);
-    doc.setTextColor(26, 92, 56);
-    doc.setFont('helvetica', 'bold');
-    doc.text('RAPPORT JOURNALIER', 105, 25, { align: 'center' });
-
-    doc.setFontSize(12);
-    doc.setTextColor(107, 114, 128);
-    doc.text(`Période: ${new Date(startDate).toLocaleDateString('fr-FR')} - ${new Date(endDate).toLocaleDateString('fr-FR')}`, 105, 33, { align: 'center' });
-
-    doc.setDrawColor(229, 231, 235);
-    doc.line(20, 40, 190, 40);
-
-    // Summary
-    const totalPaiements = filteredPaiements.reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
+    // Calculate totals
+    const totalRecettes = filteredPaiements.reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
     const totalDepenses = filteredDepenses.reduce((sum: number, d: any) => sum + (d.montant || 0), 0);
+    const soldeNet = totalRecettes - totalDepenses;
 
-    doc.setFontSize(12);
-    doc.setTextColor(26, 92, 56);
-    doc.setFont('helvetica', 'bold');
-    doc.text('RÉSUMÉ', 20, 50);
+    // Generate report ID
+    const today = new Date();
+    const reportId = `REF-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}-001`;
 
-    doc.setFontSize(10);
-    doc.setTextColor(55, 65, 81);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Paiements: ${filteredPaiements.length} transaction(s) - ${formatMontant(totalPaiements)}`, 20, 58);
-    doc.text(`Dépenses: ${filteredDepenses.length} dépense(s) - ${formatMontant(totalDepenses)}`, 20, 65);
-    doc.text(`Nouvelles inscriptions: ${filteredInscriptions.length}`, 20, 72);
+    // Format date for display
+    const formatDate = (dateStr: string) => {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+    };
 
-    // Paiements table
-    if (filteredPaiements.length > 0) {
-      const paiementData = filteredPaiements.map((p: any) => [
-        p.numeroRecu,
-        `${p.eleveNom} ${p.elevePrenom}`,
-        p.motif,
-        formatMontant(p.montant),
-        new Date(p.datePaiement).toLocaleDateString('fr-FR'),
-      ]);
+    // Prepare DailyReportData
+    const reportData: DailyReportData = {
+      dateRapport: formatDate(endDate),
+      dateDebut: formatDate(startDate),
+      dateFin: formatDate(endDate),
+      reportId,
+      totalRecettes,
+      totalDepenses,
+      soldeNet,
+      paiements: filteredPaiements.map((p: any) => ({
+        numeroRecu: p.numeroRecu || 'REC-' + p.id,
+        eleveNom: p.eleve?.nom || p.eleveNom || '',
+        elevePrenom: p.eleve?.prenom || p.elevePrenom || '',
+        moisLibelle: p.mois?.libelle || p.moisLibelle || p.mois || '',
+        motif: p.motif || '',
+        montant: p.montant || 0,
+        montantAttendu: p.montantAttendu,
+        statut: p.statut || 'PAYE',
+        typePaiement: p.typePaiement || 'ESPECES',
+      })),
+      depenses: filteredDepenses.map((d: any) => ({
+        numeroDepense: d.numeroDepense || 'EXP-' + d.id,
+        description: d.description || '',
+        periode: d.periode || '',
+        montant: d.montant || 0,
+        date: new Date(d.dateDepense).toLocaleDateString('fr-FR'),
+      })),
+      nouvellesInscriptions: filteredInscriptions.map((i: any) => ({
+        nom: i.eleveNom || '',
+        prenom: i.elevePrenom || '',
+        classe: i.classe || '',
+      })),
+      modificationsSysteme: [], // TODO: Fetch from API if available
+    };
 
-      autoTable(doc, {
-        startY: 85,
-        head: [['N° Recu', 'Élève', 'Motif', 'Montant', 'Date']],
-        body: paiementData,
-        theme: 'striped',
-        headStyles: { fillColor: [26, 92, 56], textColor: 255, fontSize: 9 },
-        bodyStyles: { textColor: [55, 65, 81], fontSize: 8 },
-      });
-    }
-
-    doc.save(`rapport_journalier_${startDate}_${endDate}.pdf`);
+    // Generate PDF using the new function
+    generateDailyReportPDF(reportData, 'daily');
   } catch (error) {
     console.error('Error generating daily report:', error);
     throw error;
@@ -578,65 +610,58 @@ export async function generateWeeklyReport(startDate: string, endDate: string) {
       return date >= startDate && date <= endDate;
     });
 
-    const doc = new jsPDF();
-
-    // Header
-    try {
-      doc.addImage(almanardLogo, 'JPEG', 20, 10, 30, 30);
-    } catch (error) {
-      console.warn('Logo could not be loaded');
-    }
-
-    doc.setFontSize(18);
-    doc.setTextColor(26, 92, 56);
-    doc.setFont('helvetica', 'bold');
-    doc.text('RAPPORT HEBDOMADAIRE', 105, 25, { align: 'center' });
-
-    doc.setFontSize(12);
-    doc.setTextColor(107, 114, 128);
-    doc.text(`Période: ${new Date(startDate).toLocaleDateString('fr-FR')} - ${new Date(endDate).toLocaleDateString('fr-FR')}`, 105, 33, { align: 'center' });
-
-    doc.setDrawColor(229, 231, 235);
-    doc.line(20, 40, 190, 40);
-
-    // Summary
-    const totalPaiements = filteredPaiements.reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
+    // Calculate totals
+    const totalRecettes = filteredPaiements.reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
     const totalDepenses = filteredDepenses.reduce((sum: number, d: any) => sum + (d.montant || 0), 0);
+    const soldeNet = totalRecettes - totalDepenses;
 
-    doc.setFontSize(12);
-    doc.setTextColor(26, 92, 56);
-    doc.setFont('helvetica', 'bold');
-    doc.text('RÉSUMÉ HEBDOMADAIRE', 20, 50);
+    // Generate report ID
+    const today = new Date();
+    const reportId = `REF-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}-002`;
 
-    doc.setFontSize(10);
-    doc.setTextColor(55, 65, 81);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Paiements: ${filteredPaiements.length} transaction(s) - ${formatMontant(totalPaiements)}`, 20, 58);
-    doc.text(`Dépenses: ${filteredDepenses.length} dépense(s) - ${formatMontant(totalDepenses)}`, 20, 65);
-    doc.text(`Nouvelles inscriptions: ${filteredInscriptions.length}`, 20, 72);
-    doc.text(`Solde net: ${formatMontant(totalPaiements - totalDepenses)}`, 20, 79);
+    // Format date for display
+    const formatDate = (dateStr: string) => {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+    };
 
-    // Paiements table
-    if (filteredPaiements.length > 0) {
-      const paiementData = filteredPaiements.map((p: any) => [
-        p.numeroRecu,
-        `${p.eleveNom} ${p.elevePrenom}`,
-        p.motif,
-        formatMontant(p.montant),
-        new Date(p.datePaiement).toLocaleDateString('fr-FR'),
-      ]);
+    // Prepare DailyReportData (reusing the same interface)
+    const reportData: DailyReportData = {
+      dateRapport: formatDate(endDate),
+      dateDebut: formatDate(startDate),
+      dateFin: formatDate(endDate),
+      reportId,
+      totalRecettes,
+      totalDepenses,
+      soldeNet,
+      paiements: filteredPaiements.map((p: any) => ({
+        numeroRecu: p.numeroRecu || 'REC-' + p.id,
+        eleveNom: p.eleve?.nom || p.eleveNom || '',
+        elevePrenom: p.eleve?.prenom || p.elevePrenom || '',
+        moisLibelle: p.mois?.libelle || p.moisLibelle || p.mois || '',
+        motif: p.motif || '',
+        montant: p.montant || 0,
+        montantAttendu: p.montantAttendu,
+        statut: p.statut || 'PAYE',
+        typePaiement: p.typePaiement || 'ESPECES',
+      })),
+      depenses: filteredDepenses.map((d: any) => ({
+        numeroDepense: d.numeroDepense || 'EXP-' + d.id,
+        description: d.description || '',
+        periode: d.periode || '',
+        montant: d.montant || 0,
+        date: new Date(d.dateDepense).toLocaleDateString('fr-FR'),
+      })),
+      nouvellesInscriptions: filteredInscriptions.map((i: any) => ({
+        nom: i.eleveNom || '',
+        prenom: i.elevePrenom || '',
+        classe: i.classe || '',
+      })),
+      modificationsSysteme: [], // TODO: Fetch from API if available
+    };
 
-      autoTable(doc, {
-        startY: 90,
-        head: [['N° Recu', 'Élève', 'Motif', 'Montant', 'Date']],
-        body: paiementData,
-        theme: 'striped',
-        headStyles: { fillColor: [26, 92, 56], textColor: 255, fontSize: 9 },
-        bodyStyles: { textColor: [55, 65, 81], fontSize: 8 },
-      });
-    }
-
-    doc.save(`rapport_hebdomadaire_${startDate}_${endDate}.pdf`);
+    // Generate PDF using the same function (we'll modify the title in the PDF)
+    generateDailyReportPDF(reportData, 'weekly');
   } catch (error) {
     console.error('Error generating weekly report:', error);
     throw error;
@@ -645,17 +670,15 @@ export async function generateWeeklyReport(startDate: string, endDate: string) {
 
 export async function generateMonthlyReport(startDate: string, endDate: string) {
   try {
-    const [paiementsRes, depensesRes, inscriptionsRes, elevesRes] = await Promise.all([
+    const [paiementsRes, depensesRes, inscriptionsRes] = await Promise.all([
       api.get('/paiements'),
       api.get('/depenses'),
       api.get('/inscriptions'),
-      api.get('/eleves'),
     ]);
 
     const paiements = paiementsRes.data || [];
     const depenses = depensesRes.data || [];
     const inscriptions = inscriptionsRes.data || [];
-    const eleves = elevesRes.data || [];
 
     // Filter by date range
     const filteredPaiements = paiements.filter((p: any) => {
@@ -673,88 +696,382 @@ export async function generateMonthlyReport(startDate: string, endDate: string) 
       return date >= startDate && date <= endDate;
     });
 
-    const doc = new jsPDF();
-
-    // Header
-    try {
-      doc.addImage(almanardLogo, 'JPEG', 20, 10, 30, 30);
-    } catch (error) {
-      console.warn('Logo could not be loaded');
-    }
-
-    doc.setFontSize(18);
-    doc.setTextColor(26, 92, 56);
-    doc.setFont('helvetica', 'bold');
-    doc.text('RAPPORT MENSUEL', 105, 25, { align: 'center' });
-
-    doc.setFontSize(12);
-    doc.setTextColor(107, 114, 128);
-    doc.text(`Période: ${new Date(startDate).toLocaleDateString('fr-FR')} - ${new Date(endDate).toLocaleDateString('fr-FR')}`, 105, 33, { align: 'center' });
-
-    doc.setDrawColor(229, 231, 235);
-    doc.line(20, 40, 190, 40);
-
-    // Summary
-    const totalPaiements = filteredPaiements.reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
+    // Calculate totals
+    const totalRecettes = filteredPaiements.reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
     const totalDepenses = filteredDepenses.reduce((sum: number, d: any) => sum + (d.montant || 0), 0);
+    const soldeNet = totalRecettes - totalDepenses;
 
-    doc.setFontSize(12);
-    doc.setTextColor(26, 92, 56);
-    doc.setFont('helvetica', 'bold');
-    doc.text('RÉSUMÉ MENSUEL', 20, 50);
+    // Generate report ID
+    const today = new Date();
+    const reportId = `REF-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}-003`;
 
-    doc.setFontSize(10);
-    doc.setTextColor(55, 65, 81);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Total élèves: ${eleves.length}`, 20, 58);
-    doc.text(`Paiements: ${filteredPaiements.length} transaction(s) - ${formatMontant(totalPaiements)}`, 20, 65);
-    doc.text(`Dépenses: ${filteredDepenses.length} dépense(s) - ${formatMontant(totalDepenses)}`, 20, 72);
-    doc.text(`Nouvelles inscriptions: ${filteredInscriptions.length}`, 20, 79);
-    doc.text(`Solde net: ${formatMontant(totalPaiements - totalDepenses)}`, 20, 86);
+    // Format date for display
+    const formatDate = (dateStr: string) => {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+    };
 
-    // Paiements by motif
-    const paiementsByMotif = filteredPaiements.reduce((acc: any, p: any) => {
-      acc[p.motif] = (acc[p.motif] || 0) + (p.montant || 0);
-      return acc;
-    }, {});
+    // Prepare DailyReportData (reusing the same interface)
+    const reportData: DailyReportData = {
+      dateRapport: formatDate(endDate),
+      dateDebut: formatDate(startDate),
+      dateFin: formatDate(endDate),
+      reportId,
+      totalRecettes,
+      totalDepenses,
+      soldeNet,
+      paiements: filteredPaiements.map((p: any) => ({
+        numeroRecu: p.numeroRecu || 'REC-' + p.id,
+        eleveNom: p.eleve?.nom || p.eleveNom || '',
+        elevePrenom: p.eleve?.prenom || p.elevePrenom || '',
+        moisLibelle: p.mois?.libelle || p.moisLibelle || p.mois || '',
+        motif: p.motif || '',
+        montant: p.montant || 0,
+        montantAttendu: p.montantAttendu,
+        statut: p.statut || 'PAYE',
+        typePaiement: p.typePaiement || 'ESPECES',
+      })),
+      depenses: filteredDepenses.map((d: any) => ({
+        numeroDepense: d.numeroDepense || 'EXP-' + d.id,
+        description: d.description || '',
+        periode: d.periode || '',
+        montant: d.montant || 0,
+        date: new Date(d.dateDepense).toLocaleDateString('fr-FR'),
+      })),
+      nouvellesInscriptions: filteredInscriptions.map((i: any) => ({
+        nom: i.eleveNom || '',
+        prenom: i.elevePrenom || '',
+        classe: i.classe || '',
+      })),
+      modificationsSysteme: [], // TODO: Fetch from API if available
+    };
 
-    doc.setFontSize(11);
-    doc.setTextColor(26, 92, 56);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Paiements par Motif', 20, 96);
-
-    let motifY = 104;
-    Object.entries(paiementsByMotif).forEach(([motif, montant]: [string, any]) => {
-      doc.setFontSize(9);
-      doc.setTextColor(55, 65, 81);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${motif}: ${formatMontant(montant)}`, 20, motifY);
-      motifY += 7;
-    });
-
-    // Paiements table
-    if (filteredPaiements.length > 0) {
-      const paiementData = filteredPaiements.map((p: any) => [
-        p.numeroRecu,
-        `${p.eleveNom} ${p.elevePrenom}`,
-        p.motif,
-        formatMontant(p.montant),
-        new Date(p.datePaiement).toLocaleDateString('fr-FR'),
-      ]);
-
-      autoTable(doc, {
-        startY: motifY + 5,
-        head: [['N° Recu', 'Élève', 'Motif', 'Montant', 'Date']],
-        body: paiementData,
-        theme: 'striped',
-        headStyles: { fillColor: [26, 92, 56], textColor: 255, fontSize: 9 },
-        bodyStyles: { textColor: [55, 65, 81], fontSize: 8 },
-      });
-    }
-
-    doc.save(`rapport_mensuel_${startDate}_${endDate}.pdf`);
+    // Generate PDF using the same function
+    generateDailyReportPDF(reportData, 'monthly');
   } catch (error) {
     console.error('Error generating monthly report:', error);
     throw error;
   }
+}
+
+export function generateDailyReportPDF(data: DailyReportData, reportType: 'daily' | 'weekly' | 'monthly' = 'daily') {
+  const doc = new jsPDF();
+  const pageWidth = 210;
+  const margin = 15;
+  let currentY = margin;
+
+  // Couleurs
+  const primaryColor: [number, number, number] = [10, 110, 63]; // #0A6E3F - Vert Émeraude
+  const lightGray: [number, number, number] = [229, 231, 235]; // #E5E7EB
+  const statusPayeBg: [number, number, number] = [220, 252, 227]; // Vert clair
+  const statusPayeText: [number, number, number] = [22, 101, 52]; // Vert foncé
+  const statusPartielBg: [number, number, number] = [255, 245, 236]; // Orange/jaune clair
+  const statusPartielText: [number, number, number] = [124, 45, 18]; // Orange/sombre
+
+  // ── A. En-tête Principal (Header) ──
+  try {
+    doc.addImage(almanardLogo, 'JPEG', margin, currentY, 22, 22);
+  } catch (error) {
+    console.warn('Logo could not be loaded');
+  }
+
+  currentY += 5;
+
+  doc.setFontSize(14);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+
+  const reportTitle = reportType === 'daily' ? 'RAPPORT JOURNALIER D\'ACTIVITÉS ET FINANCIER' :
+                      reportType === 'weekly' ? 'RAPPORT HEBDOMADAIRE D\'ACTIVITÉS ET FINANCIER' :
+                      'RAPPORT MENSUEL D\'ACTIVITÉS ET FINANCIER';
+  doc.text(reportTitle, pageWidth / 2, currentY + 8, { align: 'center' });
+
+  doc.setFontSize(10);
+  doc.setTextColor(55, 65, 81);
+  doc.setFont('helvetica', 'normal');
+  doc.text('GROUPE SCOLAIRE AL-MANAR D3S', pageWidth / 2, currentY + 15, { align: 'center' });
+
+  currentY += 25;
+
+  // Metadonnées du Rapport
+  doc.setFontSize(8);
+  doc.setTextColor(107, 114, 128);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Date du Rapport : ${data.dateRapport}`, margin, currentY);
+  doc.text(`Période : ${data.dateDebut} - ${data.dateFin}`, margin, currentY + 5);
+  doc.text(`Report ID : ${data.reportId}`, margin, currentY + 10);
+
+  currentY += 18;
+
+  // Ligne de séparation
+  doc.setDrawColor(lightGray[0], lightGray[1], lightGray[2]);
+  doc.setLineWidth(0.5);
+  doc.line(margin, currentY, pageWidth - margin, currentY);
+  currentY += 10;
+
+  // ── B. Section 1 : Résumé Financier du Jour (3 blocs) ──
+  doc.setFontSize(10);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text('RÉSUMÉ FINANCIER DU JOUR', margin, currentY);
+  currentY += 8;
+
+  const blockWidth = (pageWidth - 2 * margin - 10) / 3;
+  const blockHeight = 30;
+
+  // Bloc 1: Total Recettes
+  doc.setDrawColor(lightGray[0], lightGray[1], lightGray[2]);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(margin, currentY, blockWidth, blockHeight, 3, 3, 'S');
+  doc.setFontSize(8);
+  doc.setTextColor(107, 114, 128);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Total Recettes', margin + 5, currentY + 8);
+  doc.setFontSize(12);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text(formatMontant(data.totalRecettes), margin + 5, currentY + 20);
+
+  // Bloc 2: Total Dépenses
+  doc.roundedRect(margin + blockWidth + 5, currentY, blockWidth, blockHeight, 3, 3, 'S');
+  doc.setFontSize(8);
+  doc.setTextColor(107, 114, 128);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Total Dépenses', margin + blockWidth + 10, currentY + 8);
+  doc.setFontSize(12);
+  doc.setTextColor(220, 38, 38);
+  doc.setFont('helvetica', 'bold');
+  doc.text(formatMontant(data.totalDepenses), margin + blockWidth + 10, currentY + 20);
+
+  // Bloc 3: Solde Net
+  doc.roundedRect(margin + 2 * (blockWidth + 5), currentY, blockWidth, blockHeight, 3, 3, 'S');
+  doc.setFontSize(8);
+  doc.setTextColor(107, 114, 128);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Solde Net', margin + 2 * (blockWidth + 5) + 5, currentY + 8);
+  doc.setFontSize(12);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text(formatMontant(data.soldeNet), margin + 2 * (blockWidth + 5) + 5, currentY + 20);
+
+  currentY += blockHeight + 15;
+
+  // ── C. Section 2 : Détails des Paiements Reçus (Tableau Principal) ──
+  doc.setFontSize(10);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DÉTAILS DES PAIEMENTS REÇUS', margin, currentY);
+  currentY += 8;
+
+  const paiementTableData = data.paiements.map((p) => {
+    const montantCell = p.statut === 'PARTIEL' && p.montantAttendu
+      ? `rec recd: ${formatMontant(p.montant)}\ntotal due: ${formatMontant(p.montantAttendu)}`
+      : formatMontant(p.montant);
+
+    const statutBadge = p.statut === 'PARTIEL' ? 'PARTIEL' : 'PAYE';
+
+    return [
+      p.numeroRecu,
+      `${p.elevePrenom} ${p.eleveNom}`,
+      p.moisLibelle || '—',
+      p.motif,
+      montantCell,
+      p.typePaiement,
+      statutBadge,
+    ];
+  });
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [['# Reçu', 'Élève', 'Période/Mois', 'Motif', 'Montant (FCFA)', 'Moyen', 'Statut']],
+    body: paiementTableData,
+    theme: 'grid',
+    headStyles: {
+      fillColor: primaryColor as any,
+      textColor: 255,
+      fontStyle: 'bold',
+      halign: 'center',
+      fontSize: 8,
+    },
+    bodyStyles: {
+      textColor: [55, 65, 81],
+      fontSize: 7,
+      cellPadding: 2,
+    },
+    columnStyles: {
+      0: { cellWidth: 25 },
+      1: { cellWidth: 35 },
+      2: { cellWidth: 20 },
+      3: { cellWidth: 20 },
+      4: { cellWidth: 35 },
+      5: { cellWidth: 25 },
+      6: { cellWidth: 20 },
+    },
+    didDrawCell: (data) => {
+      if (data.section === 'body' && data.column.index === 6) {
+        const statut = data.cell.raw;
+        if (statut === 'PARTIEL') {
+          doc.setFillColor(statusPartielBg[0], statusPartielBg[1], statusPartielBg[2]);
+          doc.setTextColor(statusPartielText[0], statusPartielText[1], statusPartielText[2]);
+          doc.roundedRect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 2, 2, 'F');
+        } else if (statut === 'PAYE') {
+          doc.setFillColor(statusPayeBg[0], statusPayeBg[1], statusPayeBg[2]);
+          doc.setTextColor(statusPayeText[0], statusPayeText[1], statusPayeText[2]);
+          doc.roundedRect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 2, 2, 'F');
+        }
+      }
+    },
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 15;
+
+  // ── D. Section 3 : Détails des Dépenses Effectuées (Tableau Secondaire) ──
+  doc.setFontSize(10);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DÉTAILS DES DÉPENSES EFFECTUÉES', margin, currentY);
+  currentY += 8;
+
+  const depenseTableData = data.depenses.map((d) => [
+    d.numeroDepense,
+    d.description,
+    d.periode || '—',
+    formatMontant(d.montant),
+    d.date,
+  ]);
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [['# Dépense', 'Description', 'Période', 'Montant (FCFA)', 'Date']],
+    body: depenseTableData,
+    theme: 'grid',
+    headStyles: {
+      fillColor: primaryColor as any,
+      textColor: 255,
+      fontStyle: 'bold',
+      halign: 'center',
+      fontSize: 8,
+    },
+    bodyStyles: {
+      textColor: [55, 65, 81],
+      fontSize: 7,
+      cellPadding: 2,
+    },
+    columnStyles: {
+      0: { cellWidth: 25 },
+      1: { cellWidth: 50 },
+      2: { cellWidth: 25 },
+      3: { cellWidth: 35 },
+      4: { cellWidth: 25 },
+    },
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 15;
+
+  // ── E. Section 4 : Nouvelles Inscriptions & Modifications Système ──
+  doc.setFontSize(10);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text('NOUVELLES INSCRIPTIONS & MODIFICATIONS SYSTÈME', margin, currentY);
+  currentY += 8;
+
+  const columnWidth = (pageWidth - 2 * margin - 10) / 2;
+
+  // Colonne Gauche: Nouvelles Inscriptions
+  doc.setDrawColor(lightGray[0], lightGray[1], lightGray[2]);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(margin, currentY, columnWidth, 40, 3, 3, 'S');
+
+  doc.setFontSize(8);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Nouvelles Inscriptions', margin + 5, currentY + 8);
+
+  doc.setFontSize(7);
+  doc.setTextColor(55, 65, 81);
+  doc.setFont('helvetica', 'normal');
+  let inscriptionY = currentY + 15;
+  data.nouvellesInscriptions.forEach((inscr) => {
+    if (inscriptionY < currentY + 35) {
+      doc.text(`${inscr.prenom} ${inscr.nom} - ${inscr.classe}`, margin + 5, inscriptionY);
+      inscriptionY += 5;
+    }
+  });
+
+  if (data.nouvellesInscriptions.length === 0) {
+    doc.text('Aucune nouvelle inscription aujourd\'hui', margin + 5, inscriptionY);
+  }
+
+  // Colonne Droite: Modifications Utilisateur
+  doc.roundedRect(margin + columnWidth + 10, currentY, columnWidth, 40, 3, 3, 'S');
+
+  doc.setFontSize(8);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Modifications Utilisateur', margin + columnWidth + 15, currentY + 8);
+
+  doc.setFontSize(7);
+  doc.setTextColor(55, 65, 81);
+  doc.setFont('helvetica', 'normal');
+  let modificationY = currentY + 15;
+  data.modificationsSysteme.forEach((mod) => {
+    if (modificationY < currentY + 35) {
+      doc.text(`${mod.utilisateur}: ${mod.action}`, margin + columnWidth + 15, modificationY);
+      modificationY += 5;
+    }
+  });
+
+  if (data.modificationsSysteme.length === 0) {
+    doc.text('Aucune modification système aujourd\'hui', margin + columnWidth + 15, modificationY);
+  }
+
+  currentY += 50;
+
+  // ── F. Pied de Page (Footer & Signatures) ──
+  // Bloc de Validation
+  const signatureBlockWidth = (pageWidth - 2 * margin - 10) / 2;
+  const signatureBlockHeight = 30;
+
+  doc.setDrawColor(lightGray[0], lightGray[1], lightGray[2]);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(margin, currentY, signatureBlockWidth, signatureBlockHeight, 3, 3, 'S');
+  doc.roundedRect(margin + signatureBlockWidth + 10, currentY, signatureBlockWidth, signatureBlockHeight, 3, 3, 'S');
+
+  doc.setFontSize(9);
+  doc.setTextColor(55, 65, 81);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Signé & Tamponné (Direction)', margin + 5, currentY + 15);
+  doc.text('Signé & Tamponné (Comptable)', margin + signatureBlockWidth + 15, currentY + 15);
+
+  currentY += signatureBlockHeight + 10;
+
+  // Bandeau de Contact Inférieur
+  doc.setFillColor(243, 244, 246);
+  doc.rect(margin, currentY, pageWidth - 2 * margin, 15, 'F');
+
+  doc.setFontSize(8);
+  doc.setTextColor(55, 65, 81);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Tel : +221 78 120 89 78 | +221 77 520 87 67', pageWidth / 2, currentY + 6, { align: 'center' });
+  doc.text('Email : info@almanard3s.com | www.almanard3s.com', pageWidth / 2, currentY + 12, { align: 'center' });
+
+  // Dynamically name the file based on report type and period
+  const formatDateForFilename = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+      .replace(/ /g, '_')
+      .toLowerCase();
+  };
+
+  let filename = '';
+  if (reportType === 'daily') {
+    filename = `rapport_journalier_${formatDateForFilename(data.dateRapport)}.pdf`;
+  } else if (reportType === 'weekly') {
+    filename = `rapport_hebdomadaire_${formatDateForFilename(data.dateDebut)}_au_${formatDateForFilename(data.dateFin)}.pdf`;
+  } else {
+    filename = `rapport_mensuel_${formatDateForFilename(data.dateRapport)}.pdf`;
+  }
+
+  // Sauvegarde du PDF
+  doc.save(filename);
 }
