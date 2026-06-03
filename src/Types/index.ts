@@ -55,6 +55,7 @@ export interface Eleve {
   parentId: number;
   parentNom: string;
   parentTelephone: string;
+  matricule?: string;
 }
 
 export interface Annee {

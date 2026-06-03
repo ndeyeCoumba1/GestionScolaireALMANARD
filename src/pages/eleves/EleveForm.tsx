@@ -29,6 +29,7 @@ export default function EleveForm({ onClose, eleveId }: EleveFormProps) {
     nom: '', prenom: '', dateNaissance: '',
     sexe: 'M', adresse: '',
     classeId: '', parentId: '',
+    matricule: '',
   });
   const [classes, setClasses] = useState<Classe[]>([]);
   const [parents, setParents] = useState<Parent[]>([]);
@@ -48,6 +49,7 @@ export default function EleveForm({ onClose, eleveId }: EleveFormProps) {
             dateNaissance: e.dateNaissance,
             sexe: e.sexe, adresse: e.adresse,
             classeId: e.classeId, parentId: e.parentId,
+            matricule: e.matricule || '',
           });
         })
         .catch(() => setError('Impossible de charger cet élève.'))
@@ -88,6 +90,25 @@ export default function EleveForm({ onClose, eleveId }: EleveFormProps) {
         <div className="text-center py-5 text-muted">Chargement...</div>
       ) : (
         <form onSubmit={handleSubmit}>
+          {/* Matricule - Information système (readonly) */}
+          {isEdit && form.matricule && (
+            <div className="mb-4 p-3 rounded-3" 
+                 style={{ backgroundColor: '#f0fdf4', border: '1px solid #16a34a' }}>
+              <div className="d-flex align-items-center gap-3">
+                <div className="rounded-circle d-flex align-items-center justify-content-center" 
+                     style={{ width: 36, height: 36, backgroundColor: '#16a34a', fontSize: 18 }}>
+                  🎓
+                </div>
+                <div>
+                  <small className="text-muted fw-semibold" style={{ fontSize: 10, letterSpacing: '0.05em' }}>MATRICULE (GÉNÉRÉ AUTOMATIQUEMENT)</small>
+                  <div className="fw-bold" style={{ fontSize: 16, color: '#166534', fontFamily: 'monospace', letterSpacing: '1px' }}>
+                    {form.matricule}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="row g-3 mb-3">
 
             {/* Nom */}

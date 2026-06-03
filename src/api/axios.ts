@@ -25,4 +25,10 @@ api.interceptors.response.use(
   }
 );
 
+// Fonction pour rechercher un élève par matricule
+export const searchEleveByMatricule = async (matricule: string) => {
+  const response = await api.get(`/eleves/matricule/${matricule}`);
+  return response.data;
+};
+
 export default api;

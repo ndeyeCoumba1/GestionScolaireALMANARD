@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 
+const copyToClipboard = (text: string) => {
+  navigator.clipboard.writeText(text);
+};
+
 interface EleveDetail {
   id: number;
   nom: string;
@@ -11,6 +15,7 @@ interface EleveDetail {
   adresse: string;
   photoUrl?: string;
   statut: string;
+  matricule?: string;
 
   // Classe (champs plats)
   classeId?: number;
@@ -112,6 +117,36 @@ export default function EleveDetail() {
       <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
         <div style={{ height: 5, background: 'linear-gradient(90deg, #1a5c38, #4ade80)' }} />
         <div className="p-4">
+          {/* Matricule - En évidence */}
+          {eleve.matricule && (
+            <div className="mb-4 p-3 rounded-3 d-flex align-items-center justify-content-between" 
+                 style={{ backgroundColor: '#f0fdf4', border: '2px solid #16a34a' }}>
+              <div className="d-flex align-items-center gap-3">
+                <div className="rounded-circle d-flex align-items-center justify-content-center" 
+                     style={{ width: 40, height: 40, backgroundColor: '#16a34a', fontSize: 20 }}>
+                  🎓
+                </div>
+                <div>
+                  <small className="text-muted fw-semibold" style={{ fontSize: 11, letterSpacing: '0.05em' }}>MATRICULE</small>
+                  <div className="fw-bold" style={{ fontSize: 18, color: '#166534', fontFamily: 'monospace', letterSpacing: '1px' }}>
+                    {eleve.matricule}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => copyToClipboard(eleve.matricule!)}
+                className="btn btn-sm d-flex align-items-center gap-2"
+                style={{ backgroundColor: '#16a34a', color: '#fff', borderRadius: 8, fontSize: 12, padding: '6px 12px' }}
+                title="Copier le matricule"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                </svg>
+                Copier
+              </button>
+            </div>
+          )}
+
           {/* Informations personnelles */}
           <div className="mb-4">
             <h5 className="fw-bold mb-3" style={{ fontSize: 16, color: '#111827' }}>Informations personnelles</h5>

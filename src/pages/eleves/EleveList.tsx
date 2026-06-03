@@ -50,6 +50,7 @@ export default function EleveList() {
         adresse: item.adresse,
         photoUrl: item.photoUrl,
         status: item.statut || item.status,
+        matricule: item.matricule,
         // Classe
         classeId: item.classeId,
         classeNiveau: item.classeRegime || item.classe?.niveau || '',
@@ -108,7 +109,7 @@ export default function EleveList() {
   };
 
   const filtered = eleves.filter(e =>
-    `${e.nom} ${e.prenom}`.toLowerCase().includes(search.toLowerCase())
+    `${e.nom} ${e.prenom} ${e.matricule || ''}`.toLowerCase().includes(search.toLowerCase())
   );
 
   // Calculate statistics
@@ -258,7 +259,7 @@ export default function EleveList() {
             <input
               id="eleve-search"
               type="text"
-              placeholder="Rechercher un élève..."
+              placeholder="Rechercher un élève (nom, prénom, matricule)..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="form-control"
@@ -269,12 +270,12 @@ export default function EleveList() {
 
         <div className="table-responsive">
           {loading ? (
-            <SkeletonTable rows={5} columns={6} />
+            <SkeletonTable rows={5} columns={7} />
           ) : (
             <table className="table align-middle mb-0" style={{ fontSize: 14 }}>
               <thead style={{ backgroundColor: '#f9fafb' }}>
                 <tr>
-                  {['Nom', 'Prénom', 'Classe', 'Parent', 'Statut', 'Actions'].map(h => (
+                  {['Matricule', 'Nom', 'Prénom', 'Classe', 'Parent', 'Statut', 'Actions'].map(h => (
                     <th key={h} className="py-4 px-4 fw-bold text-uppercase"
                       style={{ color: '#374151', fontSize: 14, letterSpacing: '0.05em', borderTop: '1px solid #f0f0f0' }}>
                       {h}
@@ -284,9 +285,26 @@ export default function EleveList() {
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-5 text-muted">{search ? 'Aucun élève trouvé.' : 'Aucun élève enregistré.'}</td></tr>
+                  <tr><td colSpan={7} className="text-center py-5 text-muted">{search ? 'Aucun élève trouvé.' : 'Aucun élève enregistré.'}</td></tr>
                 ) : filtered.map(e => (
                 <tr key={e.id} style={{ borderTop: '1px solid #f3f4f6' }}>
+                  <td className="py-3 px-4">
+                    {e.matricule ? (
+                      <span className="badge rounded-pill fw-medium d-flex align-items-center gap-1" 
+                        style={{ 
+                          backgroundColor: '#f3f4f6', 
+                          color: '#374151', 
+                          fontSize: 11, 
+                          padding: '6px 10px',
+                          fontFamily: 'monospace',
+                          letterSpacing: '0.5px'
+                        }}>
+                        🆔 {e.matricule}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#9ca3af', fontSize: 12 }}>—</span>
+                    )}
+                  </td>
                   <td className="py-3 px-4 fw-semibold" style={{ color: '#111827' }}>{e.nom}</td>
                   <td className="py-3 px-4" style={{ color: '#374151' }}>{e.prenom}</td>
                   <td className="py-3 px-4">
