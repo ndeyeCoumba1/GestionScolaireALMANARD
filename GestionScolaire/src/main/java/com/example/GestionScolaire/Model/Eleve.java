@@ -18,6 +18,9 @@ public class Eleve {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(unique = true, nullable = false, updatable = false)
+    private String matricule;
+
     @Column(nullable = false)
     private String nom;
 

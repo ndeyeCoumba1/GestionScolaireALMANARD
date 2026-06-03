@@ -35,6 +35,12 @@ public class EleveController {
         return ResponseEntity.ok(mapper.toEleveDTO(eleveService.findById(id)));
     }
 
+    // ✅ Nouvel endpoint : recherche par matricule
+    @GetMapping("/matricule/{matricule}")
+    public ResponseEntity<EleveDTO> findByMatricule(@PathVariable String matricule) {
+        return ResponseEntity.ok(mapper.toEleveDTO(eleveService.findByMatricule(matricule)));
+    }
+
     // ✅ Nouvel endpoint — toutes les informations de l'élève
     @GetMapping("/{id}/details")
     public ResponseEntity<EleveDTO> findByIdWithDetails(@PathVariable Long id) {
@@ -66,10 +72,11 @@ public class EleveController {
         return ResponseEntity.ok(eleveService.update(id, eleve));
     }
 
-    @PutMapping("/{id}/statut")
-    public ResponseEntity<Void> changerStatut(@PathVariable Long id,
-                                              @RequestParam StatutEleve statut) {
-        eleveService.changerStatut(id, statut);
+    // ✅ Changer statut par matricule
+    @PutMapping("/matricule/{matricule}/statut")
+    public ResponseEntity<Void> changerStatutByMatricule(@PathVariable String matricule,
+                                                         @RequestParam StatutEleve statut) {
+        eleveService.changerStatutByMatricule(matricule, statut);
         return ResponseEntity.noContent().build();
     }
 

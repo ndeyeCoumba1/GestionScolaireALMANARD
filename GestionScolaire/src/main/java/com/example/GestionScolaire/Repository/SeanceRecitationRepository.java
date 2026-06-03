@@ -1,0 +1,36 @@
+package com.example.GestionScolaire.Repository;
+
+import com.example.GestionScolaire.Model.SeanceRecitation;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface SeanceRecitationRepository extends JpaRepository<SeanceRecitation, Long> {
+
+    Optional<SeanceRecitation> findByDateAndClasseId(LocalDate date, Long classeId);
+
+    List<SeanceRecitation> findByClasseIdAndDateBetweenOrderByDateDesc(
+            Long classeId, LocalDate dateDebut, LocalDate dateFin
+    );
+
+    List<SeanceRecitation> findByClasseIdOrderByDateDesc(Long classeId);
+
+    @Query("""
+        SELECT COUNT(DISTINCT s.date)
+        FROM SeanceRecitation s
+        WHERE s.classe.id = :classeId
+        AND (:dateDebut IS NULL OR s.date >= :dateDebut)
+        AND (:dateFin   IS NULL OR s.date <= :dateFin)
+    """)
+    long countSeancesParClasse(
+            @Param("classeId")  Long classeId,
+            @Param("dateDebut") LocalDate dateDebut,
+            @Param("dateFin")   LocalDate dateFin
+    );
+}

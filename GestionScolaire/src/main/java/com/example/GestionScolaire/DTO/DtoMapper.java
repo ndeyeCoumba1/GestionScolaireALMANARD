@@ -22,6 +22,7 @@ public class DtoMapper {
     public EleveDTO toEleveDTO(Eleve e) {
         EleveDTO dto = new EleveDTO();
         dto.setId(e.getId());
+        dto.setMatricule(e.getMatricule());
         dto.setNom(e.getNom());
         dto.setPrenom(e.getPrenom());
         dto.setDateNaissance(e.getDateNaissance());

@@ -25,10 +25,19 @@ public interface EleveRepository extends JpaRepository<Eleve, Long> {
     @Query("SELECT e FROM Eleve e WHERE " +
             "LOWER(e.nom) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
             "LOWER(e.prenom) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
-            "LOWER(e.classe.niveau) LIKE LOWER(CONCAT('%', :query, '%'))")
+            "LOWER(e.classe.niveau) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+            "LOWER(e.matricule) LIKE LOWER(CONCAT('%', :query, '%'))")
     List<Eleve> searchGlobal(@Param("query") String query);
 
     long countByStatut(StatutEleve statut);
+    // ✅ Vérifier si un matricule existe déjà
+    boolean existsByMatricule(String matricule);
+
+    // ✅ Trouver un élève par son matricule
+    Optional<Eleve> findByMatricule(String matricule);
+
+    // ✅ Compter le nombre total d'élèves
+    long count();
 
     // ✅ Charge l'élève avec sa classe et son parent en une seule requête
     @Query("""

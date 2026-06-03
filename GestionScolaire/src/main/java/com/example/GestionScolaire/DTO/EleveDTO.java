@@ -10,6 +10,7 @@ import java.time.LocalDate;
 @Data
 public class EleveDTO {
     private Long id;
+    private String matricule;
     private String nom;
     private String prenom;
     private LocalDate dateNaissance;

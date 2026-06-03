@@ -7,6 +7,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.Year;
 import java.util.List;
 
 @Service
@@ -24,10 +25,35 @@ public class EleveService {
                 .orElseThrow(() -> new RuntimeException("Eleve introuvable : " + id));
     }
 
+    // ✅ Trouver par matricule
+    public Eleve findByMatricule(String matricule) {
+        return eleveRepository.findByMatricule(matricule)
+                .orElseThrow(() -> new RuntimeException("Eleve introuvable avec matricule : " + matricule));
+    }
+
     // ✅ Toutes les informations de l'élève avec ses relations
     public Eleve findByIdWithDetails(Long id) {
         return eleveRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new RuntimeException("Eleve introuvable : " + id));
+    }
+
+    // ✅ Génération automatique du matricule
+    private String genererMatricule() {
+        String annee = String.valueOf(Year.now().getValue());
+        long count = eleveRepository.count() + 1;
+        return "MAT-" + annee + "-" + String.format("%05d", count);
+    }
+    // ✅ Vérifier si un matricule est unique
+    private boolean isMatriculeUnique(String matricule) {
+        return !eleveRepository.existsByMatricule(matricule);
+    }
+
+    // ✅ Méthode pour réinitialiser le statut par matricule
+    @Transactional
+    public void changerStatutByMatricule(String matricule, StatutEleve statut) {
+        Eleve eleve = findByMatricule(matricule);
+        eleve.setStatut(statut);
+        eleveRepository.save(eleve);
     }
 
     public List<Eleve> search(String query) {
