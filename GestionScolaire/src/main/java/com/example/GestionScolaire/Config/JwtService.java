@@ -22,15 +22,21 @@ public class JwtService {
         return Keys.hmacShaKeyFor(secret.getBytes());
     }
 
-    // Générer un token
     public String generateToken(String email, String role) {
-        return Jwts.builder()
-                .subject(email)                          // ← plus setSubject()
+        System.out.println("=== GÉNÉRATION TOKEN ===");
+        System.out.println("Email: " + email);
+        System.out.println("Role: " + role);
+
+        String token = Jwts.builder()
+                .subject(email)
                 .claim("role", role)
-                .issuedAt(new Date())                    // ← plus setIssuedAt()
-                .expiration(new Date(System.currentTimeMillis() + expiration)) // ← plus setExpiration()
-                .signWith(getKey())                      // ← plus SignatureAlgorithm
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getKey())
                 .compact();
+
+        System.out.println("Token généré avec succès");
+        return token;
     }
 
     // Extraire l'email du token
@@ -40,7 +46,9 @@ public class JwtService {
 
     // Extraire le rôle
     public String extractRole(String token) {
-        return getClaims(token).get("role", String.class);
+        String role = getClaims(token).get("role", String.class);
+        System.out.println("Rôle extrait du token: " + role);
+        return role;
     }
 
     // Vérifier si le token est valide
