@@ -8,6 +8,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -23,24 +24,58 @@ public class AuthController {
         String email = body.get("email");
         String password = body.get("password");
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        System.out.println("=== LOGIN DEBUG ===");
+        System.out.println("Email reçu : " + email);
+        System.out.println("Password reçu : " + (password != null ? "OK (non null)" : "NULL !!"));
 
-        if (!passwordEncoder.matches(password, user.getPassword())) {
+        Optional<User> userOpt = userRepository.findByEmail(email);
+        System.out.println("User trouvé : " + userOpt.isPresent());
+
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(401).body("Email introuvable");
+        }
+
+        User user = userOpt.get();
+        System.out.println("User actif : " + user.getActif());
+        System.out.println("Role : " + user.getRole());
+        System.out.println("Password hashé en BDD : " + user.getPassword());
+
+        boolean passwordMatch;
+        try {
+            passwordMatch = passwordEncoder.matches(password, user.getPassword());
+            System.out.println("Password match : " + passwordMatch);
+        } catch (Exception e) {
+            System.out.println("ERREUR passwordEncoder : " + e.getMessage());
+            return ResponseEntity.status(500).body("Erreur encodage: " + e.getMessage());
+        }
+
+        if (!passwordMatch) {
             return ResponseEntity.status(401).body("Mot de passe incorrect");
         }
 
         if (!user.getActif()) {
-            return ResponseEntity.status(403).body("Compte desactive");
+            return ResponseEntity.status(403).body("Compte désactivé");
         }
 
-        String token = jwtService.generateToken(user.getEmail(), user.getRole().name());
+        String token;
+        try {
+            token = jwtService.generateToken(user.getEmail(), user.getRole().name());
+            System.out.println("Token généré : OK");
+        } catch (Exception e) {
+            System.out.println("ERREUR generateToken : " + e.getMessage());
+            return ResponseEntity.status(500).body("Erreur token: " + e.getMessage());
+        }
 
-        return ResponseEntity.ok(Map.of(
-                "token", token,
-                "role", user.getRole(),
-                "nom", user.getNom(),
-                "prenom", user.getPrenom()
-        ));
+        try {
+            return ResponseEntity.ok(Map.of(
+                    "token", token,
+                    "role", user.getRole().name(),
+                    "nom", user.getNom(),
+                    "prenom", user.getPrenom()
+            ));
+        } catch (Exception e) {
+            System.out.println("ERREUR réponse finale : " + e.getMessage());
+            return ResponseEntity.status(500).body("Erreur réponse: " + e.getMessage());
+        }
     }
 }

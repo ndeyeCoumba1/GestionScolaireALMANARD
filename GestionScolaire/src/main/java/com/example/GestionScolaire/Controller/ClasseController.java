@@ -2,7 +2,9 @@ package com.example.GestionScolaire.Controller;
 
 import com.example.GestionScolaire.Enum.NiveauClasse;
 import com.example.GestionScolaire.Model.Classe;
+import com.example.GestionScolaire.Model.Eleve;
 import com.example.GestionScolaire.Service.ClasseService;
+import com.example.GestionScolaire.Service.EleveService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,7 +18,13 @@ import java.util.List;
 @CrossOrigin(origins = "*")
 public class ClasseController {
     private final ClasseService classeService;
+    private final EleveService eleveService;
 
+    // pour récupérer les élèves d'une classe
+    @GetMapping("/{classeId}/eleves")
+    public ResponseEntity<List<Eleve>> getElevesByClasse(@PathVariable Long classeId) {
+        return ResponseEntity.ok(eleveService.findByClasse(classeId));
+    }
     @GetMapping
     public ResponseEntity<List<Classe>> findAll() {
         return ResponseEntity.ok(classeService.findAll());
