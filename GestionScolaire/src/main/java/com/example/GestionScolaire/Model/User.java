@@ -20,6 +20,12 @@ public class User {
     @Column(nullable = false)
     private String prenom;
 
+    @Column(name = "nom_arabe", length = 100)
+    private String nomArabe;
+
+    @Column(name = "prenom_arabe", length = 100)
+    private String prenomArabe;
+
     @Column(unique = true)
     private String email;
 

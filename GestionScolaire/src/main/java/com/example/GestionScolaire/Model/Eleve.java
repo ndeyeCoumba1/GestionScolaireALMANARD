@@ -27,6 +27,12 @@ public class Eleve {
     @Column(nullable = false)
     private String prenom;
 
+    @Column(name = "nom_arabe", length = 100)
+    private String nomArabe;
+
+    @Column(name = "prenom_arabe", length = 100)
+    private String prenomArabe;
+
     private LocalDate dateNaissance;
 
 

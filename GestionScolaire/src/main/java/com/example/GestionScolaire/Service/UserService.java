@@ -51,8 +51,18 @@ public class UserService {
         User user = findById(id);
         user.setNom(updated.getNom());
         user.setPrenom(updated.getPrenom());
+        user.setNomArabe(updated.getNomArabe());
+        user.setPrenomArabe(updated.getPrenomArabe());
         user.setEmail(updated.getEmail());
         user.setRole(updated.getRole());
+        return userRepository.save(user);
+    }
+    // ── Mettre à jour uniquement les noms arabes
+    @Transactional
+    public User updateNomArabe(Long id, String nomArabe, String prenomArabe) {
+        User user = findById(id);
+        user.setNomArabe(nomArabe);
+        user.setPrenomArabe(prenomArabe);
         return userRepository.save(user);
     }
 

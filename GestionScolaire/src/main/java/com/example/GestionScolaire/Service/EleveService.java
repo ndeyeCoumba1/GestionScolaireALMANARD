@@ -19,6 +19,9 @@ public class EleveService {
     public List<Eleve> findAll() {
         return eleveRepository.findAll();
     }
+    public List<Eleve> findByClasseId(Long classeId) {
+        return eleveRepository.findByClasseId(classeId);
+    }
 
     public Eleve findById(Long id) {
         return eleveRepository.findById(id)
@@ -90,6 +93,13 @@ public class EleveService {
         return eleveRepository.save(eleve);
     }
 
+    @Transactional
+    public Eleve updateNomArabe(Long id, String nomArabe, String prenomArabe) {
+        Eleve eleve = findById(id);
+        eleve.setNomArabe(nomArabe);
+        eleve.setPrenomArabe(prenomArabe);
+        return eleveRepository.save(eleve);
+    }
     @Transactional
     public void changerStatut(Long id, StatutEleve statut) {
         Eleve eleve = findById(id);

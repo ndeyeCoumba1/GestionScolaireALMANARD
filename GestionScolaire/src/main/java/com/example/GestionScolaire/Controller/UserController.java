@@ -1,6 +1,8 @@
 package com.example.GestionScolaire.Controller;
 
 
+import com.example.GestionScolaire.DTO.DtoMapper;
+import com.example.GestionScolaire.DTO.UserDTO;
 import com.example.GestionScolaire.Enum.Role;
 import com.example.GestionScolaire.Model.User;
 import com.example.GestionScolaire.Service.UserService;
@@ -9,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -16,6 +19,7 @@ import java.util.List;
 @CrossOrigin(origins = "*")
 public class UserController {
     private final UserService userService;
+    private final DtoMapper mapper;
 
     @GetMapping
     public ResponseEntity<List<User>> findAll() {
@@ -30,6 +34,21 @@ public class UserController {
     @GetMapping("/role/{role}")
     public ResponseEntity<List<User>> findByRole(@PathVariable Role role) {
         return ResponseEntity.ok(userService.findByRole(role));
+    }
+
+    /**
+     * PATCH /api/users/{id}/nom-arabe
+     * Met à jour uniquement les noms arabes d'un utilisateur.
+     * Body : { "nomArabe": "...", "prenomArabe": "..." }
+     */
+    @PatchMapping("/{id}/nom-arabe")
+    public ResponseEntity<UserDTO> updateNomArabe(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        String nomArabe    = body.get("nomArabe");
+        String prenomArabe = body.get("prenomArabe");
+        User updated = userService.updateNomArabe(id, nomArabe, prenomArabe);
+        return ResponseEntity.ok(mapper.toUserDTO(updated));
     }
     @PostMapping
     public ResponseEntity<User> create(@RequestBody User user) {

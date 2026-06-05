@@ -9,6 +9,9 @@ public class UserDTO {
     private Long id;
     private String nom;
     private String prenom;
+    private String nomArabe;
+    private String prenomArabe;
+
     private String email;
     private Role role;
     private Boolean actif;

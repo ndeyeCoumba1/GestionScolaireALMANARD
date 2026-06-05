@@ -72,63 +72,87 @@ public class CoranService {
 
     @Transactional
     public SeanceResponse upsertSeanceComplete(SeanceRequest request) {
-        Classe classe = classeRepo.findById(request.getClasseId())
-                .orElseThrow(() -> new RuntimeException("Classe introuvable"));
-        User enseignant = userRepo.findById(request.getEnseignantId())
-                .orElseThrow(() -> new RuntimeException("Enseignant introuvable"));
+        System.out.println("=== upsertSeanceComplete ===");
+        System.out.println("Date: " + request.getDate());
+        System.out.println("ClasseId: " + request.getClasseId());
+        System.out.println("EnseignantId: " + request.getEnseignantId());
+        System.out.println("Versets: " + (request.getVersets() != null ? request.getVersets().size() : "null"));
+        System.out.println("Recitations: " + (request.getRecitations() != null ? request.getRecitations().size() : "null"));
 
-        // 1. Récupérer ou créer la séance du jour
-        SeanceRecitation seance = seanceRepo
-                .findByDateAndClasseId(request.getDate(), request.getClasseId())
-                .orElse(SeanceRecitation.builder()
-                        .date(request.getDate())
-                        .classe(classe)
-                        .build());
+        try {
+            // 1. Récupérer la classe
+            Classe classe = classeRepo.findById(request.getClasseId())
+                    .orElseThrow(() -> new RuntimeException("Classe introuvable"));
+            // 2. Récupérer l'enseignant
+            User enseignant = userRepo.findById(request.getEnseignantId())
+                    .orElseThrow(() -> new RuntimeException("Enseignant introuvable"));
 
-        seance.setEnseignant(enseignant);
-        seance = seanceRepo.save(seance);
-
-        // 2. Upsert des versets du jour (si fournis)
-        Map<String, VersetJour> versetParGroupe = new HashMap<>();
-        if (request.getVersets() != null && !request.getVersets().isEmpty()) {
-            List<VersetJourResponse> versetsUpserted = upsertVersets(request.getVersets());
-            versetsUpserted.forEach(v -> {
-                VersetJour vj = versetRepo.findById(v.getId()).orElseThrow();
-                versetParGroupe.put(vj.getGroupeNiveau(), vj);
-            });
-        } else {
-            versetRepo.findByDateAndClasseId(request.getDate(), request.getClasseId())
-                    .forEach(v -> versetParGroupe.put(v.getGroupeNiveau(), v));
-        }
-
-        // 3. Upsert des récitations élèves
-        final SeanceRecitation seanceFinal = seance;
-        for (EleveRecitationRequest recReq : request.getRecitations()) {
-            Eleve eleve = eleveRepo.findById(recReq.getEleveId())
-                    .orElseThrow(() -> new RuntimeException("Élève introuvable : " + recReq.getEleveId()));
-
-            EleveRecitation recitation = recitationRepo
-                    .findBySeanceIdAndEleveId(seanceFinal.getId(), recReq.getEleveId())
-                    .orElse(EleveRecitation.builder()
-                            .seance(seanceFinal)
-                            .eleve(eleve)
+            // 1. Récupérer ou créer la séance du jour
+            SeanceRecitation seance = seanceRepo
+                    .findByDateAndClasseId(request.getDate(), request.getClasseId())
+                    .orElse(SeanceRecitation.builder()
+                            .date(request.getDate())
+                            .classe(classe)
                             .build());
 
-            recitation.setGroupeNiveau(recReq.getGroupeNiveau());
-            recitation.setPresent(Boolean.TRUE.equals(recReq.getPresent()));
-            recitation.setNiveauMemorisation(recReq.getNiveauMemorisation());
-            recitation.setCommentaire(recReq.getCommentaire());
+            seance.setEnseignant(enseignant);
+            seance = seanceRepo.save(seance);
+            System.out.println("Seance saved with ID: " + seance.getId());
 
-            VersetJour verset = versetParGroupe.get(recReq.getGroupeNiveau());
-            if (verset == null && recReq.getVersetJourId() != null) {
-                verset = versetRepo.findById(recReq.getVersetJourId()).orElse(null);
+            // 2. Upsert des versets du jour (si fournis)
+            Map<String, VersetJour> versetParGroupe = new HashMap<>();
+            if (request.getVersets() != null && !request.getVersets().isEmpty()) {
+                System.out.println("Upserting versets...");
+                List<VersetJourResponse> versetsUpserted = upsertVersets(request.getVersets());
+                versetsUpserted.forEach(v -> {
+                    VersetJour vj = versetRepo.findById(v.getId()).orElseThrow();
+                    versetParGroupe.put(vj.getGroupeNiveau(), vj);
+                });
+                System.out.println("Versets upserted: " + versetParGroupe.size());
+            } else {
+                versetRepo.findByDateAndClasseId(request.getDate(), request.getClasseId())
+                        .forEach(v -> versetParGroupe.put(v.getGroupeNiveau(), v));
             }
-            recitation.setVersetJour(verset);
 
-            recitationRepo.save(recitation);
+            // 3. Upsert des récitations élèves
+            final SeanceRecitation seanceFinal = seance;
+            System.out.println("Processing recitations...");
+            for (EleveRecitationRequest recReq : request.getRecitations()) {
+                System.out.println("Processing recitation for eleveId: " + recReq.getEleveId());
+                Eleve eleve = eleveRepo.findById(recReq.getEleveId())
+                        .orElseThrow(() -> new RuntimeException("Élève introuvable : " + recReq.getEleveId()));
+
+                EleveRecitation recitation = recitationRepo
+                        .findBySeanceIdAndEleveId(seanceFinal.getId(), recReq.getEleveId())
+                        .orElse(EleveRecitation.builder()
+                                .seance(seanceFinal)
+                                .eleve(eleve)
+                                .build());
+
+                recitation.setGroupeNiveau(recReq.getGroupeNiveau());
+                recitation.setPresent(Boolean.TRUE.equals(recReq.getPresent()));
+                recitation.setNiveauMemorisation(recReq.getNiveauMemorisation());
+                recitation.setCommentaire(recReq.getCommentaire());
+
+                VersetJour verset = versetParGroupe.get(recReq.getGroupeNiveau());
+                if (verset == null && recReq.getVersetJourId() != null) {
+                    verset = versetRepo.findById(recReq.getVersetJourId()).orElse(null);
+                }
+                recitation.setVersetJour(verset);
+
+                recitationRepo.save(recitation);
+            }
+            System.out.println("Recitations saved successfully");
+
+            System.out.println("Calling getSeanceByDate...");
+            SeanceResponse response = getSeanceByDate(request.getDate(), request.getClasseId());
+            System.out.println("SeanceResponse created successfully");
+            return response;
+        } catch (Exception e) {
+            System.err.println("Error in upsertSeanceComplete: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
         }
-
-        return getSeanceByDate(request.getDate(), request.getClasseId());
     }
 
     // ═══════════════════════════════════════════

@@ -13,6 +13,9 @@ public class DtoMapper {
         dto.setId(user.getId());
         dto.setNom(user.getNom());
         dto.setPrenom(user.getPrenom());
+        // ── Noms arabes ──
+        dto.setNomArabe(user.getNomArabe());
+        dto.setPrenomArabe(user.getPrenomArabe());
         dto.setEmail(user.getEmail());
         dto.setRole(user.getRole());
         dto.setActif(user.getActif());
@@ -25,6 +28,9 @@ public class DtoMapper {
         dto.setMatricule(e.getMatricule());
         dto.setNom(e.getNom());
         dto.setPrenom(e.getPrenom());
+        // ── Noms arabes ──
+        dto.setNomArabe(e.getNomArabe());
+        dto.setPrenomArabe(e.getPrenomArabe());
         dto.setDateNaissance(e.getDateNaissance());
         dto.setSexe(e.getSexe());
         dto.setAdresse(e.getAdresse());
@@ -33,7 +39,7 @@ public class DtoMapper {
 
         if (e.getClasse() != null) {
             dto.setClasseId(e.getClasse().getId());
-            dto.setClasseRegime(e.getClasse().getNiveau());       // ✅ enum direct, plus de conversion String
+            dto.setClasseRegime(e.getClasse().getNiveau());
             dto.setClasseStatut(e.getClasse().getStatut());
             dto.setClasseCapaciteMax(e.getClasse().getCapaciteMax());
 
@@ -56,8 +62,6 @@ public class DtoMapper {
 
         return dto;
     }
-
-
 
     public ParentDTO toParentDTO(Parent parent) {
         ParentDTO dto = new ParentDTO();

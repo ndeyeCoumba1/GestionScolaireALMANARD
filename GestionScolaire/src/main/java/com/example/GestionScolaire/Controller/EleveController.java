@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -22,8 +23,11 @@ public class EleveController {
     private final DtoMapper mapper;
 
     @GetMapping
-    public ResponseEntity<List<EleveDTO>> findAll() {
-        return ResponseEntity.ok(
+    public ResponseEntity<List<EleveDTO>> findAll(@RequestParam(required = false) Long classeId){
+        List<Eleve> eleves = (classeId != null)
+                ? eleveService.findByClasseId(classeId)
+                : eleveService.findAll();
+    return ResponseEntity.ok(
                 eleveService.findAll().stream()
                         .map(mapper::toEleveDTO)
                         .collect(Collectors.toList())
@@ -55,6 +59,21 @@ public class EleveController {
     @GetMapping("/classe/{classeId}")
     public ResponseEntity<List<Eleve>> findByClasse(@PathVariable Long classeId) {
         return ResponseEntity.ok(eleveService.findByClasse(classeId));
+    }
+
+    /**
+     * PATCH /api/eleves/{id}/nom-arabe
+     * Met à jour uniquement les noms arabes d'un élève.
+     * Body : { "nomArabe": "...", "prenomArabe": "..." }
+     */
+    @PatchMapping("/{id}/nom-arabe")
+    public ResponseEntity<EleveDTO> updateNomArabe(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        String nomArabe    = body.get("nomArabe");
+        String prenomArabe = body.get("prenomArabe");
+        Eleve updated = eleveService.updateNomArabe(id, nomArabe, prenomArabe);
+        return ResponseEntity.ok(mapper.toEleveDTO(updated));
     }
 
     @GetMapping("/count")

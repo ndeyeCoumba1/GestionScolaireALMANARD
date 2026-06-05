@@ -13,6 +13,8 @@ public class EleveDTO {
     private String matricule;
     private String nom;
     private String prenom;
+    private String nomArabe;
+    private String prenomArabe;
     private LocalDate dateNaissance;
     private Sexe sexe;
     private String adresse;

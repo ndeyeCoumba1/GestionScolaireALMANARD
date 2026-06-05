@@ -71,7 +71,10 @@ public class AuthController {
                     "token", token,
                     "role", user.getRole().name(),
                     "nom", user.getNom(),
-                    "prenom", user.getPrenom()
+                    "prenom", user.getPrenom(),
+                    "nomArabe",     user.getNomArabe()    != null ? user.getNomArabe()    : "",
+                    "prenomArabe",  user.getPrenomArabe() != null ? user.getPrenomArabe() : ""
+
             ));
         } catch (Exception e) {
             System.out.println("ERREUR réponse finale : " + e.getMessage());
