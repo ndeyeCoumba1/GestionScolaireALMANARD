@@ -73,18 +73,23 @@ export default function ArDashboardPage() {
           }
 
           // Récupérer les statistiques de la classe
-          const statsRes = await api.get(`/coran/stats/classe/${classe.id}`, {
-            params: { dateDebut: today, dateFin: today }
-          });
-          
-          if (statsRes.data) {
-            if (statsRes.data.tauxPresenceMoyen) {
-              totalPresence += statsRes.data.tauxPresenceMoyen;
-              totalClassesAvecStats++;
+          try {
+            const statsRes = await api.get(`/coran/stats/classe/${classe.id}`, {
+              params: { dateDebut: today, dateFin: today }
+            });
+            
+            if (statsRes.data) {
+              if (statsRes.data.tauxPresenceMoyen) {
+                totalPresence += statsRes.data.tauxPresenceMoyen;
+                totalClassesAvecStats++;
+              }
+              if (statsRes.data.tauxMemorisationMoyen) {
+                totalMemorisation += statsRes.data.tauxMemorisationMoyen;
+              }
             }
-            if (statsRes.data.tauxMemorisationMoyen) {
-              totalMemorisation += statsRes.data.tauxMemorisationMoyen;
-            }
+          } catch (statsErr) {
+            console.error(`Erreur stats pour la classe ${classe.id}:`, statsErr);
+            // Continue with other classes even if stats fail
           }
         } catch (err) {
           console.error(`Erreur pour la classe ${classe.id}:`, err);
@@ -176,7 +181,7 @@ export default function ArDashboardPage() {
   if (role === 'COMPTABLE') {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
-        <div className="text-muted">غير مصرح بالوصول</div>
+        <div className="text-muted">Accès non autorisé</div>
       </div>
     );
   }
@@ -185,7 +190,7 @@ export default function ArDashboardPage() {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
         <div className="spinner-border" style={{ color: '#0A6E3F' }} role="status">
-          <span className="visually-hidden">جاري التحميل...</span>
+          <span className="visually-hidden">Chargement...</span>
         </div>
       </div>
     );
@@ -201,7 +206,7 @@ export default function ArDashboardPage() {
             className="btn btn-sm" 
             style={{ backgroundColor: '#0A6E3F', color: 'white' }}
           >
-            إعادة المحاولة
+            Réessayer
           </button>
         </div>
       </div>
@@ -215,14 +220,14 @@ export default function ArDashboardPage() {
         <div className="d-flex align-items-center justify-content-between">
           <div>
             <h1 className="fw-bold mb-1" style={{ fontSize: 28, color: '#111827' }}>
-              مرحباً, {nom || 'مستخدم'}
+              Bonjour, {nom || 'Utilisateur'}
             </h1>
             <p className="text-muted mb-0" style={{ fontSize: 14 }}>
-              نظرة عامة على أنشطة تلاوة القرآن والحفظ
+              Vue d'ensemble des activités de récitation et de mémorisation du Coran
             </p>
           </div>
           <div className="text-muted small">
-            {new Date().toLocaleDateString('ar-EG', { 
+            {new Date().toLocaleDateString('fr-FR', { 
               weekday: 'long', 
               year: 'numeric', 
               month: 'long', 
@@ -236,7 +241,7 @@ export default function ArDashboardPage() {
       <div className="row g-3">
         <div className="col-12 col-md-6 col-lg-3">
           <StatCard
-            title="إجمالي الطلاب"
+            title="Total des élèves"
             value={stats.totalEleves}
             icon={<Users size={28} style={{ color: '#0A6E3F' }} />}
             color="#e8f5e9"
@@ -244,16 +249,16 @@ export default function ArDashboardPage() {
         </div>
         <div className="col-12 col-md-6 col-lg-3">
           <StatCard
-            title="جلسات اليوم"
+            title="Séances aujourd'hui"
             value={stats.sessionsToday}
             icon={<BookOpen size={28} style={{ color: '#0A6E3F' }} />}
             color="#e8f5e9"
-            subtitle="الجلسات المسجلة"
+            subtitle="Séances enregistrées"
           />
         </div>
         <div className="col-12 col-md-6 col-lg-3">
           <StatCard
-            title="نسبة الحضور"
+            title="Taux de présence"
             value={`${stats.tauxPresence}%`}
             icon={<CheckCircle size={28} style={{ color: '#0A6E3F' }} />}
             color="#e8f5e9"
@@ -261,7 +266,7 @@ export default function ArDashboardPage() {
         </div>
         <div className="col-12 col-md-6 col-lg-3">
           <StatCard
-            title="نسبة الحفظ"
+            title="Taux de mémorisation"
             value={`${stats.tauxMemorisation}%`}
             icon={<TrendingUp size={28} style={{ color: '#0A6E3F' }} />}
             color="#e8f5e9"
@@ -271,7 +276,7 @@ export default function ArDashboardPage() {
 
       {/* Quick Actions */}
       <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
-        <h2 className="fw-bold mb-3" style={{ fontSize: 20, color: '#111827' }}>إجراءات سريعة</h2>
+        <h2 className="fw-bold mb-3" style={{ fontSize: 20, color: '#111827' }}>Actions rapides</h2>
         <div className="row g-3">
           <div className="col-12 col-md-4">
             <Link
@@ -280,7 +285,7 @@ export default function ArDashboardPage() {
               style={{ backgroundColor: '#0A6E3F', color: '#fff', borderRadius: 12, fontSize: 14, padding: '0.875rem', textDecoration: 'none', border: 'none' }}
             >
               <BookOpen size={20} />
-              بدء جلسة تلاوة جديدة
+              Démarrer une nouvelle séance
             </Link>
           </div>
           <div className="col-12 col-md-4">
@@ -290,7 +295,7 @@ export default function ArDashboardPage() {
               style={{ backgroundColor: '#ffffff', borderColor: '#0A6E3F', color: '#0A6E3F', borderRadius: 12, fontSize: 14, padding: '0.875rem', textDecoration: 'none', border: '1px solid #0A6E3F' }}
             >
               <Calendar size={20} />
-              عرض سجل الجلسات
+              Voir l'historique des séances
             </Link>
           </div>
           <div className="col-12 col-md-4">
@@ -300,7 +305,7 @@ export default function ArDashboardPage() {
               style={{ backgroundColor: '#ffffff', borderColor: '#0A6E3F', color: '#0A6E3F', borderRadius: 12, fontSize: 14, padding: '0.875rem', textDecoration: 'none', border: '1px solid #0A6E3F' }}
             >
               <TrendingUp size={20} />
-              عرض الإحصائيات
+              Voir les statistiques
             </Link>
           </div>
         </div>
@@ -310,14 +315,14 @@ export default function ArDashboardPage() {
       <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
         <div className="p-4 d-flex justify-content-between align-items-center">
           <h5 className="fw-bold mb-0" style={{ fontSize: 16, color: '#111827' }}>
-            آخر الجلسات
+            Dernières séances
           </h5>
           <Link
             to="/ar/historique"
             className="btn btn-sm fw-semibold"
             style={{ backgroundColor: '#e8f5e9', color: '#0A6E3F', borderRadius: 8, fontSize: 12, textDecoration: 'none' }}
           >
-            عرض الكل
+            Voir tout
           </Link>
         </div>
         <div className="table-responsive">
@@ -325,16 +330,16 @@ export default function ArDashboardPage() {
             <thead style={{ backgroundColor: '#f9fafb' }}>
               <tr>
                 <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>
-                  التاريخ
+                  Date
                 </th>
                 <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>
-                  المعلم
+                  Enseignant
                 </th>
                 <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>
-                  الآيات
+                  Versets
                 </th>
                 <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>
-                  الحضور
+                  Présence
                 </th>
               </tr>
             </thead>
@@ -342,20 +347,25 @@ export default function ArDashboardPage() {
               {recentSessions.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="text-center py-5 text-muted">
-                    لا توجد جلسات حديثة
+                    Aucune séance récente
                   </td>
                 </tr>
               ) : (
                 recentSessions.map((session) => (
                   <tr key={session.id}>
                     <td className="py-3 px-3">
-                      {new Date(session.date).toLocaleDateString('ar-EG')}
+                      {new Date(session.date).toLocaleDateString('fr-FR')}
                     </td>
                     <td className="py-3 px-3">
-                      {session.enseignantNom || '-'}
+                      <div className="d-flex flex-column">
+                        <span className="fw-semibold">{session.enseignantNomArabe || session.enseignantNom || '-'}</span>
+                        {session.enseignantNomArabe && session.enseignantNom && (
+                          <span className="text-muted" style={{ fontSize: 11 }}>{session.enseignantNom}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-3">
-                      {session.versets?.[0]?.sourate || '-'} - الآية {session.versets?.[0]?.versetDebut || '-'} إلى {session.versets?.[0]?.versetFin || '-'}
+                      {session.versets?.[0]?.sourate || '-'} - Verset {session.versets?.[0]?.versetDebut || '-'} à {session.versets?.[0]?.versetFin || '-'}
                     </td>
                     <td className="py-3 px-3">
                       {session.recitations?.filter((r: any) => r.present).length || 0} / {session.recitations?.length || 0}

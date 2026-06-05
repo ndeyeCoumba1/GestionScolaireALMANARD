@@ -21,24 +21,31 @@ export interface VersetJour {
 }
 
 export interface VersetJourRequest {
-  sourate: number;
+  date: string;
+  sourateNumero: number;
+  sourateNom: string;
+  sourateNomArabe: string;
   versetDebut: number;
   versetFin: number;
   groupeNiveau: string;
-  classeId?: number;
-  enseignantId?: number;
-  date?: string;
+  classeId: number;
+  enseignantId: number;
 }
 
 export interface VersetJourResponse {
   id: number;
-  sourate: number;
+  date: string;
+  sourateNumero: number;
+  sourateNom: string;
+  sourateNomArabe: string;
   versetDebut: number;
   versetFin: number;
   groupeNiveau: string;
-  classeId?: number;
-  enseignantId?: number;
-  date: string;
+  classeId: number;
+  classeNiveau: string;
+  enseignantId: number;
+  enseignantNom: string;
+  createdAt: string;
 }
 
 export interface SeanceRecitation {
@@ -61,10 +68,13 @@ export interface SeanceResponse {
   id: number;
   date: string;
   classeId: number;
+  classeNiveau: string;
   enseignantId: number;
-  enregistrePar: string;
+  enseignantNom: string;
   versets: VersetJourResponse[];
   recitations: EleveRecitationResponse[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface EleveRecitation {
@@ -88,13 +98,15 @@ export interface EleveRecitationRequest {
 
 export interface EleveRecitationResponse {
   id: number;
+  seanceId: number;
   eleveId: number;
   eleveNom: string;
   elevePrenom: string;
-  eleveMatricule?: string;
+  matricule: string;
   groupeNiveau: string;
   versetJourId?: number;
-  sourate?: number;
+  sourateNom?: string;
+  sourateNomArabe?: string;
   versetDebut?: number;
   versetFin?: number;
   present: boolean;

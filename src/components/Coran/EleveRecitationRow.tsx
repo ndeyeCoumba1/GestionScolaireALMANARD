@@ -86,6 +86,11 @@ export default function EleveRecitationRow({
           <span className="fw-semibold" style={{ fontSize: 13, color: '#111827' }}>
             {eleve.prenomArabe || eleve.prenom} {eleve.nomArabe || eleve.nom}
           </span>
+          {(eleve.prenomArabe || eleve.nomArabe) && (
+            <span className="text-muted" style={{ fontSize: 11 }}>
+              {eleve.prenom} {eleve.nom}
+            </span>
+          )}
           {eleve.matricule && (
             <span
               className="badge rounded-pill fw-medium"

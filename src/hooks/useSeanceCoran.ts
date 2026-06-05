@@ -3,6 +3,7 @@ import type { EleveRecitation, VersetJour, NiveauMemorisation } from '../Types/c
 import { NiveauMemorisation as NiveauMemorisationConst } from '../Types/coran';
 import coranService from '../services/coranService';
 import type { SeanceRequest } from '../Types/coran';
+import { SOURATES } from '../services/coranService';
 
 interface UseSeanceCoranReturn {
   recitations: Record<number, EleveRecitation>;
@@ -114,7 +115,20 @@ export function useSeanceCoran(initialEleves: Array<{ id: number; groupeNiveau: 
 
   // Sauvegarder la séance
   const sauvegarderSeance = useCallback(async (date: string, classeId: number, enseignantId: number) => {
-    const versetsArray = Object.values(versetsGroupe);
+    const versetsArray = Object.values(versetsGroupe).map((v) => {
+      const sourate = SOURATES.find((s) => s.numero === v.sourate);
+      return {
+        date,
+        sourateNumero: v.sourate,
+        sourateNom: sourate?.nomFrancais || '',
+        sourateNomArabe: sourate?.nomArabe || '',
+        versetDebut: v.versetDebut,
+        versetFin: v.versetFin,
+        groupeNiveau: v.groupeNiveau,
+        classeId,
+        enseignantId,
+      };
+    });
     const recitationsArray = Object.values(recitations).map((r) => ({
       eleveId: r.eleveId,
       groupeNiveau: r.groupeNiveau,

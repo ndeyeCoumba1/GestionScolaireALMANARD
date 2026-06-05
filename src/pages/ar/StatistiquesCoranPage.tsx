@@ -47,7 +47,7 @@ export default function StatistiquesCoranPage() {
       setStats(res);
     } catch (err) {
       console.error(err);
-      toast.error('خطأ في تحميل الإحصائيات');
+      toast.error('Erreur lors du chargement des statistiques');
     } finally {
       setLoading(false);
     }
@@ -90,8 +90,8 @@ export default function StatistiquesCoranPage() {
     <div className="d-flex flex-column gap-4">
       {/* Header */}
       <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
-        <h1 className="fw-bold mb-1" style={{ fontSize: 24, color: '#111827' }}>إحصائيات الحفظ والحضور</h1>
-        <p className="text-muted mb-0" style={{ fontSize: 14 }}>عرض إحصائيات الحفظ والحضور للفصل</p>
+        <h1 className="fw-bold mb-1" style={{ fontSize: 24, color: '#111827' }}>Statistiques de mémorisation et de présence</h1>
+        <p className="text-muted mb-0" style={{ fontSize: 14 }}>Afficher les statistiques de mémorisation et de présence pour la classe</p>
       </div>
 
       {/* Filtres */}
@@ -99,7 +99,7 @@ export default function StatistiquesCoranPage() {
         <div className="row g-3">
           <div className="col-12 col-md-4">
             <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>
-              الفصل الدراسي
+              Classe
             </label>
             <select
               value={selectedClasse}
@@ -107,7 +107,7 @@ export default function StatistiquesCoranPage() {
               className="form-select"
               style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}
             >
-              <option value="">اختر فصلاً</option>
+              <option value="">Choisir une classe</option>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>{c.niveau}</option>
               ))}
@@ -115,7 +115,7 @@ export default function StatistiquesCoranPage() {
           </div>
           <div className="col-12 col-md-3">
             <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>
-              من تاريخ
+              Du
             </label>
             <input
               type="date"
@@ -127,7 +127,7 @@ export default function StatistiquesCoranPage() {
           </div>
           <div className="col-12 col-md-3">
             <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>
-              إلى تاريخ
+              Au
             </label>
             <input
               type="date"
@@ -143,7 +143,7 @@ export default function StatistiquesCoranPage() {
               className="btn w-100 fw-semibold"
               style={{ backgroundColor: '#0A6E3F', borderColor: '#0A6E3F', color: '#fff', borderRadius: 8, fontSize: 14, padding: '0.75rem' }}
             >
-              بحث
+              Rechercher
             </button>
           </div>
         </div>
@@ -155,25 +155,25 @@ export default function StatistiquesCoranPage() {
           <div className="row g-3">
             <div className="col-12 col-md-6 col-lg-3">
               <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
-                <div className="text-muted mb-2" style={{ fontSize: 13 }}>إجمالي الطلاب</div>
+                <div className="text-muted mb-2" style={{ fontSize: 13 }}>Total des élèves</div>
                 <div className="fw-bold" style={{ fontSize: 28, color: '#111827' }}>{stats.totalEleves || 0}</div>
               </div>
             </div>
             <div className="col-12 col-md-6 col-lg-3">
               <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
-                <div className="text-muted mb-2" style={{ fontSize: 13 }}>متوسط الحضور</div>
+                <div className="text-muted mb-2" style={{ fontSize: 13 }}>Taux de présence moyen</div>
                 <div className="fw-bold" style={{ fontSize: 28, color: '#111827' }}>{stats.tauxPresenceMoyen ? `${stats.tauxPresenceMoyen}%` : '0%'}</div>
               </div>
             </div>
             <div className="col-12 col-md-6 col-lg-3">
               <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
-                <div className="text-muted mb-2" style={{ fontSize: 13 }}>متوسط الحفظ</div>
+                <div className="text-muted mb-2" style={{ fontSize: 13 }}>Taux de mémorisation moyen</div>
                 <div className="fw-bold" style={{ fontSize: 28, color: '#111827' }}>{stats.tauxMemorisationMoyen ? `${stats.tauxMemorisationMoyen}%` : '0%'}</div>
               </div>
             </div>
             <div className="col-12 col-md-6 col-lg-3">
               <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
-                <div className="text-muted mb-2" style={{ fontSize: 13 }}>إجمالي الجلسات</div>
+                <div className="text-muted mb-2" style={{ fontSize: 13 }}>Total des séances</div>
                 <div className="fw-bold" style={{ fontSize: 28, color: '#111827' }}>{stats.totalSeances || 0}</div>
               </div>
             </div>
@@ -183,7 +183,7 @@ export default function StatistiquesCoranPage() {
           <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
             <div className="p-4">
               <h5 className="fw-bold mb-0" style={{ fontSize: 16, color: '#111827' }}>
-                إحصائيات الطلاب
+                Statistiques des élèves
               </h5>
             </div>
             <div className="table-responsive">
@@ -194,19 +194,19 @@ export default function StatistiquesCoranPage() {
                   <thead style={{ backgroundColor: '#f9fafb' }}>
                     <tr>
                       <th className="py-3 px-3 fw-bold text-uppercase cursor-pointer" style={{ color: '#374151', fontSize: 12 }} onClick={() => handleSort('nom')}>
-                        الاسم {sortField === 'nom' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        Nom {sortField === 'nom' && (sortDirection === 'asc' ? '↑' : '↓')}
                       </th>
                       <th className="py-3 px-3 fw-bold text-uppercase cursor-pointer" style={{ color: '#374151', fontSize: 12 }} onClick={() => handleSort('presence')}>
-                        الحضور {sortField === 'presence' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        Présence {sortField === 'presence' && (sortDirection === 'asc' ? '↑' : '↓')}
                       </th>
                       <th className="py-3 px-3 fw-bold text-uppercase cursor-pointer" style={{ color: '#374151', fontSize: 12 }} onClick={() => handleSort('memorise')}>
-                        الحفظ التام {sortField === 'memorise' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        Mémorisé {sortField === 'memorise' && (sortDirection === 'asc' ? '↑' : '↓')}
                       </th>
                       <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>
-                        الحفظ الجزئي
+                        Partiel
                       </th>
                       <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>
-                        النسبة
+                        Taux
                       </th>
                     </tr>
                   </thead>
@@ -214,13 +214,20 @@ export default function StatistiquesCoranPage() {
                     {sortedEleves.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="text-center py-5 text-muted">
-                          لا توجد بيانات
+                          Aucune donnée
                         </td>
                       </tr>
                     ) : (
                       sortedEleves.map((eleve: any) => (
                         <tr key={eleve.id}>
-                          <td className="py-3 px-3">{eleve.nom}</td>
+                          <td className="py-3 px-3">
+                            <div className="d-flex flex-column">
+                              <span className="fw-semibold">{eleve.nomArabe || eleve.nom}</span>
+                              {eleve.nomArabe && (
+                                <span className="text-muted" style={{ fontSize: 11 }}>{eleve.nom}</span>
+                              )}
+                            </div>
+                          </td>
                           <td className="py-3 px-3">
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <div style={{ flex: 1, height: 8, backgroundColor: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
