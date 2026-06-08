@@ -28,7 +28,7 @@ public class CoranController {
      * Récupère les versets du jour pour une classe
      */
     @GetMapping("/versets-jour")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<List<CoranDTO.VersetJourResponse>> getVersetsDuJour(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam Long classeId) {
@@ -40,7 +40,7 @@ public class CoranController {
      * Historique de tous les versets assignés à une classe
      */
     @GetMapping("/versets-jour/historique")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<List<CoranDTO.VersetJourResponse>> getHistoriqueVersets(
             @RequestParam Long classeId) {
         return ResponseEntity.ok(coranService.getHistoriqueVersets(classeId));
@@ -51,7 +51,7 @@ public class CoranController {
      * Définit (ou met à jour) les versets du jour pour chaque groupe
      */
     @PostMapping("/versets-jour")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'RECITATEUR')")
     public ResponseEntity<List<CoranDTO.VersetJourResponse>> upsertVersets(
             @RequestBody @Valid List<CoranDTO.VersetJourRequest> requests) {
         return ResponseEntity.ok(coranService.upsertVersets(requests));
@@ -66,7 +66,7 @@ public class CoranController {
      * Crée ou met à jour une séance complète (versets + présences + mémorisation)
      */
     @PostMapping("/seances")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'RECITATEUR')")
     public ResponseEntity<CoranDTO.SeanceResponse> upsertSeance(
             @RequestBody @Valid CoranDTO.SeanceRequest request) {
         return ResponseEntity.ok(coranService.upsertSeanceComplete(request));
@@ -74,14 +74,14 @@ public class CoranController {
 
     /**
      * GET /api/coran/seances/date?date=2026-05-22&classeId=1
-     * Récupère la séance d'un jour donné pour une classe
+     * Récupère toutes les séances d'un jour donné pour une classe (ordonnées par numéro)
      */
     @GetMapping("/seances/date")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE')")
-    public ResponseEntity<CoranDTO.SeanceResponse> getSeanceByDate(
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    public ResponseEntity<List<CoranDTO.SeanceResponse>> getSeancesByDate(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam Long classeId) {
-        return ResponseEntity.ok(coranService.getSeanceByDate(date, classeId));
+        return ResponseEntity.ok(coranService.getSeancesByDate(date, classeId));
     }
 
     /**
@@ -89,7 +89,7 @@ public class CoranController {
      * Historique des séances d'une classe avec filtres optionnels de dates
      */
     @GetMapping("/seances/historique")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<List<CoranDTO.SeanceResponse>> getHistoriqueSeances(
             @RequestParam Long classeId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
@@ -106,7 +106,7 @@ public class CoranController {
      * Historique de récitation d'un élève spécifique
      */
     @GetMapping("/recitations/eleve/{eleveId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<List<CoranDTO.EleveRecitationResponse>> getRecitationsByEleve(
             @PathVariable Long eleveId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
@@ -124,7 +124,7 @@ public class CoranController {
      * Statistiques de présence et mémorisation pour toute la classe
      */
     @GetMapping("/stats/classe/{classeId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<CoranDTO.StatistiquesClasseResponse> getStatistiquesClasse(
             @PathVariable Long classeId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
@@ -138,7 +138,7 @@ public class CoranController {
      * Statistiques globales d'un élève (toutes séances confondues)
      */
     @GetMapping("/stats/eleve/{eleveId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<CoranDTO.StatistiquesEleveResponse> getStatistiquesEleve(
             @PathVariable Long eleveId) {
         return ResponseEntity.ok(coranService.getStatistiquesEleve(eleveId));

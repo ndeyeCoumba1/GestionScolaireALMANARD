@@ -27,14 +27,16 @@ public interface EleveRecitationRepository extends JpaRepository<EleveRecitation
             @Param("dateDebut") LocalDate dateDebut,
             @Param("dateFin")   LocalDate dateFin
     );
+    List<EleveRecitation> findBySeanceClasseId(Long classeId);
+
     @Query("""
         SELECT r FROM EleveRecitation r
         WHERE r.seance.classe.id = :classeId
-        AND (:dateDebut IS NULL OR r.seance.date >= :dateDebut)
-        AND (:dateFin   IS NULL OR r.seance.date <= :dateFin)
+        AND r.seance.date >= :dateDebut
+        AND r.seance.date <= :dateFin
         ORDER BY r.eleve.nom, r.seance.date
     """)
-    List<EleveRecitation> findByClasseIdAndOptionalDateRange(
+    List<EleveRecitation> findByClasseIdAndDateRange(
             @Param("classeId")  Long classeId,
             @Param("dateDebut") LocalDate dateDebut,
             @Param("dateFin")   LocalDate dateFin

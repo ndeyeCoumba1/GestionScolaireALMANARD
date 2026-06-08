@@ -75,6 +75,9 @@ public class CoranDTO {
         @NotNull
         private LocalDate date;
 
+        /** Numéro de la séance dans la journée (1 par défaut). */
+        private Integer numeroSeance;
+
         @NotNull
         private Long classeId;
 
@@ -96,6 +99,7 @@ public class CoranDTO {
     public static class SeanceResponse {
         private Long id;
         private LocalDate date;
+        private Integer numeroSeance;
         private Long classeId;
         private NiveauClasse classeNiveau;
         private Long enseignantId;

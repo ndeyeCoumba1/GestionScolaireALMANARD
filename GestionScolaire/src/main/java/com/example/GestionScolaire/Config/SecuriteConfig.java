@@ -52,10 +52,10 @@ public class SecuriteConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login").permitAll()
-                        .requestMatchers("/api/coran/**").hasAnyRole("ADMIN", "ENSEIGNANT")
+                        .requestMatchers("/api/coran/**").hasAnyRole("ADMIN", "ENSEIGNANT", "RECITATEUR")
                         .requestMatchers("/api/inscriptions/**").hasAnyRole("ADMIN", "COMPTABLE")
                         .requestMatchers("/api/rapports/**").hasAnyRole("ADMIN", "COMPTABLE")
-                        .requestMatchers("/api/eleves/**").hasAnyRole("ADMIN", "COMPTABLE", "ENSEIGNANT")
+                        .requestMatchers("/api/eleves/**").hasAnyRole("ADMIN", "COMPTABLE", "ENSEIGNANT", "RECITATEUR")
                         .requestMatchers("/api/parents/**").hasAnyRole("ADMIN", "COMPTABLE")
                         .requestMatchers("/api/classes/**").authenticated()
                         .requestMatchers("/api/mois/**").hasAnyRole("ADMIN", "COMPTABLE")

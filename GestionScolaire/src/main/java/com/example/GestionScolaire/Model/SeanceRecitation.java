@@ -12,8 +12,8 @@ import java.util.List;
 @Entity
 @Table(name = "seance_recitation", uniqueConstraints = {
         @UniqueConstraint(
-                name = "uk_seance_date_classe",
-                columnNames = {"date", "classe_id"}
+                name = "uk_seance_date_classe_numero",
+                columnNames = {"date", "classe_id", "numero_seance"}
         )
 })
 @Data
@@ -28,6 +28,11 @@ public class SeanceRecitation {
     /** Date de la séance */
     @Column(nullable = false)
     private LocalDate date;
+
+    /** Numéro de la séance dans la journée (1 = matin, 2 = après-midi, etc.) */
+    @Column(name = "numero_seance", nullable = false)
+    @Builder.Default
+    private Integer numeroSeance = 1;
 
     /** Classe concernée */
     @ManyToOne(fetch = FetchType.LAZY)

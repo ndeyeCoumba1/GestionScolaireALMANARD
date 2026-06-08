@@ -62,4 +62,8 @@ public class VersetJour {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "seance_id")
+    private SeanceRecitation seance;
 }

@@ -13,7 +13,9 @@ import java.util.Optional;
 @Repository
 public interface SeanceRecitationRepository extends JpaRepository<SeanceRecitation, Long> {
 
-    Optional<SeanceRecitation> findByDateAndClasseId(LocalDate date, Long classeId);
+    List<SeanceRecitation> findByDateAndClasseIdOrderByNumeroSeanceAsc(LocalDate date, Long classeId);
+
+    Optional<SeanceRecitation> findByDateAndClasseIdAndNumeroSeance(LocalDate date, Long classeId, Integer numeroSeance);
 
     List<SeanceRecitation> findByClasseIdAndDateBetweenOrderByDateDesc(
             Long classeId, LocalDate dateDebut, LocalDate dateFin
@@ -21,14 +23,17 @@ public interface SeanceRecitationRepository extends JpaRepository<SeanceRecitati
 
     List<SeanceRecitation> findByClasseIdOrderByDateDesc(Long classeId);
 
+    @Query("SELECT COUNT(DISTINCT s.date) FROM SeanceRecitation s WHERE s.classe.id = :classeId")
+    long countSeancesParClasse(@Param("classeId") Long classeId);
+
     @Query("""
         SELECT COUNT(DISTINCT s.date)
         FROM SeanceRecitation s
         WHERE s.classe.id = :classeId
-        AND (:dateDebut IS NULL OR s.date >= :dateDebut)
-        AND (:dateFin   IS NULL OR s.date <= :dateFin)
+        AND s.date >= :dateDebut
+        AND s.date <= :dateFin
     """)
-    long countSeancesParClasse(
+    long countSeancesParClasseAndDateRange(
             @Param("classeId")  Long classeId,
             @Param("dateDebut") LocalDate dateDebut,
             @Param("dateFin")   LocalDate dateFin
