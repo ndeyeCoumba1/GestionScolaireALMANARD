@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import type { Classe } from '../../Types/index';
 import coranService from '../../services/coranService';
@@ -128,110 +128,113 @@ export default function HistoriqueCoranPage() {
         </div>
       </form>
 
+      {/* Message si aucune classe sélectionnée */}
+      {!selectedClasse && (
+        <div className="bg-white rounded-4 shadow-sm p-5 text-center" style={{ border: '1px solid #f0f0f0' }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>📚</div>
+          <p className="text-muted mb-0" style={{ fontSize: 14 }}>Sélectionnez une classe pour afficher l'historique des séances</p>
+        </div>
+      )}
+
       {/* Tableau des sessions */}
-      <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
-        <div className="table-responsive">
-          {loading ? (
-            <SkeletonTable rows={5} columns={5} />
-          ) : (
-            <table className="table align-middle mb-0" style={{ fontSize: 13 }}>
-              <thead style={{ backgroundColor: '#f9fafb' }}>
-                <tr>
-                  <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>
-                    Date
-                  </th>
-                  <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>
-                    Enseignant
-                  </th>
-                  <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>
-                    Versets
-                  </th>
-                  <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>
-                    Présence
-                  </th>
-                  <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.length === 0 ? (
+      {selectedClasse && (
+        <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
+          <div className="table-responsive">
+            {loading ? (
+              <SkeletonTable rows={5} columns={6} />
+            ) : (
+              <table className="table align-middle mb-0" style={{ fontSize: 13 }}>
+                <thead style={{ backgroundColor: '#f9fafb' }}>
                   <tr>
-                    <td colSpan={5} className="text-center py-5 text-muted">
-                      Aucune séance dans cette période
-                    </td>
+                    <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Date</th>
+                    <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>N° Séance</th>
+                    <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Enseignant</th>
+                    <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Versets</th>
+                    <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Présence</th>
+                    <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Actions</th>
                   </tr>
-                ) : (
-                  sessions.map((session) => (
-                    <>
-                      <tr key={session.id} style={{ cursor: 'pointer' }} onClick={() => setExpandedSession(expandedSession === session.id ? null : session.id)}>
-                        <td className="py-3 px-3">
-                          {new Date(session.date).toLocaleDateString('fr-FR')}
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="d-flex flex-column">
-                            <span className="fw-semibold">{session.enseignantNomArabe || session.enseignantNom}</span>
-                            {session.enseignantNomArabe && (
-                              <span className="text-muted" style={{ fontSize: 11 }}>{session.enseignantNom}</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-3">
-                          {session.versets?.[0]?.sourate || '-'} - Verset {session.versets?.[0]?.versetDebut || '-'} à {session.versets?.[0]?.versetFin || '-'}
-                        </td>
-                        <td className="py-3 px-3">
-                          {session.recitations?.filter((r: any) => r.present).length || 0} / {session.recitations?.length || 0}
-                        </td>
-                        <td className="py-3 px-3">
-                          <button className="btn btn-sm" style={{ backgroundColor: '#e8f5e9', color: '#0A6E3F', borderRadius: 6, fontSize: 12 }}>
-                            {expandedSession === session.id ? 'Masquer' : 'Afficher les détails'}
-                          </button>
-                        </td>
-                      </tr>
-                      {expandedSession === session.id && (
-                        <tr>
-                          <td colSpan={5} className="p-3" style={{ backgroundColor: '#f9fafb' }}>
-                            <div className="bg-white rounded-3 p-3">
-                              <h6 className="fw-bold mb-3" style={{ fontSize: 14, color: '#111827' }}>Détails de mémorisation</h6>
-                              <table className="table table-sm mb-0" style={{ fontSize: 12 }}>
-                                <thead>
-                                  <tr>
-                                    <th>Élève</th>
-                                    <th>Présence</th>
-                                    <th>Niveau de mémorisation</th>
-                                    <th>Note</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {session.recitations?.map((recitation: any) => (
-                                    <tr key={recitation.id}>
-                                      <td>
-                                        <div className="d-flex flex-column">
-                                          <span className="fw-semibold">{recitation.eleveNomArabe || recitation.eleveNom}</span>
-                                          {recitation.eleveNomArabe && (
-                                            <span className="text-muted" style={{ fontSize: 11 }}>{recitation.eleveNom}</span>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td>{recitation.present ? '✅' : '❌'}</td>
-                                      <td><NiveauBadge niveau={recitation.niveauMemorisation} /></td>
-                                      <td>{recitation.commentaire || '-'}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
+                </thead>
+                <tbody>
+                  {sessions.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-5 text-muted">
+                        Aucune séance trouvée pour cette période
+                      </td>
+                    </tr>
+                  ) : (
+                    sessions.map((session) => (
+                      <React.Fragment key={session.id}>
+                        <tr style={{ cursor: 'pointer' }} onClick={() => setExpandedSession(expandedSession === session.id ? null : session.id)}>
+                          <td className="py-3 px-3">
+                            {new Date(session.date).toLocaleDateString('fr-FR')}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="badge rounded-pill fw-medium" style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', fontSize: 11 }}>
+                              Séance {session.numeroSeance || 1}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="fw-semibold">{session.enseignantNom}</span>
+                          </td>
+                          <td className="py-3 px-3">
+                            {session.versets?.[0]
+                              ? `${session.versets[0].sourateNomArabe || session.versets[0].sourateNom} — versets ${session.versets[0].versetDebut} à ${session.versets[0].versetFin}`
+                              : '-'}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="fw-semibold" style={{ color: '#0A6E3F' }}>
+                              {session.recitations?.filter((r: any) => r.present).length || 0}
+                            </span>
+                            <span className="text-muted"> / {session.recitations?.length || 0}</span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <button className="btn btn-sm" style={{ backgroundColor: '#e8f5e9', color: '#0A6E3F', borderRadius: 6, fontSize: 12 }}>
+                              {expandedSession === session.id ? 'Masquer ▲' : 'Détails ▼'}
+                            </button>
                           </td>
                         </tr>
-                      )}
-                    </>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
+                        {expandedSession === session.id && (
+                          <tr>
+                            <td colSpan={6} className="p-3" style={{ backgroundColor: '#f9fafb' }}>
+                              <div className="bg-white rounded-3 p-3">
+                                <h6 className="fw-bold mb-3" style={{ fontSize: 14, color: '#111827' }}>Détails de mémorisation</h6>
+                                <table className="table table-sm mb-0" style={{ fontSize: 12 }}>
+                                  <thead>
+                                    <tr>
+                                      <th>Élève</th>
+                                      <th>Présence</th>
+                                      <th>Niveau de mémorisation</th>
+                                      <th>Note</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {session.recitations?.map((recitation: any) => (
+                                      <tr key={recitation.id}>
+                                        <td>
+                                          <span className="fw-semibold">
+                                            {recitation.prenomArabe || recitation.elevePrenom} {recitation.nomArabe || recitation.eleveNom}
+                                          </span>
+                                        </td>
+                                        <td>{recitation.present ? '✅' : '❌'}</td>
+                                        <td><NiveauBadge niveau={recitation.niveauMemorisation} /></td>
+                                        <td>{recitation.commentaire || '-'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

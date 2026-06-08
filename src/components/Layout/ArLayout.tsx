@@ -3,10 +3,11 @@ import { useAuth } from '../../Context/AuthContext';
 import { useEffect } from 'react';
 
 const navItems = [
-  { to: '/ar/dashboard', emoji: '🏠', label: 'لوحة القيادة', roles: ['ADMIN', 'ENSEIGNANT'] },
-  { to: '/ar/seance', emoji: '📖', label: 'جلسة التلاوة', roles: ['ADMIN', 'ENSEIGNANT'] },
-  { to: '/ar/historique', emoji: '📚', label: 'السجل', roles: ['ADMIN', 'ENSEIGNANT', 'COMPTABLE'] },
-  { to: '/ar/stats', emoji: '📊', label: 'الإحصائيات', roles: ['ADMIN', 'ENSEIGNANT', 'COMPTABLE'] },
+  { to: '/ar/dashboard', emoji: '🏠', label: 'لوحة القيادة', roles: ['ADMIN', 'ENSEIGNANT', 'RECITATEUR'] },
+  { to: '/ar/seance', emoji: '📖', label: 'جلسة التلاوة', roles: ['ADMIN', 'ENSEIGNANT', 'RECITATEUR'] },
+  { to: '/ar/historique', emoji: '📚', label: 'السجل', roles: ['ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR'] },
+  { to: '/ar/stats', emoji: '📊', label: 'الإحصائيات', roles: ['ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR'] },
+  { to: '/ar/rapports', emoji: '📋', label: 'التقارير', roles: ['ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR'] },
 ];
 
 export default function ArLayout() {

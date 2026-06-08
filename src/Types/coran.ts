@@ -60,6 +60,7 @@ export interface SeanceRequest {
   date: string;
   classeId: number;
   enseignantId: number;
+  numeroSeance?: number;
   versets: VersetJourRequest[];
   recitations: EleveRecitationRequest[];
 }
@@ -71,6 +72,7 @@ export interface SeanceResponse {
   classeNiveau: string;
   enseignantId: number;
   enseignantNom: string;
+  numeroSeance: number;
   versets: VersetJourResponse[];
   recitations: EleveRecitationResponse[];
   createdAt: string;
@@ -86,6 +88,10 @@ export interface EleveRecitation {
   present: boolean;
   niveauMemorisation: NiveauMemorisation;
   commentaire?: string;
+  // Progression individuelle
+  sourateNumero?: number;
+  versetDebut?: number;
+  versetFin?: number;
 }
 
 export interface EleveRecitationRequest {

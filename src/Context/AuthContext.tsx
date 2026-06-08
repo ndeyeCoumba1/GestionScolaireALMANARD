@@ -9,8 +9,10 @@ interface AuthContextType {
   token: string | null;
   role: Role | null;
   nom: string | null;
+  prenom: string | null;
+  userId: number | null;
   portail: Portail | null;
-  login: (token: string, role: Role, nom: string, portail: Portail) => void;
+  login: (token: string, role: Role, nom: string, portail: Portail, prenom?: string, userId?: number) => void;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -36,7 +38,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     console.log('Init nom:', n);
     return n;
   });
-  
+
+  const [prenom, setPrenom] = useState<string | null>(() => localStorage.getItem('prenom'));
+  const [userId, setUserId] = useState<number | null>(() => {
+    const uid = localStorage.getItem('userId');
+    return uid ? Number(uid) : null;
+  });
+
   const [portail, setPortail] = useState<Portail | null>(() => {
     const p = localStorage.getItem('portail') as Portail | null;
     console.log('Init portail:', p);
@@ -57,7 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const login = (token: string, role: Role, nom: string, portail: Portail) => {
+  const login = (token: string, role: Role, nom: string, portail: Portail, prenom?: string, userId?: number) => {
     console.log('=== LOGIN CONTEXT ===');
     console.log('Paramètres reçus:');
     console.log('  - token:', token.substring(0, 20) + '...');
@@ -70,6 +78,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('role', role);
     localStorage.setItem('nom', nom);
     localStorage.setItem('portail', portail);
+    if (prenom) localStorage.setItem('prenom', prenom);
+    if (userId) localStorage.setItem('userId', String(userId));
     
     // Vérification immédiate
     console.log('Vérification après stockage localStorage:');
@@ -82,6 +92,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setRole(role);
     setNom(nom);
     setPortail(portail);
+    if (prenom !== undefined) setPrenom(prenom);
+    if (userId !== undefined) setUserId(userId);
     
     console.log('État après mise à jour state:');
     console.log('  - portail state:', portail);
@@ -101,15 +113,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isAuthenticated = !!token;
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        token, 
-        role, 
-        nom, 
-        portail, 
-        login, 
-        logout, 
-        isAuthenticated 
+    <AuthContext.Provider
+      value={{
+        token,
+        role,
+        nom,
+        prenom,
+        userId,
+        portail,
+        login,
+        logout,
+        isAuthenticated
       }}
     >
       {children}

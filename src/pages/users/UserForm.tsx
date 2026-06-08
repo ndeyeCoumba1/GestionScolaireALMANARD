@@ -127,6 +127,7 @@ export default function UserForm({ onClose }: UserFormProps) {
           <option value="ADMIN">Admin</option>
           <option value="COMPTABLE">Comptable</option>
           <option value="ENSEIGNANT">Enseignant</option>
+          <option value="RECITATEUR">Récitateur</option>
         </select>
       </div>
 

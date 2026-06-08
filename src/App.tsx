@@ -27,6 +27,7 @@ import ArSeanceCoranPage from './pages/ar/SeanceCoranPage';
 import ArHistoriqueCoranPage from './pages/ar/HistoriqueCoranPage';
 import ArStatistiquesCoranPage from './pages/ar/StatistiquesCoranPage';
 import ArLoginPage from './pages/ar/ArLoginPage';
+import ArRapportCoranPage from './pages/ar/RapportCoranPage';
 
 // ========== PROTECTED ROUTE FRANÇAIS ==========
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -158,7 +159,8 @@ export default function App() {
             <Route path="seance" element={<ArSeanceCoranPage />} />
             <Route path="historique" element={<ArHistoriqueCoranPage />} />
             <Route path="stats" element={<ArStatistiquesCoranPage />} />
-            
+            <Route path="rapports" element={<ArRapportCoranPage />} />
+
             {/* Redirection par défaut pour /ar */}
             <Route index element={<Navigate to="/ar/dashboard" replace />} />
           </Route>

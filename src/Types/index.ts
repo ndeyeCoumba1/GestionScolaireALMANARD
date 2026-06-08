@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'COMPTABLE' | 'ENSEIGNANT';
+export type Role = 'ADMIN' | 'COMPTABLE' | 'ENSEIGNANT' | 'RECITATEUR';
 export type Sexe = 'M' | 'F';
 export type StatutEleve = 'INSCRIT' | 'NON_INSCRIT';
 export type StatutPaiement = 'PAYE' | 'EN_ATTENTE' | 'PARTIEL' | 'IMPAYE' | 'ANNULE';

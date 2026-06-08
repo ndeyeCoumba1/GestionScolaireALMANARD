@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import type { EleveRecitation, VersetJour, NiveauMemorisation } from '../Types/coran';
+import { useState, useCallback, useEffect } from 'react';
+import type { EleveRecitation, NiveauMemorisation } from '../Types/coran';
 import { NiveauMemorisation as NiveauMemorisationConst } from '../Types/coran';
 import coranService from '../services/coranService';
 import type { SeanceRequest } from '../Types/coran';
@@ -7,13 +7,12 @@ import { SOURATES } from '../services/coranService';
 
 interface UseSeanceCoranReturn {
   recitations: Record<number, EleveRecitation>;
-  versetsGroupe: Record<string, VersetJour>;
   setPresence: (eleveId: number, present: boolean) => void;
   setNiveauMemorisation: (eleveId: number, niveau: NiveauMemorisation) => void;
   setCommentaire: (eleveId: number, commentaire: string) => void;
-  setVersetGroupe: (groupe: string, verset: VersetJour) => void;
+  setVersetEleve: (eleveId: number, sourateNumero: number, versetDebut: number, versetFin: number) => void;
   marquerTousPresents: () => void;
-  sauvegarderSeance: (date: string, classeId: number, enseignantId: number) => Promise<void>;
+  sauvegarderSeance: (date: string, classeId: number, enseignantId: number, numeroSeance: number) => Promise<void>;
   stats: {
     presents: number;
     memorises: number;
@@ -24,49 +23,38 @@ interface UseSeanceCoranReturn {
 }
 
 export function useSeanceCoran(initialEleves: Array<{ id: number; groupeNiveau: string }>): UseSeanceCoranReturn {
-  // Initialiser les récitations pour chaque élève
-  const [recitations, setRecitations] = useState<Record<number, EleveRecitation>>(() => {
-    const initial: Record<number, EleveRecitation> = {};
+  const [recitations, setRecitations] = useState<Record<number, EleveRecitation>>({});
+
+  useEffect(() => {
+    const newRecitations: Record<number, EleveRecitation> = {};
     initialEleves.forEach((eleve) => {
-      initial[eleve.id] = {
+      newRecitations[eleve.id] = {
         eleveId: eleve.id,
-        groupeNiveau: eleve.groupeNiveau,
+        groupeNiveau: String(eleve.id), // clé unique par élève
         present: true,
         niveauMemorisation: NiveauMemorisationConst.NON_MEMORISE,
         commentaire: '',
-      };
-    });
-    return initial;
-  });
-
-  // Versets par groupe/niveau
-  const [versetsGroupe, setVersetsGroupe] = useState<Record<string, VersetJour>>(() => {
-    const groupes = [...new Set(initialEleves.map((e) => e.groupeNiveau))];
-    const initial: Record<string, VersetJour> = {};
-    groupes.forEach((groupe) => {
-      initial[groupe] = {
-        sourate: 1,
+        sourateNumero: 1,
         versetDebut: 1,
         versetFin: 7,
-        groupeNiveau: groupe,
       };
     });
-    return initial;
-  });
+    setRecitations(newRecitations);
+  }, [initialEleves]);
 
-  // Modifier la présence d'un élève
   const setPresence = useCallback((eleveId: number, present: boolean) => {
     setRecitations((prev) => ({
       ...prev,
       [eleveId]: {
         ...prev[eleveId],
         present,
-        niveauMemorisation: present ? prev[eleveId].niveauMemorisation : NiveauMemorisationConst.ABSENT,
+        niveauMemorisation: present
+          ? prev[eleveId]?.niveauMemorisation || NiveauMemorisationConst.NON_MEMORISE
+          : NiveauMemorisationConst.ABSENT,
       },
     }));
   }, []);
 
-  // Modifier le niveau de mémorisation d'un élève
   const setNiveauMemorisation = useCallback((eleveId: number, niveau: NiveauMemorisation) => {
     setRecitations((prev) => ({
       ...prev,
@@ -78,26 +66,20 @@ export function useSeanceCoran(initialEleves: Array<{ id: number; groupeNiveau: 
     }));
   }, []);
 
-  // Modifier le commentaire d'un élève
   const setCommentaire = useCallback((eleveId: number, commentaire: string) => {
     setRecitations((prev) => ({
       ...prev,
-      [eleveId]: {
-        ...prev[eleveId],
-        commentaire,
-      },
+      [eleveId]: { ...prev[eleveId], commentaire },
     }));
   }, []);
 
-  // Modifier le verset pour un groupe
-  const setVersetGroupe = useCallback((groupe: string, verset: VersetJour) => {
-    setVersetsGroupe((prev) => ({
+  const setVersetEleve = useCallback((eleveId: number, sourateNumero: number, versetDebut: number, versetFin: number) => {
+    setRecitations((prev) => ({
       ...prev,
-      [groupe]: verset,
+      [eleveId]: { ...prev[eleveId], sourateNumero, versetDebut, versetFin },
     }));
   }, []);
 
-  // Marquer tous les élèves comme présents
   const marquerTousPresents = useCallback(() => {
     setRecitations((prev) => {
       const updated: Record<number, EleveRecitation> = {};
@@ -113,57 +95,64 @@ export function useSeanceCoran(initialEleves: Array<{ id: number; groupeNiveau: 
     });
   }, []);
 
-  // Sauvegarder la séance
-  const sauvegarderSeance = useCallback(async (date: string, classeId: number, enseignantId: number) => {
-    const versetsArray = Object.values(versetsGroupe).map((v) => {
-      const sourate = SOURATES.find((s) => s.numero === v.sourate);
-      return {
-        date,
-        sourateNumero: v.sourate,
-        sourateNom: sourate?.nomFrancais || '',
-        sourateNomArabe: sourate?.nomArabe || '',
-        versetDebut: v.versetDebut,
-        versetFin: v.versetFin,
-        groupeNiveau: v.groupeNiveau,
-        classeId,
-        enseignantId,
-      };
-    });
-    const recitationsArray = Object.values(recitations).map((r) => ({
-      eleveId: r.eleveId,
-      groupeNiveau: r.groupeNiveau,
-      present: r.present,
-      niveauMemorisation: r.niveauMemorisation,
-      commentaire: r.commentaire,
-    }));
+  const sauvegarderSeance = useCallback(async (date: string, classeId: number, enseignantId: number, numeroSeance: number) => {
+    const versetsArray: any[] = [];
+    const recitationsArray: any[] = [];
+
+    Object.values(recitations)
+      .filter((r) => r && r.eleveId)
+      .forEach((r) => {
+        const sourateNum = r.sourateNumero ?? 1;
+        const sourate = SOURATES.find((s) => s.numero === sourateNum);
+        const groupe = String(r.eleveId); // un verset par élève
+
+        versetsArray.push({
+          date,
+          sourateNumero: sourateNum,
+          sourateNom: sourate?.nomFrancais || '',
+          sourateNomArabe: sourate?.nomArabe || '',
+          versetDebut: r.versetDebut ?? 1,
+          versetFin: r.versetFin ?? 7,
+          groupeNiveau: groupe,
+          classeId,
+          enseignantId,
+        });
+
+        recitationsArray.push({
+          eleveId: r.eleveId,
+          groupeNiveau: groupe,
+          present: r.present,
+          niveauMemorisation: r.niveauMemorisation,
+          commentaire: r.commentaire || '',
+        });
+      });
 
     const seanceRequest: SeanceRequest = {
       date,
       classeId,
       enseignantId,
+      numeroSeance,
       versets: versetsArray,
       recitations: recitationsArray,
     };
 
     await coranService.createSeance(seanceRequest);
-  }, [recitations, versetsGroupe]);
+  }, [recitations]);
 
-  // Calculer les statistiques
   const stats = {
-    presents: Object.values(recitations).filter((r) => r.present).length,
-    memorises: Object.values(recitations).filter((r) => r.niveauMemorisation === NiveauMemorisationConst.MEMORISE).length,
-    partiels: Object.values(recitations).filter((r) => r.niveauMemorisation === NiveauMemorisationConst.PARTIEL).length,
-    absents: Object.values(recitations).filter((r) => r.niveauMemorisation === NiveauMemorisationConst.ABSENT).length,
+    presents: Object.values(recitations).filter((r) => r?.present).length,
+    memorises: Object.values(recitations).filter((r) => r?.niveauMemorisation === NiveauMemorisationConst.MEMORISE).length,
+    partiels: Object.values(recitations).filter((r) => r?.niveauMemorisation === NiveauMemorisationConst.PARTIEL).length,
+    absents: Object.values(recitations).filter((r) => r?.niveauMemorisation === NiveauMemorisationConst.ABSENT).length,
     totalEleves: Object.keys(recitations).length,
   };
 
   return {
     recitations,
-    versetsGroupe,
     setPresence,
     setNiveauMemorisation,
     setCommentaire,
-    setVersetGroupe,
+    setVersetEleve,
     marquerTousPresents,
     sauvegarderSeance,
     stats,

@@ -45,6 +45,7 @@ export default function UserList() {
       ADMIN: { bg: '#fee2e2', color: '#991b1b' },
       COMPTABLE: { bg: '#dbeafe', color: '#1d4ed8' },
       ENSEIGNANT: { bg: '#dcfce7', color: '#166534' },
+      RECITATEUR: { bg: '#ede9fe', color: '#6d28d9' },
     };
     const style = styles[role] || { bg: '#f3f4f6', color: '#374151' };
     return { backgroundColor: style.bg, color: style.color, fontSize: 12, padding: '5px 10px' };

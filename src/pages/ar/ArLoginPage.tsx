@@ -8,6 +8,7 @@ interface AuthResponse {
   role: string;
   nom: string;
   prenom: string;
+  id?: number;
 }
 
 export default function ArLoginPage() {
@@ -36,6 +37,9 @@ export default function ArLoginPage() {
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('role', res.data.role);
       localStorage.setItem('nom', res.data.nom);
+      localStorage.setItem('prenom', res.data.prenom || '');
+      localStorage.setItem('email', email);
+      if (res.data.id) localStorage.setItem('userId', String(res.data.id));
       localStorage.setItem('portail', 'AR');
       
       // Vérification immédiate
@@ -51,9 +55,10 @@ export default function ArLoginPage() {
         localStorage.setItem('portail', 'AR');
       }
       
-      // 🔥 REDIRECTION DIRECTE
-      console.log('Redirection vers /ar/dashboard');
-      window.location.href = '/ar/dashboard';
+      // Redirection selon le rôle
+      const destination = res.data.role === 'RECITATEUR' ? '/ar/seance' : '/ar/dashboard';
+      console.log('Redirection vers', destination);
+      window.location.href = destination;
       
     } catch (err: any) {
       console.error('Erreur:', err);
