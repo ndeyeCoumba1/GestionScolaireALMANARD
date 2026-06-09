@@ -12,7 +12,7 @@ interface UseSeanceCoranReturn {
   setCommentaire: (eleveId: number, commentaire: string) => void;
   setVersetEleve: (eleveId: number, sourateNumero: number, versetDebut: number, versetFin: number) => void;
   marquerTousPresents: () => void;
-  sauvegarderSeance: (date: string, classeId: number, enseignantId: number, numeroSeance: number) => Promise<void>;
+  sauvegarderSeance: (date: string, classeId: number, enseignantId: number, numeroSeance: number, verifierRevision?: boolean) => Promise<void>;
   stats: {
     presents: number;
     memorises: number;
@@ -35,8 +35,8 @@ export function useSeanceCoran(initialEleves: Array<{ id: number; groupeNiveau: 
         niveauMemorisation: NiveauMemorisationConst.NON_MEMORISE,
         commentaire: '',
         sourateNumero: 1,
-        versetDebut: 1,
-        versetFin: 7,
+        versetDebut: 0,
+        versetFin: 0,
       };
     });
     setRecitations(newRecitations);
@@ -95,7 +95,7 @@ export function useSeanceCoran(initialEleves: Array<{ id: number; groupeNiveau: 
     });
   }, []);
 
-  const sauvegarderSeance = useCallback(async (date: string, classeId: number, enseignantId: number, numeroSeance: number) => {
+  const sauvegarderSeance = useCallback(async (date: string, classeId: number, enseignantId: number, numeroSeance: number, verifierRevision = true) => {
     const versetsArray: any[] = [];
     const recitationsArray: any[] = [];
 
@@ -111,8 +111,8 @@ export function useSeanceCoran(initialEleves: Array<{ id: number; groupeNiveau: 
           sourateNumero: sourateNum,
           sourateNom: sourate?.nomFrancais || '',
           sourateNomArabe: sourate?.nomArabe || '',
-          versetDebut: r.versetDebut ?? 1,
-          versetFin: r.versetFin ?? 7,
+          versetDebut: r.versetDebut ?? 0,
+          versetFin: r.versetFin ?? 0,
           groupeNiveau: groupe,
           classeId,
           enseignantId,
@@ -132,6 +132,7 @@ export function useSeanceCoran(initialEleves: Array<{ id: number; groupeNiveau: 
       classeId,
       enseignantId,
       numeroSeance,
+      verifierRevision,
       versets: versetsArray,
       recitations: recitationsArray,
     };

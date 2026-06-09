@@ -8,6 +8,8 @@ import type {
   StatistiquesEleveResponse,
   StatistiquesClasseResponse,
   Sourate,
+  SeanceRevisionRequest,
+  SeanceRevisionResponse,
 } from '../Types/coran';
 
 // Liste statique des 114 sourates du Coran
@@ -196,6 +198,32 @@ export const coranService = {
   getStatistiquesEleve: async (eleveId: number): Promise<StatistiquesEleveResponse> => {
     const response = await api.get(`${CORAN_BASE_URL}/stats/eleve/${eleveId}`);
     return response.data;
+  },
+
+  // Révisions
+  enregistrerRevision: async (data: SeanceRevisionRequest): Promise<SeanceRevisionResponse> => {
+    const response = await api.post(`${CORAN_BASE_URL}/revisions`, data);
+    return response.data;
+  },
+
+  getRevisionsByEleve: async (eleveId: number, dateDebut?: string, dateFin?: string): Promise<SeanceRevisionResponse[]> => {
+    const params = new URLSearchParams();
+    if (dateDebut) params.append('dateDebut', dateDebut);
+    if (dateFin) params.append('dateFin', dateFin);
+    const response = await api.get(`${CORAN_BASE_URL}/revisions/eleve/${eleveId}?${params.toString()}`);
+    return response.data;
+  },
+
+  getRevisionsByClasse: async (classeId: number, dateDebut?: string, dateFin?: string): Promise<SeanceRevisionResponse[]> => {
+    const params = new URLSearchParams();
+    if (dateDebut) params.append('dateDebut', dateDebut);
+    if (dateFin) params.append('dateFin', dateFin);
+    const response = await api.get(`${CORAN_BASE_URL}/revisions/classe/${classeId}?${params.toString()}`);
+    return response.data;
+  },
+
+  supprimerRevision: async (id: number): Promise<void> => {
+    await api.delete(`${CORAN_BASE_URL}/revisions/${id}`);
   },
 };
 

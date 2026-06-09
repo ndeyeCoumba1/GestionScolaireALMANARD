@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../../api/axios';
 import type { Classe } from '../../Types/index';
-import type { SeanceResponse } from '../../Types/coran';
+import type { SeanceResponse, SeanceRevisionResponse } from '../../Types/coran';
 import coranService from '../../services/coranService';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../Context/AuthContext';
@@ -49,6 +49,7 @@ interface StudentRow {
   id: number;
   nom: string;
   prenom: string;
+  matricule: string;
   totalSeances: number;
   presents: number;
   memorises: number;
@@ -57,6 +58,7 @@ interface StudentRow {
   sourates: string[];
   commentaires: string[];
   reciteurs: string[];
+  enseignants: string[];
 }
 
 function buildStudentRows(seances: SeanceResponse[]): StudentRow[] {
@@ -74,6 +76,7 @@ function buildStudentRows(seances: SeanceResponse[]): StudentRow[] {
           id: r.eleveId,
           nom: r.eleveNom || '',
           prenom: r.elevePrenom || '',
+          matricule: r.matricule || '',
           totalSeances: 0,
           presents: 0,
           memorises: 0,
@@ -82,6 +85,7 @@ function buildStudentRows(seances: SeanceResponse[]): StudentRow[] {
           sourates: [],
           commentaires: [],
           reciteurs: [],
+          enseignants: [],
         });
       }
       const row = map.get(r.eleveId)!;
@@ -97,9 +101,9 @@ function buildStudentRows(seances: SeanceResponse[]): StudentRow[] {
         if (!row.sourates.includes(sn)) row.sourates.push(sn);
       });
       if (r.commentaire) row.commentaires.push(r.commentaire);
-      // Collecte du nom du récitateur de la séance
       const recNom = s.enseignantNom || '';
       if (recNom && !row.reciteurs.includes(recNom)) row.reciteurs.push(recNom);
+      if (recNom && !row.enseignants.includes(recNom)) row.enseignants.push(recNom);
     });
   });
   return Array.from(map.values()).sort((a, b) =>
@@ -115,12 +119,14 @@ interface PrintableTableProps {
   classeNom: string;
   seances: SeanceResponse[];
   students: StudentRow[];
+  revisions: SeanceRevisionResponse[];
+  enseignantClasse: string;
   periodLabel: string;
   logoDataUrl?: string;
 }
 
 const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
-  ({ titre, classeNom, seances, students, periodLabel, logoDataUrl }, ref) => {
+  ({ titre, classeNom, seances, students, revisions, enseignantClasse, periodLabel, logoDataUrl }, ref) => {
     const totalPresents = students.reduce((a, s) => a + s.presents, 0);
     const totalAbsents = students.reduce((a, s) => a + s.absents, 0);
     const totalMemo = students.reduce((a, s) => a + s.memorises, 0);
@@ -187,11 +193,13 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
         >
           <thead>
             <tr style={{ backgroundColor: '#0A6E3F', color: '#fff' }}>
-              <th style={th}>رقم</th>
+              <th style={{ ...th, minWidth: 90 }}>رقم التعريف</th>
               <th style={{ ...th, minWidth: 120 }}>اسم الطالب</th>
               <th style={th}>السورة</th>
-              <th style={th}>من</th>
-              <th style={th}>إلى</th>
+              <th style={th}>تلاوة من</th>
+              <th style={th}>تلاوة إلى</th>
+              <th style={th}>مراجعة من</th>
+              <th style={th}>مراجعة إلى</th>
               <th style={th}>الحضور</th>
               <th style={th}>الغياب</th>
               <th style={th}>نسبة الحضور</th>
@@ -200,6 +208,7 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
               <th style={th}>نسبة الحفظ</th>
               <th style={th}>المستوى</th>
               <th style={{ ...th, minWidth: 110 }}>المسمع</th>
+              <th style={{ ...th, minWidth: 110 }}>المعلم</th>
               <th style={{ ...th, minWidth: 90 }}>ملاحظات</th>
             </tr>
           </thead>
@@ -211,13 +220,19 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
               const niveauColor = tauxMemo >= 80 ? '#0A6E3F' : tauxMemo >= 60 ? '#1d4ed8' : tauxMemo >= 40 ? '#d97706' : '#dc2626';
               const bg = i % 2 === 0 ? '#fff' : '#f9fafb';
 
+              // Dernière révision de cet élève sur la période
+              const eleveRevisions = revisions.filter(rv => rv.eleveId === s.id);
+              const lastRev = eleveRevisions.at(-1);
+
               return (
                 <tr key={s.id} style={{ backgroundColor: bg }}>
-                  <td style={td}>{i + 1}</td>
+                  <td style={{ ...td, fontFamily: 'monospace', fontSize: 10, color: '#6b7280' }}>{s.matricule || '—'}</td>
                   <td style={{ ...td, fontWeight: 600, textAlign: 'right' }}>{s.prenom} {s.nom}</td>
                   <td style={td}>{s.sourates[0] || '—'}</td>
                   <td style={td}>{firstVerset?.versetDebut || '—'}</td>
                   <td style={td}>{firstVerset?.versetFin || '—'}</td>
+                  <td style={{ ...td, color: '#7c3aed', fontWeight: 600 }}>{lastRev?.versetRevisionDebut ?? '—'}</td>
+                  <td style={{ ...td, color: '#7c3aed', fontWeight: 600 }}>{lastRev?.versetRevisionFin ?? '—'}</td>
                   <td style={{ ...td, color: '#1d4ed8', fontWeight: 600 }}>{s.presents}</td>
                   <td style={{ ...td, color: '#dc2626', fontWeight: 600 }}>{s.absents}</td>
                   <td style={td}>
@@ -239,7 +254,8 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
                     </div>
                   </td>
                   <td style={{ ...td, fontWeight: 600, color: niveauColor }}>{niveau}</td>
-                  <td style={{ ...td, fontSize: 10, color: '#0A6E3F', fontWeight: 600 }}>{s.reciteurs.join('، ') || '—'}</td>
+                  <td style={{ ...td, fontSize: 10, color: '#0A6E3F', fontWeight: 600 }}>{s.enseignants.join('، ') || '—'}</td>
+                  <td style={{ ...td, fontSize: 10, color: '#1d4ed8', fontWeight: 600 }}>{enseignantClasse || '—'}</td>
                   <td style={{ ...td, fontSize: 9, color: '#6b7280' }}>{s.commentaires.slice(0, 2).join('، ') || '—'}</td>
                 </tr>
               );
@@ -249,7 +265,7 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
           <tfoot>
             <tr style={{ backgroundColor: '#e8f5e9', fontWeight: 700, borderTop: '2px solid #0A6E3F' }}>
               <td style={td} colSpan={2}>المجموع</td>
-              <td style={td} colSpan={3}>{totalSeances} جلسة</td>
+              <td style={td} colSpan={5}>{totalSeances} جلسة</td>
               <td style={{ ...td, color: '#1d4ed8' }}>{totalPresents}</td>
               <td style={{ ...td, color: '#dc2626' }}>{totalAbsents}</td>
               <td style={td}>
@@ -260,7 +276,7 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
               <td style={td}>
                 {totalPresents > 0 ? Math.round(((totalMemo + totalPartiel * 0.5) / totalPresents) * 100) : 0}%
               </td>
-              <td style={td} colSpan={3}></td>
+              <td style={td} colSpan={4}></td>
             </tr>
           </tfoot>
         </table>
@@ -302,6 +318,7 @@ export default function RapportCoranPage() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [classes, setClasses] = useState<Classe[]>([]);
   const [seances, setSeances] = useState<SeanceResponse[]>([]);
+  const [revisions, setRevisions] = useState<SeanceRevisionResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [logoDataUrl, setLogoDataUrl] = useState<string>('');
@@ -336,9 +353,13 @@ export default function RapportCoranPage() {
     setLoading(true);
     try {
       const { debut, fin } = getDateBounds();
-      const res = await coranService.getHistoriqueSeances(Number(selectedClasse), debut, fin);
-      setSeances(res);
-      if (res.length === 0) toast('Aucune séance pour cette période', { icon: '📭' });
+      const [seancesRes, revisionsRes] = await Promise.all([
+        coranService.getHistoriqueSeances(Number(selectedClasse), debut, fin),
+        coranService.getRevisionsByClasse(Number(selectedClasse), debut, fin).catch(() => []),
+      ]);
+      setSeances(seancesRes);
+      setRevisions(revisionsRes);
+      if (seancesRes.length === 0) toast('Aucune séance pour cette période', { icon: '📭' });
     } catch {
       toast.error('Erreur lors du chargement');
     } finally {
@@ -408,7 +429,11 @@ export default function RapportCoranPage() {
     : periode === 'hebdomadaire' ? frWeek(selectedDate)
     : frMonth(selectedMonth);
 
-  const classeNom = classes.find(c => c.id === selectedClasse)?.niveau || '';
+  const selectedClasseObj = classes.find(c => c.id === selectedClasse);
+  const classeNom = selectedClasseObj?.niveau || '';
+  const enseignantClasse = selectedClasseObj?.enseignant
+    ? `${selectedClasseObj.enseignant.prenom} ${selectedClasseObj.enseignant.nom}`.trim()
+    : '';
   const students = buildStudentRows(seances);
 
   // Stats
@@ -425,18 +450,27 @@ export default function RapportCoranPage() {
   return (
     <div className="d-flex flex-column gap-4">
       {/* Header */}
-      <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
-        <div className="d-flex justify-content-between align-items-start flex-wrap gap-3">
-          <div>
-            <h1 className="fw-bold mb-1" style={{ fontSize: 22, color: '#111827' }}>Rapports des séances de récitation</h1>
-            <p className="text-muted mb-0" style={{ fontSize: 13 }}>Générez et téléchargez les rapports journaliers, hebdomadaires et mensuels au format PDF</p>
+      <div className="rounded-4 p-5 position-relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #3730a3 0%, #4338ca 100%)' }}>
+        <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.06)' }} />
+        <div style={{ position: 'absolute', bottom: -40, left: 180, width: 160, height: 160, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.04)' }} />
+        <div style={{ position: 'absolute', top: 20, right: 120, width: 80, height: 80, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.05)' }} />
+        <div className="position-relative d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div className="d-flex align-items-center gap-4">
+            <div style={{ width: 64, height: 64, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, flexShrink: 0 }}>
+              📋
+            </div>
+            <div>
+              <h1 className="fw-bold mb-1" style={{ fontSize: 26, color: '#ffffff' }}>Rapports des séances de récitation</h1>
+              <p className="mb-1" style={{ fontSize: 17, color: 'rgba(255,255,255,0.9)', fontFamily: 'serif' }}>تقارير جلسات التلاوة</p>
+              <p className="mb-0" style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>Générez et téléchargez les rapports journaliers, hebdomadaires et mensuels</p>
+            </div>
           </div>
           {students.length > 0 && (
-            <div className="d-flex gap-2">
-              <button onClick={() => window.print()} className="btn fw-semibold" style={{ backgroundColor: '#f3f4f6', color: '#374151', borderRadius: 8, fontSize: 13, border: '1px solid #e5e7eb' }}>
+            <div className="d-flex gap-2 flex-wrap">
+              <button onClick={() => window.print()} className="btn fw-semibold" style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff', borderRadius: 8, fontSize: 13, border: '1px solid rgba(255,255,255,0.3)' }}>
                 🖨️ Imprimer
               </button>
-              <button onClick={generatePDF} disabled={generating} className="btn fw-semibold" style={{ backgroundColor: '#0A6E3F', color: '#fff', borderRadius: 8, fontSize: 13, border: 'none', minWidth: 160 }}>
+              <button onClick={generatePDF} disabled={generating} className="btn fw-semibold" style={{ backgroundColor: '#ffffff', color: '#4338ca', borderRadius: 8, fontSize: 13, border: 'none', minWidth: 160, fontWeight: 700 }}>
                 {generating
                   ? <><span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14, borderWidth: 2 }} />Génération...</>
                   : '⬇️ Télécharger PDF'}
@@ -447,7 +481,11 @@ export default function RapportCoranPage() {
       </div>
 
       {/* Filtres */}
-      <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
+      <div className="rounded-4 p-4" style={{ backgroundColor: '#ffffff', boxShadow: '0 2px 16px rgba(67,56,202,0.08)', border: '1px solid #e0e7ff' }}>
+        <div className="d-flex align-items-center gap-2 mb-4">
+          <div style={{ width: 4, height: 20, backgroundColor: '#4338ca', borderRadius: 2 }} />
+          <span className="fw-semibold" style={{ fontSize: 13, color: '#374151' }}>Période du rapport — فترة التقرير</span>
+        </div>
         {/* Onglets */}
         <div className="d-flex gap-2 mb-4">
           {(['journalier', 'hebdomadaire', 'mensuel'] as PeriodeType[]).map((p) => (
@@ -457,7 +495,7 @@ export default function RapportCoranPage() {
               className="btn fw-semibold"
               style={{
                 borderRadius: 8, fontSize: 13, padding: '8px 18px',
-                backgroundColor: periode === p ? '#0A6E3F' : '#f9fafb',
+                backgroundColor: periode === p ? '#4338ca' : '#f9fafb',
                 color: periode === p ? '#fff' : '#374151',
                 border: periode === p ? 'none' : '1px solid #e5e7eb',
               }}
@@ -495,7 +533,7 @@ export default function RapportCoranPage() {
 
           <div className="col-12 col-md-4 d-flex align-items-end">
             <button onClick={fetchData} disabled={!selectedClasse || loading} className="btn fw-semibold w-100"
-              style={{ backgroundColor: '#0A6E3F', color: '#fff', borderRadius: 8, fontSize: 14, padding: '0.75rem', border: 'none', opacity: (!selectedClasse || loading) ? 0.6 : 1 }}>
+              style={{ backgroundColor: '#4338ca', color: '#fff', borderRadius: 8, fontSize: 14, padding: '0.75rem', border: 'none', opacity: (!selectedClasse || loading) ? 0.6 : 1 }}>
               {loading ? <><span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14, borderWidth: 2 }} />Chargement...</> : '🔍 Générer le rapport'}
             </button>
           </div>
@@ -548,12 +586,15 @@ export default function RapportCoranPage() {
 
       {/* ──── PRINTABLE TABLE (visible + used for PDF capture) ──── */}
       {students.length > 0 && (
-        <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
-          <div className="p-4 border-bottom d-flex justify-content-between align-items-center">
-            <h5 className="fw-bold mb-0" style={{ fontSize: 15, color: '#111827' }}>
-              Tableau de récitation — {classeNom} — {periodLabel}
-            </h5>
-            <span className="badge rounded-pill" style={{ backgroundColor: '#e8f5e9', color: '#0A6E3F', fontSize: 12 }}>
+        <div className="rounded-4 overflow-hidden" style={{ boxShadow: '0 2px 16px rgba(67,56,202,0.08)', border: '1px solid #e0e7ff' }}>
+          <div className="p-4 d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(90deg, #eef2ff 0%, #ffffff 100%)', borderBottom: '1px solid #e0e7ff' }}>
+            <div className="d-flex align-items-center gap-2">
+              <div style={{ width: 4, height: 20, backgroundColor: '#4338ca', borderRadius: 2 }} />
+              <h5 className="fw-bold mb-0" style={{ fontSize: 15, color: '#3730a3' }}>
+                Tableau de récitation — {classeNom} — {periodLabel}
+              </h5>
+            </div>
+            <span className="badge rounded-pill" style={{ backgroundColor: '#e0e7ff', color: '#4338ca', fontSize: 12 }}>
               {students.length} élève(s)
             </span>
           </div>
@@ -567,6 +608,8 @@ export default function RapportCoranPage() {
               classeNom={classeNom}
               seances={seances}
               students={students}
+              revisions={revisions}
+              enseignantClasse={enseignantClasse}
               periodLabel={periodLabel}
               logoDataUrl={logoDataUrl}
             />

@@ -39,7 +39,8 @@ export default function ArLoginPage() {
       localStorage.setItem('nom', res.data.nom);
       localStorage.setItem('prenom', res.data.prenom || '');
       localStorage.setItem('email', email);
-      if (res.data.id) localStorage.setItem('userId', String(res.data.id));
+      const idFromResponse = res.data.id ?? (res.data as any).userId ?? null;
+      if (idFromResponse != null) localStorage.setItem('userId', String(idFromResponse));
       localStorage.setItem('portail', 'AR');
       
       // Vérification immédiate

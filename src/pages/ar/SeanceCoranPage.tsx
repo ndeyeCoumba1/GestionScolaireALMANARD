@@ -13,12 +13,17 @@ export default function SeanceCoranPage() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClasse, setSelectedClasse] = useState<number | ''>('');
   const [selectedEnseignant, setSelectedEnseignant] = useState<number | ''>('');
+  const [selectedTeacher, setSelectedTeacher] = useState<number | ''>('');
   const [classes, setClasses] = useState<Classe[]>([]);
   const [eleves, setEleves] = useState<Eleve[]>([]);
   const [enseignants, setEnseignants] = useState<any[]>([]);
+  const [teachers, setTeachers] = useState<any[]>([]);
   const [numeroSeance, setNumeroSeance] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [verifierRevision, setVerifierRevision] = useState(true);
+  const [revisionErrors, setRevisionErrors] = useState<string[]>([]);
+  const [saveResult, setSaveResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const elevesForSeance = useMemo(
     () => eleves.map((e) => ({ id: e.id, groupeNiveau: e.classeNiveau || 'A' })),
@@ -39,11 +44,19 @@ export default function SeanceCoranPage() {
   useEffect(() => {
     fetchClasses();
     fetchEnseignants();
+    fetchTeachers();
   }, []);
 
   useEffect(() => {
     if (selectedClasse) {
       fetchEleves(selectedClasse);
+      // Auto-select the class teacher when class changes
+      const classe = classes.find(c => c.id === selectedClasse) as any;
+      if (classe?.enseignant?.id) {
+        setSelectedTeacher(classe.enseignant.id);
+      } else if (classe?.enseignantId) {
+        setSelectedTeacher(classe.enseignantId);
+      }
     }
   }, [selectedClasse]);
 
@@ -57,43 +70,46 @@ export default function SeanceCoranPage() {
   };
 
   const fetchEnseignants = async () => {
-    try {
-      const res = await api.get('/users');
-      const liste = res.data.filter((u: any) => u.role === 'ENSEIGNANT' || u.role === 'RECITATEUR');
-      setEnseignants(liste);
-      if (role === 'RECITATEUR') autoSelectRecitateur(liste);
-    } catch (err: any) {
-      if (err?.response?.status === 403 && role === 'RECITATEUR' && userId) {
-        const fallback = [{ id: userId, nom: nom || '', prenom: prenom || '', email: '', role: 'RECITATEUR' }];
-        setEnseignants(fallback);
-        setSelectedEnseignant(userId);
-      } else {
-        console.error(err);
+    if (role === 'RECITATEUR') {
+      let effectiveUserId = userId;
+
+      // /auth/me est maintenant accessible au RECITATEUR
+      if (!effectiveUserId) {
+        try {
+          const meRes = await api.get('/auth/me');
+          const id = meRes.data?.id ?? meRes.data?.userId ?? null;
+          if (id) {
+            effectiveUserId = Number(id);
+            localStorage.setItem('userId', String(effectiveUserId));
+          }
+        } catch {}
       }
+
+      setEnseignants([{
+        id: effectiveUserId ?? 0,
+        nom: nom || '',
+        prenom: prenom || '',
+        role: 'RECITATEUR',
+      }]);
+      if (effectiveUserId) {
+        setSelectedEnseignant(effectiveUserId);
+      }
+      return;
+    }
+    try {
+      const res = await api.get('/users/enseignants');
+      setEnseignants(res.data);
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  const autoSelectRecitateur = (liste: any[]) => {
-    // 1. Par userId (si le backend renvoie id dans la réponse login)
-    if (userId) {
-      const u = liste.find((u: any) => u.id === userId);
-      if (u) { setSelectedEnseignant(u.id); return; }
-    }
-    // 2. Par email (stocké dans localStorage au login — le plus fiable)
-    const emailLS = localStorage.getItem('email')?.toLowerCase().trim() ?? '';
-    if (emailLS) {
-      const u = liste.find((u: any) => u.email?.toLowerCase().trim() === emailLS);
-      if (u) { setSelectedEnseignant(u.id); return; }
-    }
-    // 3. Par nom + prénom
-    const nomLS = nom?.toLowerCase().trim() ?? '';
-    const prenomLS = prenom?.toLowerCase().trim() ?? '';
-    if (nomLS) {
-      const u = liste.find((u: any) =>
-        u.nom?.toLowerCase().trim() === nomLS &&
-        (!prenomLS || u.prenom?.toLowerCase().trim() === prenomLS)
-      );
-      if (u) setSelectedEnseignant(u.id);
+  const fetchTeachers = async () => {
+    try {
+      const res = await api.get('/users/enseignants');
+      setTeachers(res.data);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -125,10 +141,12 @@ export default function SeanceCoranPage() {
     console.log('eleves.length:', eleves.length);
     console.log('recitations:', recitations);
 
-    // Validation stricte avant envoi
-    if (!selectedClasse || !selectedEnseignant) {
-      console.error('Validation échouée: classe ou récitateur manquant');
-      toast.error('Veuillez choisir une classe et un récitateur');
+    if (!selectedClasse) {
+      toast.error('Veuillez choisir une classe');
+      return;
+    }
+    if (role !== 'RECITATEUR' && !selectedEnseignant) {
+      toast.error('Veuillez choisir un récitateur');
       return;
     }
 
@@ -144,31 +162,37 @@ export default function SeanceCoranPage() {
       return;
     }
 
+    setRevisionErrors([]);
+    setSaveResult(null);
     setSaving(true);
     try {
-      await sauvegarderSeance(date, Number(selectedClasse), Number(selectedEnseignant), numeroSeance);
-      toast.success('Séance enregistrée avec succès !');
-      
-      // Réinitialiser le formulaire après succès
+      const enseignantId = selectedTeacher !== ''
+        ? Number(selectedTeacher)
+        : selectedEnseignant !== ''
+          ? Number(selectedEnseignant)
+          : (userId ?? 0);
+      await sauvegarderSeance(date, Number(selectedClasse), enseignantId, numeroSeance, verifierRevision);
+      setSaveResult({ type: 'success', message: 'Séance enregistrée avec succès !' });
       setSelectedClasse('');
       setSelectedEnseignant('');
       setEleves([]);
     } catch (err: any) {
-      console.error('Erreur HTTP:', err?.response?.status);
-      console.error('Détail backend:', err?.response?.data);
+      const rawMessage: string = err?.response?.data?.message || err?.response?.data?.error || '';
+      // Retirer le préfixe générique du backend
+      const backendMessage = rawMessage.replace(/^Erreur lors de l['']enregistrement\s*:\s*/i, '');
+      const status = err?.response?.status;
 
-      const backendMessage: string = err?.response?.data?.message || err?.response?.data?.error || '';
-
-      if (err?.response?.status === 500 && backendMessage.includes('uk_verset_jour_date_classe_groupe')) {
-        toast.error('Un verset du jour existe déjà pour cette classe, cette date et ce groupe. Le backend doit implémenter un vrai upsert.');
-      } else if (err?.response?.status === 500) {
-        toast.error(`Erreur serveur: ${backendMessage || 'Vérifiez les données'}`);
-      } else if (err?.response?.status === 400) {
-        toast.error(`Données invalides: ${backendMessage || 'Vérifiez tous les champs'}`);
-      } else if (err?.response?.status === 401 || err?.response?.status === 403) {
-        toast.error('Non autorisé. Veuillez vous reconnecter.');
+      if (backendMessage && backendMessage.includes("n'a pas révisé")) {
+        const messages: string[] = Array.isArray(err?.response?.data?.errors)
+          ? err.response.data.errors
+          : backendMessage.split('\n').filter(Boolean);
+        setRevisionErrors(messages);
+      } else if (status === 500 && backendMessage.includes('uk_verset_jour_date_classe_groupe')) {
+        setSaveResult({ type: 'error', message: 'Un verset du jour existe déjà pour cette séance.' });
+      } else if (status === 401 || status === 403) {
+        setSaveResult({ type: 'error', message: 'Non autorisé. Veuillez vous reconnecter.' });
       } else {
-        toast.error(backendMessage || 'Erreur lors de l\'enregistrement');
+        setSaveResult({ type: 'error', message: backendMessage || "Erreur lors de l'enregistrement." });
       }
     } finally {
       setSaving(false);
@@ -187,17 +211,32 @@ export default function SeanceCoranPage() {
   return (
     <div className="d-flex flex-column gap-4">
       {/* Header */}
-      <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
-        <h1 className="fw-bold mb-1" style={{ fontSize: 24, color: '#111827' }}>Séance de récitation du Coran</h1>
-        <p className="text-muted mb-0" style={{ fontSize: 14 }}>Enregistrez les versets du jour et évaluez la mémorisation des élèves</p>
+      <div className="rounded-4 p-5 position-relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0A6E3F 0%, #1a8f52 100%)' }}>
+        <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.06)' }} />
+        <div style={{ position: 'absolute', bottom: -40, left: 180, width: 160, height: 160, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.04)' }} />
+        <div style={{ position: 'absolute', top: 20, right: 120, width: 80, height: 80, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.05)' }} />
+        <div className="position-relative d-flex align-items-center gap-4">
+          <div style={{ width: 64, height: 64, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, flexShrink: 0 }}>
+            📖
+          </div>
+          <div>
+            <h1 className="fw-bold mb-1" style={{ fontSize: 26, color: '#ffffff' }}>Séance de récitation du Coran</h1>
+            <p className="mb-1" style={{ fontSize: 17, color: 'rgba(255,255,255,0.9)', fontFamily: 'serif' }}>جلسة تلاوة القرآن الكريم</p>
+            <p className="mb-0" style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>Enregistrez les versets du jour et évaluez la mémorisation des élèves</p>
+          </div>
+        </div>
       </div>
 
       {/* Filtres */}
-      <form className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }} onSubmit={(e) => e.preventDefault()}>
+      <form className="rounded-4 p-4" style={{ backgroundColor: '#ffffff', boxShadow: '0 2px 16px rgba(10,110,63,0.08)', border: '1px solid #e8f5e9' }} onSubmit={(e) => e.preventDefault()}>
+        <div className="d-flex align-items-center gap-2 mb-4">
+          <div style={{ width: 4, height: 20, backgroundColor: '#0A6E3F', borderRadius: 2 }} />
+          <span className="fw-semibold" style={{ fontSize: 13, color: '#374151' }}>Paramètres de la séance — إعدادات الجلسة</span>
+        </div>
         <div className="row g-3">
-          <div className="col-12 col-md-3">
-            <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>
-              Date de la séance
+          <div className="col-12 col-md-2">
+            <label className="form-label fw-semibold d-flex align-items-center gap-1" style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase' }}>
+              📅 Date de la séance
             </label>
             <input
               type="date"
@@ -207,9 +246,9 @@ export default function SeanceCoranPage() {
               style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}
             />
           </div>
-          <div className="col-12 col-md-3">
-            <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>
-              N° Séance
+          <div className="col-12 col-md-2">
+            <label className="form-label fw-semibold d-flex align-items-center gap-1" style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase' }}>
+              🔢 N° Séance
             </label>
             <select
               value={numeroSeance}
@@ -222,9 +261,9 @@ export default function SeanceCoranPage() {
               <option value={3}>Séance 3</option>
             </select>
           </div>
-          <div className="col-12 col-md-3">
-            <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>
-              Classe
+          <div className="col-12 col-md-2">
+            <label className="form-label fw-semibold d-flex align-items-center gap-1" style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase' }}>
+              🏫 Classe — الفصل
             </label>
             <select
               value={selectedClasse}
@@ -238,6 +277,31 @@ export default function SeanceCoranPage() {
               ))}
             </select>
           </div>
+          {/* Enseignant */}
+          <div className="col-12 col-md-3">
+            <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>
+              👨‍🏫 Enseignant — المعلم
+            </label>
+            <select
+              value={selectedTeacher}
+              onChange={(e) => setSelectedTeacher(e.target.value ? Number(e.target.value) : '')}
+              className="form-select"
+              style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}
+            >
+              <option value="">Choisir un enseignant</option>
+              {teachers.length === 0 ? (
+                <option disabled>Aucun enseignant disponible</option>
+              ) : (
+                teachers.map((t: any) => (
+                  <option key={t.id} value={t.id}>
+                    {t.prenomArabe || t.prenom} {t.nomArabe || t.nom}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          {/* Récitateur */}
           <div className="col-12 col-md-3">
             <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>
               {role === 'RECITATEUR' ? 'المسمع (Récitateur)' : 'Récitateur / Enseignant'}
@@ -292,11 +356,14 @@ export default function SeanceCoranPage() {
           />
 
           {/* Tableau des élèves */}
-          <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
-            <div className="p-4 d-flex justify-content-between align-items-center">
-              <h5 className="fw-bold mb-0" style={{ fontSize: 16, color: '#111827' }}>
-                Liste des élèves
-              </h5>
+          <div className="rounded-4 overflow-hidden" style={{ boxShadow: '0 2px 16px rgba(10,110,63,0.08)', border: '1px solid #e8f5e9' }}>
+            <div className="p-4 d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(90deg, #f0fdf4 0%, #ffffff 100%)', borderBottom: '1px solid #e8f5e9' }}>
+              <div className="d-flex align-items-center gap-2">
+                <div style={{ width: 4, height: 20, backgroundColor: '#0A6E3F', borderRadius: 2 }} />
+                <h5 className="fw-bold mb-0" style={{ fontSize: 16, color: '#0A6E3F' }}>
+                  Liste des élèves — قائمة الطلاب
+                </h5>
+              </div>
               <button
                 onClick={marquerTousPresents}
                 className="btn btn-sm fw-medium"
@@ -310,20 +377,29 @@ export default function SeanceCoranPage() {
                 <SkeletonTable rows={5} columns={6} />
               ) : (
                 <table className="table align-middle mb-0" style={{ fontSize: 13 }}>
-                  <thead style={{ backgroundColor: '#f9fafb' }}>
+                  <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
                     <tr>
-                      <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Présence</th>
-                      <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Élève</th>
-                      <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Sourate / Versets</th>
-                      <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Mémorisation</th>
-                      <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Statut</th>
-                      <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Remarques</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>Présence</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Prénom</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Nom</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>Matricule</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase text-end" style={{ color: '#374151', fontSize: 11 }}>الاسم</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase text-end" style={{ color: '#374151', fontSize: 11 }}>اللقب</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>Classe</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Sourate</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>V. Début</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>V. Fin</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Mémorisation</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Statut</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Récitateur</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Enseignant</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Remarques</th>
                     </tr>
                   </thead>
                   <tbody>
                     {eleves.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="text-center py-5 text-muted">
+                        <td colSpan={15} className="text-center py-5 text-muted">
                           Sélectionnez une classe pour charger les élèves
                         </td>
                       </tr>
@@ -333,6 +409,16 @@ export default function SeanceCoranPage() {
                           key={eleve.id}
                           eleve={eleve}
                           recitation={recitations[eleve.id]}
+                          classeName={classes.find(c => c.id === selectedClasse)?.niveau || ''}
+                          recitateur={(() => {
+                            const r = enseignants.find((e: any) => e.id === selectedEnseignant);
+                            return r ? `${r.prenom || ''} ${r.nom || ''}`.trim() : `${prenom || ''} ${nom || ''}`.trim();
+                          })()}
+                          enseignant={(() => {
+                            if (selectedTeacher === '') return '';
+                            const t = teachers.find((t: any) => t.id === selectedTeacher);
+                            return t ? `${t.prenom || ''} ${t.nom || ''}`.trim() : '';
+                          })()}
                           onPresenceChange={setPresence}
                           onNiveauChange={setNiveauMemorisation}
                           onCommentaireChange={setCommentaire}
@@ -346,8 +432,82 @@ export default function SeanceCoranPage() {
             </div>
           </div>
 
+          {/* Panneau erreurs de révision manquante */}
+          {revisionErrors.length > 0 && (
+            <div className="rounded-3 p-4" style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderLeft: '4px solid #ea580c' }}>
+              <div className="d-flex align-items-start gap-3">
+                <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
+                <div className="flex-grow-1">
+                  <div className="fw-bold mb-2" style={{ fontSize: 14, color: '#9a3412' }}>
+                    Révisions manquantes — لم تتم المراجعة
+                  </div>
+                  <ul className="mb-3 ps-3" style={{ fontSize: 13, color: '#7c2d12' }}>
+                    {revisionErrors.map((msg, i) => (
+                      <li key={i} className="mb-1">{msg}</li>
+                    ))}
+                  </ul>
+                  <div className="d-flex align-items-center gap-3 flex-wrap">
+                    <a
+                      href="/ar/revision"
+                      className="btn btn-sm fw-semibold"
+                      style={{ backgroundColor: '#ea580c', color: '#fff', borderRadius: 8, fontSize: 12, textDecoration: 'none' }}
+                    >
+                      🔁 Aller à la page Révisions
+                    </a>
+                    <label className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', fontSize: 13, color: '#9a3412' }}>
+                      <input
+                        type="checkbox"
+                        checked={!verifierRevision}
+                        onChange={(e) => setVerifierRevision(!e.target.checked)}
+                        style={{ width: 16, height: 16, accentColor: '#ea580c' }}
+                      />
+                      Ignorer la vérification et enregistrer quand même
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Résultat de l'enregistrement */}
+          {saveResult && (
+            <div
+              className="rounded-3 p-3 d-flex align-items-start gap-3"
+              style={{
+                backgroundColor: saveResult.type === 'success' ? '#f0fdf4' : '#fef2f2',
+                border: `1px solid ${saveResult.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
+                borderLeft: `4px solid ${saveResult.type === 'success' ? '#0A6E3F' : '#dc2626'}`,
+              }}
+            >
+              <span style={{ fontSize: 20, flexShrink: 0 }}>
+                {saveResult.type === 'success' ? '✅' : '❌'}
+              </span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: saveResult.type === 'success' ? '#15803d' : '#dc2626', flex: 1 }}>
+                {saveResult.message}
+              </span>
+              <button
+                onClick={() => setSaveResult(null)}
+                className="btn-close"
+                style={{ fontSize: 10, flexShrink: 0 }}
+                aria-label="Fermer"
+              />
+            </div>
+          )}
+
           {/* Bouton sauvegarder */}
-          <div className="d-flex justify-content-end gap-3">
+          <div className="d-flex align-items-center justify-content-between gap-3">
+            <label className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', fontSize: 13, color: '#6b7280' }}>
+              <input
+                type="checkbox"
+                checked={verifierRevision}
+                onChange={(e) => {
+                  setVerifierRevision(e.target.checked);
+                  setRevisionErrors([]);
+                }}
+                style={{ width: 16, height: 16, accentColor: '#0A6E3F' }}
+              />
+              Vérifier que les versets ont été révisés avant récitation
+            </label>
             <button
               onClick={handleEnregistrerSeance}
               disabled={saving}

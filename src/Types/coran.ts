@@ -61,6 +61,7 @@ export interface SeanceRequest {
   classeId: number;
   enseignantId: number;
   numeroSeance?: number;
+  verifierRevision?: boolean;
   versets: VersetJourRequest[];
   recitations: EleveRecitationRequest[];
 }
@@ -152,4 +153,38 @@ export interface Sourate {
   nomFrancais: string;
   nomArabe: string;
   nombreVersets: number;
+}
+
+export interface SeanceRevisionRequest {
+  date: string;
+  eleveId: number;
+  classeId: number;
+  enseignantId: number;
+  sourateNumero?: number;
+  sourateNom?: string;
+  sourateNomArabe?: string;
+  versetRevisionDebut: number;
+  versetRevisionFin: number;
+  commentaire?: string;
+}
+
+export interface SeanceRevisionResponse {
+  id: number;
+  date: string;
+  eleveId: number;
+  eleveNom: string;
+  elevePrenom: string;
+  eleveMatricule?: string;
+  classeId: number;
+  classeNiveau: string;
+  enseignantId: number;
+  enseignantNom: string;
+  sourateNumero?: number;
+  sourateNom?: string;
+  sourateNomArabe?: string;
+  versetRevisionDebut: number;
+  versetRevisionFin: number;
+  commentaire?: string;
+  enregistrePar?: string;
+  createdAt: string;
 }

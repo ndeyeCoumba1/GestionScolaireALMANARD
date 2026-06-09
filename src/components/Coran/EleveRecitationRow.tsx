@@ -13,6 +13,9 @@ interface EleveRecitationRowProps {
     matricule?: string;
   };
   recitation?: EleveRecitation;
+  classeName?: string;
+  recitateur?: string;
+  enseignant?: string;
   onPresenceChange: (eleveId: number, present: boolean) => void;
   onNiveauChange: (eleveId: number, niveau: NiveauMemorisation) => void;
   onCommentaireChange: (eleveId: number, commentaire: string) => void;
@@ -28,11 +31,14 @@ const inputStyle = {
   boxShadow: 'none',
 } as const;
 
-const radioStyle = { width: 16, height: 16, cursor: 'pointer', accentColor: '#0A6E3F' };
+const radioStyle = { width: 15, height: 15, cursor: 'pointer', accentColor: '#0A6E3F' };
 
 export default function EleveRecitationRow({
   eleve,
   recitation,
+  classeName,
+  recitateur,
+  enseignant,
   onPresenceChange,
   onNiveauChange,
   onCommentaireChange,
@@ -42,17 +48,15 @@ export default function EleveRecitationRow({
   const niveauMemorisation = recitation?.niveauMemorisation ?? NiveauMemorisationConst.NON_MEMORISE;
   const commentaire = recitation?.commentaire ?? '';
   const sourateNumero = recitation?.sourateNumero ?? 1;
-  const versetDebut = recitation?.versetDebut ?? 1;
-  const versetFin = recitation?.versetFin ?? 7;
+  const versetDebut = recitation?.versetDebut ?? 0;
+  const versetFin = recitation?.versetFin ?? 0;
   const isAbsent = !present;
 
   const sourateSelectionnee = SOURATES.find((s) => s.numero === sourateNumero);
   const maxVersets = sourateSelectionnee?.nombreVersets ?? 286;
 
   const handleSourateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const num = Number(e.target.value);
-    const s = SOURATES.find((s) => s.numero === num);
-    onVersetChange(eleve.id, num, 1, s?.nombreVersets ?? 7);
+    onVersetChange(eleve.id, Number(e.target.value), 0, 0);
   };
 
   const handleVersetDebutChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,10 +70,10 @@ export default function EleveRecitationRow({
   };
 
   return (
-    <tr style={{ backgroundColor: isAbsent ? '#f9fafb' : 'transparent', opacity: isAbsent ? 0.6 : 1 }}>
+    <tr style={{ backgroundColor: isAbsent ? '#f9fafb' : 'transparent', opacity: isAbsent ? 0.65 : 1 }}>
 
-      {/* Checkbox présence */}
-      <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
+      {/* 1. Présence */}
+      <td className="py-2 px-2 text-center" style={{ verticalAlign: 'middle' }}>
         <input
           type="checkbox"
           checked={present}
@@ -78,94 +82,139 @@ export default function EleveRecitationRow({
         />
       </td>
 
-      {/* Nom élève */}
-      <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
-        <div className="d-flex flex-column">
-          <span className="fw-semibold" style={{ fontSize: 13, color: '#111827' }}>
-            {eleve.prenomArabe || eleve.prenom} {eleve.nomArabe || eleve.nom}
+      {/* 2. Prénom */}
+      <td className="py-2 px-2" style={{ verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: 13, color: '#111827' }}>{eleve.prenom}</span>
+      </td>
+
+      {/* 3. Nom */}
+      <td className="py-2 px-2" style={{ verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+        <span className="fw-semibold" style={{ fontSize: 13, color: '#111827' }}>{eleve.nom}</span>
+      </td>
+
+      {/* 4. Matricule */}
+      <td className="py-2 px-2 text-center" style={{ verticalAlign: 'middle' }}>
+        {eleve.matricule ? (
+          <span className="badge rounded-pill fw-medium" style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontSize: 10, fontFamily: 'monospace' }}>
+            {eleve.matricule}
           </span>
-          {(eleve.prenomArabe || eleve.nomArabe) && (
-            <span className="text-muted" style={{ fontSize: 11 }}>{eleve.prenom} {eleve.nom}</span>
-          )}
-          {eleve.matricule && (
-            <span className="badge rounded-pill fw-medium" style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontSize: 10, fontFamily: 'monospace', padding: '2px 6px', marginTop: 4 }}>
-              🆔 {eleve.matricule}
-            </span>
-          )}
-        </div>
+        ) : <span className="text-muted" style={{ fontSize: 11 }}>—</span>}
       </td>
 
-      {/* Sourate + Versets (individuel) */}
-      <td className="py-2 px-3" style={{ verticalAlign: 'middle', minWidth: 280 }}>
-        <div className="d-flex flex-column gap-1">
-          <select
-            value={sourateNumero}
-            onChange={handleSourateChange}
-            disabled={isAbsent}
-            className="form-select"
-            style={{ ...inputStyle, fontSize: 12 }}
-          >
-            {SOURATES.map((s) => (
-              <option key={s.numero} value={s.numero}>
-                {s.nomArabe} — {s.nomFrancais}
-              </option>
-            ))}
-          </select>
-          <div className="d-flex align-items-center gap-1">
-            <span style={{ fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap' }}>V.</span>
-            <input
-              type="number"
-              min={1}
-              max={versetFin}
-              value={versetDebut}
-              onChange={handleVersetDebutChange}
-              disabled={isAbsent}
-              className="form-control text-center"
-              style={{ ...inputStyle, width: 60 }}
-              title="Verset début"
-            />
-            <span style={{ fontSize: 11, color: '#6b7280' }}>→</span>
-            <input
-              type="number"
-              min={versetDebut}
-              max={maxVersets}
-              value={versetFin}
-              onChange={handleVersetFinChange}
-              disabled={isAbsent}
-              className="form-control text-center"
-              style={{ ...inputStyle, width: 60 }}
-              title="Verset fin"
-            />
-            <span style={{ fontSize: 10, color: '#9ca3af' }}>/{maxVersets}</span>
-          </div>
-        </div>
+      {/* 5. الاسم (Prénom arabe) */}
+      <td className="py-2 px-2" style={{ verticalAlign: 'middle', textAlign: 'right', direction: 'rtl' }}>
+        <span style={{ fontSize: 13, color: '#374151', fontFamily: 'serif' }}>
+          {eleve.prenomArabe || '—'}
+        </span>
       </td>
 
-      {/* Niveau mémorisation */}
-      <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
+      {/* 6. اللقب (Nom arabe) */}
+      <td className="py-2 px-2" style={{ verticalAlign: 'middle', textAlign: 'right', direction: 'rtl' }}>
+        <span className="fw-semibold" style={{ fontSize: 13, color: '#374151', fontFamily: 'serif' }}>
+          {eleve.nomArabe || '—'}
+        </span>
+      </td>
+
+      {/* 7. Classe */}
+      <td className="py-2 px-2 text-center" style={{ verticalAlign: 'middle' }}>
+        <span className="badge" style={{ backgroundColor: '#e0f2fe', color: '#0369a1', fontSize: 11, fontWeight: 600, padding: '4px 8px', borderRadius: 6 }}>
+          {classeName || '—'}
+        </span>
+      </td>
+
+      {/* 8. Sourate */}
+      <td className="py-2 px-2" style={{ verticalAlign: 'middle', minWidth: 170 }}>
+        <select
+          value={sourateNumero}
+          onChange={handleSourateChange}
+          disabled={isAbsent}
+          className="form-select"
+          style={{ ...inputStyle, fontSize: 11 }}
+        >
+          {SOURATES.map((s) => (
+            <option key={s.numero} value={s.numero}>
+              {s.numero}. {s.nomArabe} — {s.nomFrancais}
+            </option>
+          ))}
+        </select>
+      </td>
+
+      {/* 9. Verset début */}
+      <td className="py-2 px-2 text-center" style={{ verticalAlign: 'middle' }}>
+        <input
+          type="number"
+          min={1}
+          max={versetFin}
+          value={versetDebut}
+          onChange={handleVersetDebutChange}
+          disabled={isAbsent}
+          className="form-control text-center"
+          style={{ ...inputStyle, width: 64 }}
+          title="Verset début"
+        />
+      </td>
+
+      {/* 10. Verset fin */}
+      <td className="py-2 px-2 text-center" style={{ verticalAlign: 'middle' }}>
+        <input
+          type="number"
+          min={versetDebut}
+          max={maxVersets}
+          value={versetFin}
+          onChange={handleVersetFinChange}
+          disabled={isAbsent}
+          className="form-control text-center"
+          style={{ ...inputStyle, width: 64 }}
+          title="Verset fin"
+        />
+        <span style={{ fontSize: 10, color: '#9ca3af', display: 'block' }}>/{maxVersets}</span>
+      </td>
+
+      {/* 11. Mémorisation */}
+      <td className="py-2 px-2" style={{ verticalAlign: 'middle' }}>
         <div className="d-flex flex-column gap-1">
-          <label className="d-flex align-items-center gap-1" style={{ cursor: 'pointer' }}>
+          <label className="d-flex align-items-center gap-1" style={{ cursor: 'pointer', margin: 0 }}>
             <input type="radio" name={`niveau-${eleve.id}`} checked={niveauMemorisation === NiveauMemorisationConst.MEMORISE} onChange={() => onNiveauChange(eleve.id, NiveauMemorisationConst.MEMORISE)} disabled={isAbsent} style={radioStyle} />
-            <span style={{ fontSize: 12 }}>Mémorisé</span>
+            <span style={{ fontSize: 11 }}>Mémorisé</span>
           </label>
-          <label className="d-flex align-items-center gap-1" style={{ cursor: 'pointer' }}>
+          <label className="d-flex align-items-center gap-1" style={{ cursor: 'pointer', margin: 0 }}>
             <input type="radio" name={`niveau-${eleve.id}`} checked={niveauMemorisation === NiveauMemorisationConst.PARTIEL} onChange={() => onNiveauChange(eleve.id, NiveauMemorisationConst.PARTIEL)} disabled={isAbsent} style={radioStyle} />
-            <span style={{ fontSize: 12 }}>Partiel</span>
+            <span style={{ fontSize: 11 }}>Partiel</span>
           </label>
-          <label className="d-flex align-items-center gap-1" style={{ cursor: 'pointer' }}>
+          <label className="d-flex align-items-center gap-1" style={{ cursor: 'pointer', margin: 0 }}>
             <input type="radio" name={`niveau-${eleve.id}`} checked={niveauMemorisation === NiveauMemorisationConst.NON_MEMORISE} onChange={() => onNiveauChange(eleve.id, NiveauMemorisationConst.NON_MEMORISE)} disabled={isAbsent} style={radioStyle} />
-            <span style={{ fontSize: 12 }}>Non mémorisé</span>
+            <span style={{ fontSize: 11 }}>Non mémorisé</span>
           </label>
         </div>
       </td>
 
-      {/* Badge statut */}
-      <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
+      {/* 12. Statut */}
+      <td className="py-2 px-2" style={{ verticalAlign: 'middle' }}>
         <NiveauBadge niveau={niveauMemorisation} />
       </td>
 
-      {/* Commentaire */}
-      <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
+      {/* 13. Récitateur */}
+      <td className="py-2 px-2" style={{ verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+        <div className="d-flex align-items-center gap-1">
+          <span style={{ fontSize: 14 }}>🎧</span>
+          <span style={{ fontSize: 12, color: '#0A6E3F', fontWeight: 600 }}>
+            {recitateur || '—'}
+          </span>
+        </div>
+      </td>
+
+      {/* 14. Enseignant */}
+      <td className="py-2 px-2" style={{ verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+        <div className="d-flex align-items-center gap-1">
+          <span style={{ fontSize: 14 }}>👨‍🏫</span>
+          <span style={{ fontSize: 12, color: '#6366f1', fontWeight: 600 }}>
+            {enseignant || '—'}
+          </span>
+        </div>
+      </td>
+
+      {/* 15. Remarques */}
+      <td className="py-2 px-2" style={{ verticalAlign: 'middle' }}>
         <input
           type="text"
           value={commentaire}
@@ -173,7 +222,7 @@ export default function EleveRecitationRow({
           placeholder="Remarques..."
           disabled={isAbsent}
           className="form-control"
-          style={{ ...inputStyle, opacity: isAbsent ? 0.5 : 1 }}
+          style={{ ...inputStyle, minWidth: 120, opacity: isAbsent ? 0.5 : 1 }}
         />
       </td>
     </tr>

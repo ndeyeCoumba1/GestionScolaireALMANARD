@@ -30,6 +30,8 @@ export interface Classe {
   niveau: NiveauClasse;
   capaciteMax: number;
   statut?: string;
+  enseignantId?: number;
+  enseignant?: { id: number; nom: string; prenom: string; nomArabe?: string; prenomArabe?: string; };
 }
 
 export interface Parent {
@@ -46,6 +48,8 @@ export interface Eleve {
   id: number;
   nom: string;
   prenom: string;
+  nomArabe?: string;
+  prenomArabe?: string;
   dateNaissance: string;
   sexe: Sexe;
   adresse: string;

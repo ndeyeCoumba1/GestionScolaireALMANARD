@@ -1,10 +1,11 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../Context/AuthContext';
 import { useEffect } from 'react';
 
 const navItems = [
   { to: '/ar/dashboard', emoji: '🏠', label: 'لوحة القيادة', roles: ['ADMIN', 'ENSEIGNANT', 'RECITATEUR'] },
   { to: '/ar/seance', emoji: '📖', label: 'جلسة التلاوة', roles: ['ADMIN', 'ENSEIGNANT', 'RECITATEUR'] },
+  { to: '/ar/revision', emoji: '🔁', label: 'المراجعة', roles: ['ADMIN', 'ENSEIGNANT', 'RECITATEUR'] },
   { to: '/ar/historique', emoji: '📚', label: 'السجل', roles: ['ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR'] },
   { to: '/ar/stats', emoji: '📊', label: 'الإحصائيات', roles: ['ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR'] },
   { to: '/ar/rapports', emoji: '📋', label: 'التقارير', roles: ['ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR'] },
@@ -12,6 +13,7 @@ const navItems = [
 
 export default function ArLayout() {
   const { role, nom, logout } = useAuth();
+  const location = useLocation();
 
   useEffect(() => {
     document.documentElement.dir = 'rtl';
@@ -81,38 +83,44 @@ export default function ArLayout() {
           <div className="d-flex flex-column gap-1">
             {navItems
               .filter(item => item.roles.includes(role || ''))
-              .map(({ to, emoji, label }) => (
-                <a
-                  key={to}
-                  href={to}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 14px',
-                    borderRadius: 10,
-                    textDecoration: 'none',
-                    fontSize: 14,
-                    fontWeight: 400,
-                    backgroundColor: 'transparent',
-                    color: '#4b5563',
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  }}
-                  onMouseEnter={e => {
-                    const el = e.currentTarget;
-                    el.style.backgroundColor = '#f1f8f4';
-                    el.style.color = '#0A6E3F';
-                  }}
-                  onMouseLeave={e => {
-                    const el = e.currentTarget;
-                    el.style.backgroundColor = 'transparent';
-                    el.style.color = '#4b5563';
-                  }}
-                >
-                  <span style={{ fontSize: 18, flexShrink: 0 }}>{emoji}</span>
-                  <span>{label}</span>
-                </a>
-              ))}
+              .map(({ to, emoji, label }) => {
+                const isActive = location.pathname === to;
+                return (
+                  <a
+                    key={to}
+                    href={to}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '10px 14px',
+                      borderRadius: 10,
+                      textDecoration: 'none',
+                      fontSize: 14,
+                      fontWeight: isActive ? 600 : 400,
+                      backgroundColor: isActive ? '#0A6E3F' : 'transparent',
+                      color: isActive ? '#ffffff' : '#4b5563',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                      boxShadow: isActive ? '0 2px 8px rgba(10,110,63,0.25)' : 'none',
+                    }}
+                    onMouseEnter={e => {
+                      if (!isActive) {
+                        e.currentTarget.style.backgroundColor = '#f1f8f4';
+                        e.currentTarget.style.color = '#0A6E3F';
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!isActive) {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = '#4b5563';
+                      }
+                    }}
+                  >
+                    <span style={{ fontSize: 18, flexShrink: 0 }}>{emoji}</span>
+                    <span>{label}</span>
+                  </a>
+                );
+              })}
           </div>
         </nav>
 
