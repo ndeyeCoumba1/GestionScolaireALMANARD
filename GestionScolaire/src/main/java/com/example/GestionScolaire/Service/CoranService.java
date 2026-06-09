@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
+import com.example.GestionScolaire.Exception.CoranException;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +24,7 @@ public class CoranService {
     private final ClasseRepository classeRepo;
     private final EleveRepository eleveRepo;
     private final UserRepository userRepo;
+    private final SeanceRevisionRepository revisionRepo;
 
     // ═══════════════════════════════════════════
     //  Versets du jour
@@ -106,8 +108,17 @@ public class CoranService {
 
             if (request.getVersets() != null && !request.getVersets().isEmpty()) {
                 for (VersetJourRequest req : request.getVersets()) {
+                    // Validation obligatoire des versets
+                    if (req.getVersetDebut() == null) {
+                        throw CoranException.badRequest("Le verset de début est obligatoire pour le groupe \"" + req.getGroupeNiveau() + "\"");
+                    }
+                    if (req.getVersetFin() == null) {
+                        throw CoranException.badRequest("Le verset de fin est obligatoire pour le groupe \"" + req.getGroupeNiveau() + "\"");
+                    }
+                    if (req.getVersetFin() < req.getVersetDebut()) {
+                        throw CoranException.badRequest("Le verset de fin doit être >= au verset de début pour le groupe \"" + req.getGroupeNiveau() + "\"");
+                    }
 
-                    // ✅ CORRECTION : find-or-create au lieu de delete+insert
                     VersetJour verset = versetRepo
                             .findByDateAndClasseIdAndGroupeNiveau(
                                     req.getDate(), req.getClasseId(), req.getGroupeNiveau())
@@ -131,6 +142,13 @@ public class CoranService {
                         .forEach(v -> versetParGroupe.put(v.getGroupeNiveau(), v));
             }
 
+            // Vérifier que des versets existent pour cette séance
+            if (versetParGroupe.isEmpty()) {
+                throw CoranException.badRequest(
+                        "Aucun verset (début/fin) n'est défini pour cette séance. " +
+                        "Veuillez renseigner les versets avant d'enregistrer les récitations.");
+            }
+
             // 4. Supprimer les anciennes récitations de cette séance
             List<EleveRecitation> anciennesRecitations = recitationRepo.findBySeanceId(seance.getId());
             if (!anciennesRecitations.isEmpty()) {
@@ -139,12 +157,35 @@ public class CoranService {
             }
 
             // 5. Créer les nouvelles récitations
+            boolean verifier = !Boolean.FALSE.equals(request.getVerifierRevision()); // true par défaut
             System.out.println("Traitement des récitations...");
             for (EleveRecitationRequest recReq : request.getRecitations()) {
                 System.out.println("Traitement élève ID: " + recReq.getEleveId());
 
                 Eleve eleve = eleveRepo.findById(recReq.getEleveId())
                         .orElseThrow(() -> new RuntimeException("Élève introuvable : " + recReq.getEleveId()));
+
+                VersetJour verset = versetParGroupe.get(recReq.getGroupeNiveau());
+
+                // Vérification révision : seulement si l'élève est présent et qu'un verset est assigné
+                SeanceRevision revisionLiee = null;
+                if (verifier && Boolean.TRUE.equals(recReq.getPresent()) && verset != null) {
+                    List<SeanceRevision> revisions = revisionRepo.findRevisionsPourVerset(
+                            eleve.getId(),
+                            verset.getSourateNumero(),
+                            verset.getVersetDebut(),
+                            verset.getVersetFin(),
+                            request.getDate());
+                    if (revisions.isEmpty()) {
+                        throw CoranException.badRequest(
+                                "L'élève " + eleve.getPrenom() + " " + eleve.getNom() +
+                                " n'a pas révisé les versets " + verset.getVersetDebut() +
+                                " à " + verset.getVersetFin() +
+                                " de la sourate " + verset.getSourateNom() +
+                                ". Enregistrez d'abord une séance de révision.");
+                    }
+                    revisionLiee = revisions.get(0); // révision la plus récente couvrant ces versets
+                }
 
                 EleveRecitation recitation = EleveRecitation.builder()
                         .seance(seance)
@@ -153,10 +194,9 @@ public class CoranService {
                         .present(recReq.getPresent() != null && recReq.getPresent())
                         .niveauMemorisation(recReq.getNiveauMemorisation())
                         .commentaire(recReq.getCommentaire())
+                        .versetJour(verset)
+                        .seanceRevision(revisionLiee)
                         .build();
-
-                VersetJour verset = versetParGroupe.get(recReq.getGroupeNiveau());
-                recitation.setVersetJour(verset);
 
                 recitationRepo.save(recitation);
             }
@@ -368,10 +408,94 @@ public class CoranService {
                     .versetDebut(r.getVersetJour().getVersetDebut())
                     .versetFin(r.getVersetJour().getVersetFin());
         }
+        if (r.getSeanceRevision() != null) {
+            builder.seanceRevisionId(r.getSeanceRevision().getId());
+        }
         return builder.build();
     }
 
     private double round2(double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
+
+    // ═══════════════════════════════════════════
+    //  Séances de révision
+    // ═══════════════════════════════════════════
+
+    @Transactional
+    public SeanceRevisionResponse enregistrerRevision(SeanceRevisionRequest request) {
+        Eleve eleve = eleveRepo.findById(request.getEleveId())
+                .orElseThrow(() -> CoranException.notFound("Élève introuvable : " + request.getEleveId()));
+        Classe classe = classeRepo.findById(request.getClasseId())
+                .orElseThrow(() -> CoranException.notFound("Classe introuvable : " + request.getClasseId()));
+        User enseignant = userRepo.findById(request.getEnseignantId())
+                .orElseThrow(() -> CoranException.notFound("Enseignant introuvable : " + request.getEnseignantId()));
+
+        if (request.getVersetRevisionFin() < request.getVersetRevisionDebut()) {
+            throw CoranException.badRequest("Le verset de fin doit être >= au verset de début");
+        }
+
+        SeanceRevision revision = SeanceRevision.builder()
+                .date(request.getDate())
+                .eleve(eleve)
+                .classe(classe)
+                .enseignant(enseignant)
+                .sourateNumero(request.getSourateNumero())
+                .sourateNom(request.getSourateNom())
+                .sourateNomArabe(request.getSourateNomArabe())
+                .versetRevisionDebut(request.getVersetRevisionDebut())
+                .versetRevisionFin(request.getVersetRevisionFin())
+                .commentaire(request.getCommentaire())
+                .build();
+
+        return toRevisionResponse(revisionRepo.save(revision));
+    }
+
+    @Transactional
+    public List<SeanceRevisionResponse> getRevisionsByEleve(
+            Long eleveId, LocalDate dateDebut, LocalDate dateFin) {
+        List<SeanceRevision> revisions = (dateDebut != null && dateFin != null)
+                ? revisionRepo.findByEleveIdAndDateBetween(eleveId, dateDebut, dateFin)
+                : revisionRepo.findByEleveIdOrderByDateDesc(eleveId);
+        return revisions.stream().map(this::toRevisionResponse).toList();
+    }
+
+    @Transactional
+    public List<SeanceRevisionResponse> getRevisionsByClasse(
+            Long classeId, LocalDate dateDebut, LocalDate dateFin) {
+        List<SeanceRevision> revisions = (dateDebut != null && dateFin != null)
+                ? revisionRepo.findByClasseIdAndDateBetween(classeId, dateDebut, dateFin)
+                : revisionRepo.findByClasseIdOrderByDateDesc(classeId);
+        return revisions.stream().map(this::toRevisionResponse).toList();
+    }
+
+    @Transactional
+    public void supprimerRevision(Long id) {
+        if (!revisionRepo.existsById(id)) {
+            throw CoranException.notFound("Séance de révision introuvable : " + id);
+        }
+        revisionRepo.deleteById(id);
+    }
+
+    private SeanceRevisionResponse toRevisionResponse(SeanceRevision r) {
+        return SeanceRevisionResponse.builder()
+                .id(r.getId())
+                .date(r.getDate())
+                .eleveId(r.getEleve().getId())
+                .eleveNom(r.getEleve().getNom())
+                .elevePrenom(r.getEleve().getPrenom())
+                .matricule(r.getEleve().getMatricule())
+                .classeId(r.getClasse().getId())
+                .classeNiveau(r.getClasse().getNiveau())
+                .enseignantId(r.getEnseignant().getId())
+                .enseignantNom(r.getEnseignant().getNom() + " " + r.getEnseignant().getPrenom())
+                .sourateNumero(r.getSourateNumero())
+                .sourateNom(r.getSourateNom())
+                .sourateNomArabe(r.getSourateNomArabe())
+                .versetRevisionDebut(r.getVersetRevisionDebut())
+                .versetRevisionFin(r.getVersetRevisionFin())
+                .commentaire(r.getCommentaire())
+                .createdAt(r.getCreatedAt())
+                .build();
     }
 }

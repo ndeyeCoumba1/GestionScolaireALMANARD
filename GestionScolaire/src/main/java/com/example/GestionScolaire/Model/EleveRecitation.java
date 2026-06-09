@@ -52,4 +52,9 @@ public class EleveRecitation {
     @Column(length = 500)
     private String commentaire;
 
+    /** Révision sur laquelle s'appuie cette récitation (traçabilité) */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "seance_revision_id")
+    private SeanceRevision seanceRevision;
+
 }

@@ -5,6 +5,7 @@ import com.example.GestionScolaire.Service.CoranService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -142,5 +143,58 @@ public class CoranController {
     public ResponseEntity<CoranDTO.StatistiquesEleveResponse> getStatistiquesEleve(
             @PathVariable Long eleveId) {
         return ResponseEntity.ok(coranService.getStatistiquesEleve(eleveId));
+    }
+
+    // ═══════════════════════════════════════════
+    //  Séances de révision
+    // ═══════════════════════════════════════════
+
+    /**
+     * POST /api/coran/revisions
+     * Enregistre une séance de révision pour un élève
+     */
+    @PostMapping("/revisions")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'RECITATEUR')")
+    public ResponseEntity<CoranDTO.SeanceRevisionResponse> enregistrerRevision(
+            @RequestBody @Valid CoranDTO.SeanceRevisionRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(coranService.enregistrerRevision(request));
+    }
+
+    /**
+     * GET /api/coran/revisions/eleve/{eleveId}?dateDebut=2026-01-01&dateFin=2026-06-30
+     * Historique des révisions d'un élève
+     */
+    @GetMapping("/revisions/eleve/{eleveId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    public ResponseEntity<List<CoranDTO.SeanceRevisionResponse>> getRevisionsByEleve(
+            @PathVariable Long eleveId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFin) {
+        return ResponseEntity.ok(coranService.getRevisionsByEleve(eleveId, dateDebut, dateFin));
+    }
+
+    /**
+     * GET /api/coran/revisions/classe/{classeId}?dateDebut=2026-01-01&dateFin=2026-06-30
+     * Toutes les révisions d'une classe
+     */
+    @GetMapping("/revisions/classe/{classeId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    public ResponseEntity<List<CoranDTO.SeanceRevisionResponse>> getRevisionsByClasse(
+            @PathVariable Long classeId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFin) {
+        return ResponseEntity.ok(coranService.getRevisionsByClasse(classeId, dateDebut, dateFin));
+    }
+
+    /**
+     * DELETE /api/coran/revisions/{id}
+     * Supprime une séance de révision
+     */
+    @DeleteMapping("/revisions/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'RECITATEUR')")
+    public ResponseEntity<Void> supprimerRevision(@PathVariable Long id) {
+        coranService.supprimerRevision(id);
+        return ResponseEntity.noContent().build();
     }
 }

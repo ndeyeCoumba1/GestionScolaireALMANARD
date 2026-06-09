@@ -8,6 +8,7 @@ import com.example.GestionScolaire.Model.User;
 import com.example.GestionScolaire.Service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -34,6 +35,20 @@ public class UserController {
     @GetMapping("/role/{role}")
     public ResponseEntity<List<User>> findByRole(@PathVariable Role role) {
         return ResponseEntity.ok(userService.findByRole(role));
+    }
+
+    /**
+     * GET /api/users/enseignants
+     * Retourne tous les enseignants actifs (accessible au RECITATEUR pour sélectionner l'enseignant d'une séance)
+     */
+    @GetMapping("/enseignants")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'RECITATEUR')")
+    public ResponseEntity<List<UserDTO>> getEnseignants() {
+        List<UserDTO> enseignants = userService.findByRoleAndActif(Role.ENSEIGNANT)
+                .stream()
+                .map(mapper::toUserDTO)
+                .toList();
+        return ResponseEntity.ok(enseignants);
     }
 
     /**

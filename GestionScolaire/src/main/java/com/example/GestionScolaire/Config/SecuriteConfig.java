@@ -52,6 +52,7 @@ public class SecuriteConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login").permitAll()
+                        .requestMatchers("/api/auth/me").authenticated()
                         .requestMatchers("/api/coran/**").hasAnyRole("ADMIN", "ENSEIGNANT", "RECITATEUR")
                         .requestMatchers("/api/inscriptions/**").hasAnyRole("ADMIN", "COMPTABLE")
                         .requestMatchers("/api/rapports/**").hasAnyRole("ADMIN", "COMPTABLE")
@@ -62,6 +63,7 @@ public class SecuriteConfig {
                         .requestMatchers("/api/annees/**").hasAnyRole("ADMIN", "COMPTABLE")
                         .requestMatchers("/api/depenses/**").hasAnyRole("ADMIN", "COMPTABLE")
                         .requestMatchers("/api/etablissement/**").hasAnyRole("ADMIN")
+                        .requestMatchers("/api/users/enseignants").hasAnyRole("ADMIN", "ENSEIGNANT", "RECITATEUR")
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
                         .requestMatchers("/api/paiements/**").hasAnyRole("ADMIN", "COMPTABLE")
                         .anyRequest().authenticated()

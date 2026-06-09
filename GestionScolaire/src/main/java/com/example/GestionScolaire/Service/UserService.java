@@ -26,6 +26,10 @@ public class UserService {
         return userRepository.findByRole(role);
     }
 
+    public List<User> findByRoleAndActif(Role role) {
+        return userRepository.findByRoleAndActifTrue(role);
+    }
+
     public User findById(Long id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable : " + id));

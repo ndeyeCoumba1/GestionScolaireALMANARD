@@ -90,6 +90,12 @@ public class CoranDTO {
         @Valid
         @NotEmpty(message = "La liste des récitations ne peut pas être vide")
         private List<EleveRecitationRequest> recitations;
+
+        /**
+         * Si true (défaut), bloque la récitation si l'élève n'a pas révisé les versets assignés.
+         * Mettre à false pour enregistrer sans vérification.
+         */
+        private Boolean verifierRevision;
     }
 
     @Data
@@ -151,6 +157,65 @@ public class CoranDTO {
         private boolean present;
         private NiveauMemorisation niveauMemorisation;
         private String commentaire;
+        private Long seanceRevisionId;
+    }
+
+    // ── SeanceRevision ──────────────────────────
+
+    @Data
+    @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class SeanceRevisionRequest {
+
+        @NotNull(message = "La date est obligatoire")
+        private LocalDate date;
+
+        @NotNull(message = "L'élève est obligatoire")
+        private Long eleveId;
+
+        @NotNull(message = "La classe est obligatoire")
+        private Long classeId;
+
+        @NotNull(message = "L'enseignant est obligatoire")
+        private Long enseignantId;
+
+        @Min(1) @Max(114)
+        private Integer sourateNumero;
+
+        private String sourateNom;
+
+        private String sourateNomArabe;
+
+        @NotNull(message = "Le verset de début est obligatoire")
+        @Min(1)
+        private Integer versetRevisionDebut;
+
+        @NotNull(message = "Le verset de fin est obligatoire")
+        @Min(1)
+        private Integer versetRevisionFin;
+
+        private String commentaire;
+    }
+
+    @Data
+    @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class SeanceRevisionResponse {
+        private Long id;
+        private LocalDate date;
+        private Long eleveId;
+        private String eleveNom;
+        private String elevePrenom;
+        private String matricule;
+        private Long classeId;
+        private NiveauClasse classeNiveau;
+        private Long enseignantId;
+        private String enseignantNom;
+        private Integer sourateNumero;
+        private String sourateNom;
+        private String sourateNomArabe;
+        private Integer versetRevisionDebut;
+        private Integer versetRevisionFin;
+        private String commentaire;
+        private LocalDateTime createdAt;
     }
 
     // ── Statistiques ────────────────────────────
