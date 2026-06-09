@@ -22,6 +22,11 @@ public class SeanceRevision {
     @Column(nullable = false)
     private LocalDate date;
 
+    /** Numéro de la séance dans la journée (1 = matin, 2 = après-midi, etc.) */
+    @Column(name = "numero_seance", nullable = false)
+    @Builder.Default
+    private Integer numeroSeance = 1;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "eleve_id", nullable = false)
     private Eleve eleve;

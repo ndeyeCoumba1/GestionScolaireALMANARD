@@ -76,21 +76,12 @@ public class CoranService {
 
     @Transactional
     public SeanceResponse upsertSeanceComplete(SeanceRequest request) {
-        System.out.println("=== upsertSeanceComplete ===");
-        System.out.println("Date: " + request.getDate());
-        System.out.println("ClasseId: " + request.getClasseId());
-        System.out.println("EnseignantId: " + request.getEnseignantId());
-        System.out.println("Versets: " + (request.getVersets() != null ? request.getVersets().size() : "null"));
-        System.out.println("Recitations: " + (request.getRecitations() != null ? request.getRecitations().size() : "null"));
-
         try {
-            // 1. Récupérer la classe et l'enseignant
             Classe classe = classeRepo.findById(request.getClasseId())
-                    .orElseThrow(() -> new RuntimeException("Classe introuvable : " + request.getClasseId()));
+                    .orElseThrow(() -> CoranException.notFound("Classe introuvable : " + request.getClasseId()));
             User enseignant = userRepo.findById(request.getEnseignantId())
-                    .orElseThrow(() -> new RuntimeException("Enseignant introuvable : " + request.getEnseignantId()));
+                    .orElseThrow(() -> CoranException.notFound("Enseignant introuvable : " + request.getEnseignantId()));
 
-            // 2. Récupérer ou créer la séance du jour (par numéro de séance)
             int numSeance = request.getNumeroSeance() != null ? request.getNumeroSeance() : 1;
             SeanceRecitation seance = seanceRepo
                     .findByDateAndClasseIdAndNumeroSeance(request.getDate(), request.getClasseId(), numSeance)
@@ -101,113 +92,78 @@ public class CoranService {
             seance.setClasse(classe);
             seance.setEnseignant(enseignant);
             seance = seanceRepo.save(seance);
-            System.out.println("Séance sauvegardée avec ID: " + seance.getId());
 
-            // 3. Gérer les versets du jour — UPSERT (find-or-create)
-            Map<String, VersetJour> versetParGroupe = new HashMap<>();
-
-            if (request.getVersets() != null && !request.getVersets().isEmpty()) {
-                for (VersetJourRequest req : request.getVersets()) {
-                    // Validation obligatoire des versets
-                    if (req.getVersetDebut() == null) {
-                        throw CoranException.badRequest("Le verset de début est obligatoire pour le groupe \"" + req.getGroupeNiveau() + "\"");
-                    }
-                    if (req.getVersetFin() == null) {
-                        throw CoranException.badRequest("Le verset de fin est obligatoire pour le groupe \"" + req.getGroupeNiveau() + "\"");
-                    }
-                    if (req.getVersetFin() < req.getVersetDebut()) {
-                        throw CoranException.badRequest("Le verset de fin doit être >= au verset de début pour le groupe \"" + req.getGroupeNiveau() + "\"");
-                    }
-
-                    VersetJour verset = versetRepo
-                            .findByDateAndClasseIdAndGroupeNiveau(
-                                    req.getDate(), req.getClasseId(), req.getGroupeNiveau())
-                            .orElse(new VersetJour());
-
-                    verset.setDate(req.getDate());
-                    verset.setSourateNumero(req.getSourateNumero());
-                    verset.setSourateNom(req.getSourateNom());
-                    verset.setSourateNomArabe(req.getSourateNomArabe());
-                    verset.setVersetDebut(req.getVersetDebut());
-                    verset.setVersetFin(req.getVersetFin());
-                    verset.setGroupeNiveau(req.getGroupeNiveau());
-                    verset.setClasse(classe);
-                    verset.setEnseignant(enseignant);
-
-                    VersetJour saved = versetRepo.save(verset);
-                    versetParGroupe.put(saved.getGroupeNiveau(), saved);
-                }
-            } else {
-                versetRepo.findByDateAndClasseId(request.getDate(), request.getClasseId())
-                        .forEach(v -> versetParGroupe.put(v.getGroupeNiveau(), v));
-            }
-
-            // Vérifier que des versets existent pour cette séance
-            if (versetParGroupe.isEmpty()) {
-                throw CoranException.badRequest(
-                        "Aucun verset (début/fin) n'est défini pour cette séance. " +
-                        "Veuillez renseigner les versets avant d'enregistrer les récitations.");
-            }
-
-            // 4. Supprimer les anciennes récitations de cette séance
-            List<EleveRecitation> anciennesRecitations = recitationRepo.findBySeanceId(seance.getId());
-            if (!anciennesRecitations.isEmpty()) {
-                recitationRepo.deleteAll(anciennesRecitations);
+            // Supprimer les anciennes récitations
+            List<EleveRecitation> anciennes = recitationRepo.findBySeanceId(seance.getId());
+            if (!anciennes.isEmpty()) {
+                recitationRepo.deleteAll(anciennes);
                 recitationRepo.flush();
             }
 
-            // 5. Créer les nouvelles récitations
-            boolean verifier = !Boolean.FALSE.equals(request.getVerifierRevision()); // true par défaut
-            System.out.println("Traitement des récitations...");
+            boolean verifier = !Boolean.FALSE.equals(request.getVerifierRevision());
+
             for (EleveRecitationRequest recReq : request.getRecitations()) {
-                System.out.println("Traitement élève ID: " + recReq.getEleveId());
-
                 Eleve eleve = eleveRepo.findById(recReq.getEleveId())
-                        .orElseThrow(() -> new RuntimeException("Élève introuvable : " + recReq.getEleveId()));
+                        .orElseThrow(() -> CoranException.notFound("Élève introuvable : " + recReq.getEleveId()));
 
-                VersetJour verset = versetParGroupe.get(recReq.getGroupeNiveau());
+                // Versets obligatoires si l'élève est présent
+                if (Boolean.TRUE.equals(recReq.getPresent())) {
+                    if (recReq.getVersetDebut() == null) {
+                        throw CoranException.badRequest(
+                                "Le verset de début est obligatoire pour " + eleve.getPrenom() + " " + eleve.getNom());
+                    }
+                    if (recReq.getVersetFin() == null) {
+                        throw CoranException.badRequest(
+                                "Le verset de fin est obligatoire pour " + eleve.getPrenom() + " " + eleve.getNom());
+                    }
+                    if (recReq.getVersetFin() < recReq.getVersetDebut()) {
+                        throw CoranException.badRequest(
+                                "Le verset de fin doit être >= au verset de début pour " + eleve.getPrenom() + " " + eleve.getNom());
+                    }
+                }
 
-                // Vérification révision : seulement si l'élève est présent et qu'un verset est assigné
+                // Vérification révision : l'élève doit avoir révisé ces versets
                 SeanceRevision revisionLiee = null;
-                if (verifier && Boolean.TRUE.equals(recReq.getPresent()) && verset != null) {
+                if (verifier && Boolean.TRUE.equals(recReq.getPresent()) && recReq.getSourateNumero() != null) {
                     List<SeanceRevision> revisions = revisionRepo.findRevisionsPourVerset(
                             eleve.getId(),
-                            verset.getSourateNumero(),
-                            verset.getVersetDebut(),
-                            verset.getVersetFin(),
+                            recReq.getSourateNumero(),
+                            recReq.getVersetDebut(),
+                            recReq.getVersetFin(),
                             request.getDate());
                     if (revisions.isEmpty()) {
                         throw CoranException.badRequest(
                                 "L'élève " + eleve.getPrenom() + " " + eleve.getNom() +
-                                " n'a pas révisé les versets " + verset.getVersetDebut() +
-                                " à " + verset.getVersetFin() +
-                                " de la sourate " + verset.getSourateNom() +
+                                " n'a pas révisé les versets " + recReq.getVersetDebut() +
+                                " à " + recReq.getVersetFin() +
+                                (recReq.getSourateNom() != null ? " de la sourate " + recReq.getSourateNom() : "") +
                                 ". Enregistrez d'abord une séance de révision.");
                     }
-                    revisionLiee = revisions.get(0); // révision la plus récente couvrant ces versets
+                    revisionLiee = revisions.get(0);
                 }
 
                 EleveRecitation recitation = EleveRecitation.builder()
                         .seance(seance)
                         .eleve(eleve)
-                        .groupeNiveau(recReq.getGroupeNiveau())
-                        .present(recReq.getPresent() != null && recReq.getPresent())
+                        .present(Boolean.TRUE.equals(recReq.getPresent()))
+                        .versetDebut(recReq.getVersetDebut())
+                        .versetFin(recReq.getVersetFin())
+                        .sourateNumero(recReq.getSourateNumero())
+                        .sourateNom(recReq.getSourateNom())
+                        .sourateNomArabe(recReq.getSourateNomArabe())
                         .niveauMemorisation(recReq.getNiveauMemorisation())
                         .commentaire(recReq.getCommentaire())
-                        .versetJour(verset)
                         .seanceRevision(revisionLiee)
                         .build();
 
                 recitationRepo.save(recitation);
             }
 
-            System.out.println("Toutes les récitations ont été sauvegardées avec succès !");
-
-            // 6. Retourner la réponse (séance courante uniquement)
-            List<VersetJour> versets = versetRepo.findByDateAndClasseId(request.getDate(), request.getClasseId());
             List<EleveRecitation> recitations = recitationRepo.findBySeanceId(seance.getId());
-            return toSeanceResponse(seance, versets, recitations);
+            return toSeanceResponse(seance, recitations);
 
+        } catch (CoranException e) {
+            throw e;
         } catch (Exception e) {
             System.err.println("ERREUR dans upsertSeanceComplete: " + e.getMessage());
             e.printStackTrace();
@@ -221,10 +177,9 @@ public class CoranService {
 
     @Transactional
     public List<SeanceResponse> getSeancesByDate(LocalDate date, Long classeId) {
-        List<VersetJour> versets = versetRepo.findByDateAndClasseId(date, classeId);
         return seanceRepo.findByDateAndClasseIdOrderByNumeroSeanceAsc(date, classeId)
                 .stream()
-                .map(s -> toSeanceResponse(s, versets, recitationRepo.findBySeanceId(s.getId())))
+                .map(s -> toSeanceResponse(s, recitationRepo.findBySeanceId(s.getId())))
                 .toList();
     }
 
@@ -234,11 +189,9 @@ public class CoranService {
                 ? seanceRepo.findByClasseIdAndDateBetweenOrderByDateDesc(classeId, dateDebut, dateFin)
                 : seanceRepo.findByClasseIdOrderByDateDesc(classeId);
 
-        return seances.stream().map(s -> {
-            List<EleveRecitation> recs = recitationRepo.findBySeanceId(s.getId());
-            List<VersetJour> vjs = versetRepo.findByDateAndClasseId(s.getDate(), classeId);
-            return toSeanceResponse(s, vjs, recs);
-        }).toList();
+        return seances.stream()
+                .map(s -> toSeanceResponse(s, recitationRepo.findBySeanceId(s.getId())))
+                .toList();
     }
 
     // ═══════════════════════════════════════════
@@ -339,7 +292,6 @@ public class CoranService {
                 .eleveNom(first.getEleve().getNom())
                 .elevePrenom(first.getEleve().getPrenom())
                 .matricule(first.getEleve().getMatricule())
-                .groupeNiveau(first.getGroupeNiveau())
                 .totalSeances(totalSeances)
                 .nombrePresent(presents)
                 .nombreMemorise(memorises)
@@ -350,10 +302,7 @@ public class CoranService {
                 .build();
     }
 
-    private SeanceResponse toSeanceResponse(
-            SeanceRecitation seance,
-            List<VersetJour> versets,
-            List<EleveRecitation> recitations) {
+    private SeanceResponse toSeanceResponse(SeanceRecitation seance, List<EleveRecitation> recitations) {
         return SeanceResponse.builder()
                 .id(seance.getId())
                 .date(seance.getDate())
@@ -362,7 +311,6 @@ public class CoranService {
                 .classeNiveau(seance.getClasse().getNiveau())
                 .enseignantId(seance.getEnseignant().getId())
                 .enseignantNom(seance.getEnseignant().getNom() + " " + seance.getEnseignant().getPrenom())
-                .versets(versets.stream().map(this::toVersetResponse).toList())
                 .recitations(recitations.stream().map(this::toRecitationResponse).toList())
                 .createdAt(seance.getCreatedAt())
                 .updatedAt(seance.getUpdatedAt())
@@ -396,18 +344,15 @@ public class CoranService {
                         .eleveNom(r.getEleve().getNom())
                         .elevePrenom(r.getEleve().getPrenom())
                         .matricule(r.getEleve().getMatricule())
-                        .groupeNiveau(r.getGroupeNiveau())
+                        .sourateNumero(r.getSourateNumero())
+                        .sourateNom(r.getSourateNom())
+                        .sourateNomArabe(r.getSourateNomArabe())
+                        .versetDebut(r.getVersetDebut())
+                        .versetFin(r.getVersetFin())
                         .present(r.isPresent())
                         .niveauMemorisation(r.getNiveauMemorisation())
                         .commentaire(r.getCommentaire());
 
-        if (r.getVersetJour() != null) {
-            builder.versetJourId(r.getVersetJour().getId())
-                    .sourateNom(r.getVersetJour().getSourateNom())
-                    .sourateNomArabe(r.getVersetJour().getSourateNomArabe())
-                    .versetDebut(r.getVersetJour().getVersetDebut())
-                    .versetFin(r.getVersetJour().getVersetFin());
-        }
         if (r.getSeanceRevision() != null) {
             builder.seanceRevisionId(r.getSeanceRevision().getId());
         }
@@ -431,12 +376,21 @@ public class CoranService {
         User enseignant = userRepo.findById(request.getEnseignantId())
                 .orElseThrow(() -> CoranException.notFound("Enseignant introuvable : " + request.getEnseignantId()));
 
+        if (request.getVersetRevisionDebut() == null) {
+            throw CoranException.badRequest("Le verset de début de révision est obligatoire");
+        }
+        if (request.getVersetRevisionFin() == null) {
+            throw CoranException.badRequest("Le verset de fin de révision est obligatoire");
+        }
         if (request.getVersetRevisionFin() < request.getVersetRevisionDebut()) {
             throw CoranException.badRequest("Le verset de fin doit être >= au verset de début");
         }
 
+        int numSeanceRevision = request.getNumeroSeance() != null ? request.getNumeroSeance() : 1;
+
         SeanceRevision revision = SeanceRevision.builder()
                 .date(request.getDate())
+                .numeroSeance(numSeanceRevision)
                 .eleve(eleve)
                 .classe(classe)
                 .enseignant(enseignant)
@@ -481,6 +435,7 @@ public class CoranService {
         return SeanceRevisionResponse.builder()
                 .id(r.getId())
                 .date(r.getDate())
+                .numeroSeance(r.getNumeroSeance())
                 .eleveId(r.getEleve().getId())
                 .eleveNom(r.getEleve().getNom())
                 .elevePrenom(r.getEleve().getPrenom())

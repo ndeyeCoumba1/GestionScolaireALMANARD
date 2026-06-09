@@ -85,9 +85,6 @@ public class CoranDTO {
         private Long enseignantId;
 
         @Valid
-        private List<VersetJourRequest> versets;
-
-        @Valid
         @NotEmpty(message = "La liste des récitations ne peut pas être vide")
         private List<EleveRecitationRequest> recitations;
 
@@ -110,7 +107,6 @@ public class CoranDTO {
         private NiveauClasse classeNiveau;
         private Long enseignantId;
         private String enseignantNom;
-        private List<VersetJourResponse> versets;
         private List<EleveRecitationResponse> recitations;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
@@ -123,10 +119,15 @@ public class CoranDTO {
         @NotNull
         private Long eleveId;
 
-        @NotBlank
-        private String groupeNiveau;
+        /** Verset de début récité par cet élève (obligatoire si présent) */
+        private Integer versetDebut;
 
-        private Long versetJourId;
+        /** Verset de fin récité par cet élève (obligatoire si présent) */
+        private Integer versetFin;
+
+        private Integer sourateNumero;
+        private String sourateNom;
+        private String sourateNomArabe;
 
         @NotNull
         private Boolean present;
@@ -148,8 +149,7 @@ public class CoranDTO {
         private String eleveNom;
         private String elevePrenom;
         private String matricule;
-        private String groupeNiveau;
-        private Long versetJourId;
+        private Integer sourateNumero;
         private String sourateNom;
         private String sourateNomArabe;
         private Integer versetDebut;
@@ -168,6 +168,8 @@ public class CoranDTO {
 
         @NotNull(message = "La date est obligatoire")
         private LocalDate date;
+
+        private Integer numeroSeance;
 
         @NotNull(message = "L'élève est obligatoire")
         private Long eleveId;
@@ -201,6 +203,7 @@ public class CoranDTO {
     public static class SeanceRevisionResponse {
         private Long id;
         private LocalDate date;
+        private Integer numeroSeance;
         private Long eleveId;
         private String eleveNom;
         private String elevePrenom;
@@ -229,7 +232,6 @@ public class CoranDTO {
         private String eleveNom;
         private String elevePrenom;
         private String matricule;
-        private String groupeNiveau;
         private long totalSeances;
         private long nombrePresent;
         private long nombreMemorise;
