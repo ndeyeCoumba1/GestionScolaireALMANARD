@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import type { EleveRecitation, NiveauMemorisation } from '../Types/coran';
 import { NiveauMemorisation as NiveauMemorisationConst } from '../Types/coran';
 import coranService from '../services/coranService';
-import type { SeanceRequest } from '../Types/coran';
+import type { SeanceRequest, SeanceResponse } from '../Types/coran';
 import { SOURATES } from '../services/coranService';
 
 interface UseSeanceCoranReturn {
@@ -12,7 +12,7 @@ interface UseSeanceCoranReturn {
   setCommentaire: (eleveId: number, commentaire: string) => void;
   setVersetEleve: (eleveId: number, sourateNumero: number, versetDebut: number, versetFin: number) => void;
   marquerTousPresents: () => void;
-  sauvegarderSeance: (date: string, classeId: number, enseignantId: number, numeroSeance: number, verifierRevision?: boolean) => Promise<void>;
+  sauvegarderSeance: (date: string, classeId: number, enseignantId: number, numeroSeance: number, verifierRevision?: boolean) => Promise<SeanceResponse>;
   stats: {
     presents: number;
     memorises: number;
@@ -95,8 +95,7 @@ export function useSeanceCoran(initialEleves: Array<{ id: number; groupeNiveau: 
     });
   }, []);
 
-  const sauvegarderSeance = useCallback(async (date: string, classeId: number, enseignantId: number, numeroSeance: number, verifierRevision = true) => {
-    const versetsArray: any[] = [];
+  const sauvegarderSeance = useCallback(async (date: string, classeId: number, enseignantId: number, numeroSeance: number, verifierRevision = true): Promise<SeanceResponse> => {
     const recitationsArray: any[] = [];
 
     Object.values(recitations)
@@ -104,27 +103,25 @@ export function useSeanceCoran(initialEleves: Array<{ id: number; groupeNiveau: 
       .forEach((r) => {
         const sourateNum = r.sourateNumero ?? 1;
         const sourate = SOURATES.find((s) => s.numero === sourateNum);
-        const groupe = String(r.eleveId); // un verset par élève
 
-        versetsArray.push({
-          date,
-          sourateNumero: sourateNum,
-          sourateNom: sourate?.nomFrancais || '',
-          sourateNomArabe: sourate?.nomArabe || '',
-          versetDebut: r.versetDebut ?? 0,
-          versetFin: r.versetFin ?? 0,
-          groupeNiveau: groupe,
-          classeId,
-          enseignantId,
-        });
-
-        recitationsArray.push({
+        // Inclure versetDebut/versetFin/sourate directement dans la récitation (attendu par le backend)
+        const entry: any = {
           eleveId: r.eleveId,
-          groupeNiveau: groupe,
           present: r.present,
           niveauMemorisation: r.niveauMemorisation,
           commentaire: r.commentaire || '',
-        });
+          sourateNumero: sourateNum,
+          sourateNom: sourate?.nomFrancais || '',
+          sourateNomArabe: sourate?.nomArabe || '',
+        };
+
+        // Versets uniquement si l'élève est présent et les a renseignés
+        if (r.present && (r.versetDebut ?? 0) > 0 && (r.versetFin ?? 0) > 0) {
+          entry.versetDebut = r.versetDebut;
+          entry.versetFin = r.versetFin;
+        }
+
+        recitationsArray.push(entry);
       });
 
     const seanceRequest: SeanceRequest = {
@@ -133,11 +130,11 @@ export function useSeanceCoran(initialEleves: Array<{ id: number; groupeNiveau: 
       enseignantId,
       numeroSeance,
       verifierRevision,
-      versets: versetsArray,
       recitations: recitationsArray,
     };
 
-    await coranService.createSeance(seanceRequest);
+    console.log('=== REQUÊTE SÉANCE ENVOYÉE ===', JSON.stringify(seanceRequest, null, 2));
+    return coranService.createSeance(seanceRequest);
   }, [recitations]);
 
   const stats = {

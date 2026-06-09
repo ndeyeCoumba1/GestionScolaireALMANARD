@@ -16,6 +16,7 @@ interface EleveRecitationRowProps {
   classeName?: string;
   recitateur?: string;
   enseignant?: string;
+  hasError?: boolean;
   onPresenceChange: (eleveId: number, present: boolean) => void;
   onNiveauChange: (eleveId: number, niveau: NiveauMemorisation) => void;
   onCommentaireChange: (eleveId: number, commentaire: string) => void;
@@ -39,6 +40,7 @@ export default function EleveRecitationRow({
   classeName,
   recitateur,
   enseignant,
+  hasError,
   onPresenceChange,
   onNiveauChange,
   onCommentaireChange,
@@ -69,8 +71,16 @@ export default function EleveRecitationRow({
     onVersetChange(eleve.id, sourateNumero, versetDebut, v);
   };
 
+  const errorBg = hasError && !isAbsent ? '#fff5f5' : isAbsent ? '#f9fafb' : 'transparent';
+  const versetInputStyle = (val: number) => ({
+    ...inputStyle,
+    width: 64,
+    border: hasError && !isAbsent && (!val || val <= 0) ? '2px solid #dc2626' : inputStyle.border,
+    backgroundColor: hasError && !isAbsent && (!val || val <= 0) ? '#fff1f1' : inputStyle.backgroundColor,
+  });
+
   return (
-    <tr style={{ backgroundColor: isAbsent ? '#f9fafb' : 'transparent', opacity: isAbsent ? 0.65 : 1 }}>
+    <tr style={{ backgroundColor: errorBg, opacity: isAbsent ? 0.65 : 1 }}>
 
       {/* 1. Présence */}
       <td className="py-2 px-2 text-center" style={{ verticalAlign: 'middle' }}>
@@ -149,9 +159,12 @@ export default function EleveRecitationRow({
           onChange={handleVersetDebutChange}
           disabled={isAbsent}
           className="form-control text-center"
-          style={{ ...inputStyle, width: 64 }}
-          title="Verset début"
+          style={versetInputStyle(versetDebut)}
+          title="Verset début (obligatoire)"
         />
+        {hasError && !isAbsent && (!versetDebut || versetDebut <= 0) && (
+          <span style={{ fontSize: 9, color: '#dc2626', display: 'block' }}>Obligatoire</span>
+        )}
       </td>
 
       {/* 10. Verset fin */}
@@ -164,10 +177,13 @@ export default function EleveRecitationRow({
           onChange={handleVersetFinChange}
           disabled={isAbsent}
           className="form-control text-center"
-          style={{ ...inputStyle, width: 64 }}
-          title="Verset fin"
+          style={versetInputStyle(versetFin)}
+          title="Verset fin (obligatoire)"
         />
         <span style={{ fontSize: 10, color: '#9ca3af', display: 'block' }}>/{maxVersets}</span>
+        {hasError && !isAbsent && (!versetFin || versetFin <= 0) && (
+          <span style={{ fontSize: 9, color: '#dc2626', display: 'block' }}>Obligatoire</span>
+        )}
       </td>
 
       {/* 11. Mémorisation */}

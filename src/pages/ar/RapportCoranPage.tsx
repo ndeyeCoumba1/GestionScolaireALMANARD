@@ -59,17 +59,13 @@ interface StudentRow {
   commentaires: string[];
   reciteurs: string[];
   enseignants: string[];
+  versetTlatwaDebut?: number;
+  versetTlatwaFin?: number;
 }
 
 function buildStudentRows(seances: SeanceResponse[]): StudentRow[] {
   const map = new Map<number, StudentRow>();
   seances.forEach((s) => {
-    const souratesThisSeance: string[] = [];
-    s.versets?.forEach((v: any) => {
-      const label = v.sourateNomArabe || v.sourateNom || '';
-      if (label && !souratesThisSeance.includes(label)) souratesThisSeance.push(label);
-    });
-
     s.recitations?.forEach((r: any) => {
       if (!map.has(r.eleveId)) {
         map.set(r.eleveId, {
@@ -94,13 +90,16 @@ function buildStudentRows(seances: SeanceResponse[]): StudentRow[] {
         row.presents++;
         if (r.niveauMemorisation === 'MEMORISE') row.memorises++;
         else if (r.niveauMemorisation === 'PARTIEL') row.partiels++;
+        // Sourate et versets depuis la récitation de l'élève (pas depuis versets séance)
+        const sourateLabel = r.sourateNomArabe || r.sourateNom || '';
+        if (sourateLabel && !row.sourates.includes(sourateLabel)) row.sourates.push(sourateLabel);
+        if (r.versetDebut) row.versetTlatwaDebut = r.versetDebut;
+        if (r.versetFin) row.versetTlatwaFin = r.versetFin;
       } else {
         row.absents++;
       }
-      souratesThisSeance.forEach((sn) => {
-        if (!row.sourates.includes(sn)) row.sourates.push(sn);
-      });
       if (r.commentaire) row.commentaires.push(r.commentaire);
+      // المسمع = récitateur de la séance
       const recNom = s.enseignantNom || '';
       if (recNom && !row.reciteurs.includes(recNom)) row.reciteurs.push(recNom);
       if (recNom && !row.enseignants.includes(recNom)) row.enseignants.push(recNom);
@@ -132,9 +131,6 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
     const totalMemo = students.reduce((a, s) => a + s.memorises, 0);
     const totalPartiel = students.reduce((a, s) => a + s.partiels, 0);
     const totalSeances = seances.length;
-
-    // Get first verset from first séance for column info
-    const firstVerset = seances[0]?.versets?.[0] as any;
 
     return (
       <div
@@ -229,8 +225,8 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
                   <td style={{ ...td, fontFamily: 'monospace', fontSize: 10, color: '#6b7280' }}>{s.matricule || '—'}</td>
                   <td style={{ ...td, fontWeight: 600, textAlign: 'right' }}>{s.prenom} {s.nom}</td>
                   <td style={td}>{s.sourates[0] || '—'}</td>
-                  <td style={td}>{firstVerset?.versetDebut || '—'}</td>
-                  <td style={td}>{firstVerset?.versetFin || '—'}</td>
+                  <td style={td}>{s.versetTlatwaDebut || '—'}</td>
+                  <td style={td}>{s.versetTlatwaFin || '—'}</td>
                   <td style={{ ...td, color: '#7c3aed', fontWeight: 600 }}>{lastRev?.versetRevisionDebut ?? '—'}</td>
                   <td style={{ ...td, color: '#7c3aed', fontWeight: 600 }}>{lastRev?.versetRevisionFin ?? '—'}</td>
                   <td style={{ ...td, color: '#1d4ed8', fontWeight: 600 }}>{s.presents}</td>

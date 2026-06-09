@@ -24,6 +24,10 @@ export default function SeanceCoranPage() {
   const [verifierRevision, setVerifierRevision] = useState(true);
   const [revisionErrors, setRevisionErrors] = useState<string[]>([]);
   const [saveResult, setSaveResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [missingVersetIds, setMissingVersetIds] = useState<number[]>([]);
+  const [dernieresRecitations, setDernieresRecitations] = useState<any[]>([]);
+  const [derniereDateSeance, setDerniereDateSeance] = useState<string>('');
+  const [dernierNumeroSeance, setDernierNumeroSeance] = useState<number>(1);
 
   const elevesForSeance = useMemo(
     () => eleves.map((e) => ({ id: e.id, groupeNiveau: e.classeNiveau || 'A' })),
@@ -162,17 +166,44 @@ export default function SeanceCoranPage() {
       return;
     }
 
+    // Vérifier que tous les élèves présents ont verset début ET fin > 0
+    const elevesSansVerset = eleves.filter(e => {
+      const rec = recitations[e.id];
+      if (!rec?.present) return false;
+      const debutOk = (rec.versetDebut ?? 0) > 0;
+      const finOk = (rec.versetFin ?? 0) > 0;
+      return !debutOk || !finOk;
+    });
+    if (elevesSansVerset.length > 0) {
+      setMissingVersetIds(elevesSansVerset.map(e => e.id));
+      const details = elevesSansVerset.map(e => {
+        const rec = recitations[e.id];
+        const debutOk = (rec?.versetDebut ?? 0) > 0;
+        const finOk = (rec?.versetFin ?? 0) > 0;
+        const champ = !debutOk && !finOk ? 'début et fin' : !debutOk ? 'début' : 'fin';
+        return `${e.prenom} ${e.nom} (verset ${champ} manquant)`;
+      }).join(' • ');
+      setSaveResult({ type: 'error', message: `Versets obligatoires manquants — ${details}` });
+      return;
+    }
+    setMissingVersetIds([]);
     setRevisionErrors([]);
     setSaveResult(null);
+    setDernieresRecitations([]);
     setSaving(true);
     try {
-      const enseignantId = selectedTeacher !== ''
-        ? Number(selectedTeacher)
-        : selectedEnseignant !== ''
-          ? Number(selectedEnseignant)
-          : (userId ?? 0);
-      await sauvegarderSeance(date, Number(selectedClasse), enseignantId, numeroSeance, verifierRevision);
+      // Le récitateur (selectedEnseignant) est stocké comme "enseignant" de la séance.
+      // L'enseignant de la classe (selectedTeacher) vient de l'entité Classe, pas de la séance.
+      const enseignantId = selectedEnseignant !== ''
+        ? Number(selectedEnseignant)
+        : (userId ?? 0);
+      const seanceResponse = await sauvegarderSeance(date, Number(selectedClasse), enseignantId, numeroSeance, verifierRevision);
       setSaveResult({ type: 'success', message: 'Séance enregistrée avec succès !' });
+      if (seanceResponse?.recitations) {
+        setDernieresRecitations(seanceResponse.recitations);
+        setDerniereDateSeance(seanceResponse.date);
+        setDernierNumeroSeance(seanceResponse.numeroSeance ?? numeroSeance);
+      }
       setSelectedClasse('');
       setSelectedEnseignant('');
       setEleves([]);
@@ -409,6 +440,7 @@ export default function SeanceCoranPage() {
                           key={eleve.id}
                           eleve={eleve}
                           recitation={recitations[eleve.id]}
+                          hasError={missingVersetIds.includes(eleve.id)}
                           classeName={classes.find(c => c.id === selectedClasse)?.niveau || ''}
                           recitateur={(() => {
                             const r = enseignants.find((e: any) => e.id === selectedEnseignant);
@@ -469,31 +501,6 @@ export default function SeanceCoranPage() {
             </div>
           )}
 
-          {/* Résultat de l'enregistrement */}
-          {saveResult && (
-            <div
-              className="rounded-3 p-3 d-flex align-items-start gap-3"
-              style={{
-                backgroundColor: saveResult.type === 'success' ? '#f0fdf4' : '#fef2f2',
-                border: `1px solid ${saveResult.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
-                borderLeft: `4px solid ${saveResult.type === 'success' ? '#0A6E3F' : '#dc2626'}`,
-              }}
-            >
-              <span style={{ fontSize: 20, flexShrink: 0 }}>
-                {saveResult.type === 'success' ? '✅' : '❌'}
-              </span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: saveResult.type === 'success' ? '#15803d' : '#dc2626', flex: 1 }}>
-                {saveResult.message}
-              </span>
-              <button
-                onClick={() => setSaveResult(null)}
-                className="btn-close"
-                style={{ fontSize: 10, flexShrink: 0 }}
-                aria-label="Fermer"
-              />
-            </div>
-          )}
-
           {/* Bouton sauvegarder */}
           <div className="d-flex align-items-center justify-content-between gap-3">
             <label className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', fontSize: 13, color: '#6b7280' }}>
@@ -521,6 +528,116 @@ export default function SeanceCoranPage() {
             </button>
           </div>
         </>
+      )}
+
+      {/* Récapitulatif des dernières récitations enregistrées */}
+      {dernieresRecitations.length > 0 && (
+        <div className="rounded-4 overflow-hidden" style={{ border: '1px solid #d1fae5', boxShadow: '0 2px 12px rgba(10,110,63,0.07)' }}>
+          <div className="p-3 d-flex align-items-center justify-content-between" style={{ background: 'linear-gradient(90deg, #f0fdf4 0%, #ffffff 100%)', borderBottom: '1px solid #d1fae5' }}>
+            <div className="d-flex align-items-center gap-2">
+              <div style={{ width: 4, height: 18, backgroundColor: '#0A6E3F', borderRadius: 2 }} />
+              <span className="fw-bold" style={{ fontSize: 14, color: '#0A6E3F' }}>
+                📋 Dernières récitations enregistrées
+              </span>
+              <span className="badge rounded-pill" style={{ backgroundColor: '#d1fae5', color: '#0A6E3F', fontSize: 12, fontWeight: 600 }}>
+                {dernieresRecitations.filter((r: any) => r.present).length} présent(s)
+              </span>
+              <span className="badge rounded-pill" style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontSize: 11 }}>
+                Séance #{dernierNumeroSeance} — {derniereDateSeance ? new Date(derniereDateSeance).toLocaleDateString('fr-FR') : ''}
+              </span>
+            </div>
+            <button
+              onClick={() => setDernieresRecitations([])}
+              className="btn-close"
+              style={{ fontSize: 10 }}
+              aria-label="Fermer"
+            />
+          </div>
+          <div className="table-responsive">
+            <table className="table table-hover mb-0" style={{ fontSize: 13 }}>
+              <thead style={{ backgroundColor: '#f8fffe' }}>
+                <tr>
+                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Prénom</th>
+                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Nom</th>
+                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Matricule</th>
+                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Sourate</th>
+                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>V. Début</th>
+                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>V. Fin</th>
+                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Mémorisation</th>
+                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Présence</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dernieresRecitations.map((r: any) => {
+                  const niveauColors: Record<string, { bg: string; color: string; label: string }> = {
+                    MEMORISE:     { bg: '#d1fae5', color: '#065f46', label: 'Mémorisé' },
+                    PARTIEL:      { bg: '#fef9c3', color: '#854d0e', label: 'Partiel' },
+                    NON_MEMORISE: { bg: '#fee2e2', color: '#991b1b', label: 'Non mémorisé' },
+                    ABSENT:       { bg: '#f3f4f6', color: '#6b7280', label: 'Absent' },
+                  };
+                  const niv = niveauColors[r.niveauMemorisation] ?? niveauColors['NON_MEMORISE'];
+                  return (
+                    <tr key={r.id} style={{ opacity: r.present ? 1 : 0.6 }}>
+                      <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>{r.elevePrenom}</td>
+                      <td className="py-2 px-3 fw-semibold" style={{ verticalAlign: 'middle' }}>{r.eleveNom}</td>
+                      <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
+                        {r.matricule ? (
+                          <span className="badge rounded-pill" style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontSize: 10, fontFamily: 'monospace' }}>
+                            {r.matricule}
+                          </span>
+                        ) : <span style={{ color: '#d1d5db' }}>—</span>}
+                      </td>
+                      <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
+                        {r.sourateNomArabe && <span style={{ fontFamily: 'serif', marginRight: 4, fontSize: 13 }}>{r.sourateNomArabe}</span>}
+                        {r.sourateNom && <span style={{ color: '#9ca3af', fontSize: 11 }}>{r.sourateNom}</span>}
+                        {!r.sourateNom && !r.sourateNomArabe && <span style={{ color: '#d1d5db' }}>—</span>}
+                      </td>
+                      <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
+                        {r.versetDebut ? <span className="badge" style={{ backgroundColor: '#f0fdf4', color: '#0A6E3F', fontWeight: 700 }}>{r.versetDebut}</span> : <span style={{ color: '#d1d5db' }}>—</span>}
+                      </td>
+                      <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
+                        {r.versetFin ? <span className="badge" style={{ backgroundColor: '#f0fdf4', color: '#0A6E3F', fontWeight: 700 }}>{r.versetFin}</span> : <span style={{ color: '#d1d5db' }}>—</span>}
+                      </td>
+                      <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
+                        <span className="badge rounded-pill" style={{ backgroundColor: niv.bg, color: niv.color, fontSize: 11, fontWeight: 600 }}>
+                          {niv.label}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
+                        <span style={{ fontSize: 16 }}>{r.present ? '✅' : '❌'}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Résultat de l'enregistrement — toujours visible même après reset du formulaire */}
+      {saveResult && (
+        <div
+          className="rounded-3 p-3 d-flex align-items-start gap-3"
+          style={{
+            backgroundColor: saveResult.type === 'success' ? '#f0fdf4' : '#fef2f2',
+            border: `1px solid ${saveResult.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
+            borderLeft: `4px solid ${saveResult.type === 'success' ? '#0A6E3F' : '#dc2626'}`,
+          }}
+        >
+          <span style={{ fontSize: 20, flexShrink: 0 }}>
+            {saveResult.type === 'success' ? '✅' : '❌'}
+          </span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: saveResult.type === 'success' ? '#15803d' : '#dc2626', flex: 1 }}>
+            {saveResult.message}
+          </span>
+          <button
+            onClick={() => setSaveResult(null)}
+            className="btn-close"
+            style={{ fontSize: 10, flexShrink: 0 }}
+            aria-label="Fermer"
+          />
+        </div>
       )}
     </div>
   );

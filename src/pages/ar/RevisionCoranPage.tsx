@@ -26,9 +26,11 @@ export default function RevisionCoranPage() {
   const [eleves, setEleves] = useState<Eleve[]>([]);
   const [enseignants, setEnseignants] = useState<any[]>([]);
   const [rows, setRows] = useState<Record<number, RevisionRow>>({});
+  const [numeroSeance, setNumeroSeance] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [dernieresRevisions, setDernieresRevisions] = useState<SeanceRevisionResponse[]>([]);
   const [historique, setHistorique] = useState<SeanceRevisionResponse[]>([]);
   const [loadingHisto, setLoadingHisto] = useState(false);
   const [histoDateDebut, setHistoDateDebut] = useState('');
@@ -123,17 +125,20 @@ export default function RevisionCoranPage() {
     if (presents.length === 0) { toast.error('Aucun élève présent'); return; }
 
     setSaveResult(null);
+    setDernieresRevisions([]);
     setSaving(true);
     let errCount = 0;
+    const savedRevisions: SeanceRevisionResponse[] = [];
     for (const eleve of presents) {
       const row = rows[eleve.id];
       const sourate = SOURATES.find(s => s.numero === row.sourateNumero);
       try {
-        await coranService.enregistrerRevision({
+        const res = await coranService.enregistrerRevision({
           date,
           eleveId: eleve.id,
           classeId: Number(selectedClasse),
           enseignantId: Number(selectedEnseignant),
+          numeroSeance,
           sourateNumero: row.sourateNumero,
           sourateNom: sourate?.nomFrancais || '',
           sourateNomArabe: sourate?.nomArabe || '',
@@ -141,6 +146,7 @@ export default function RevisionCoranPage() {
           versetRevisionFin: row.versetFin,
           commentaire: row.commentaire || undefined,
         });
+        savedRevisions.push(res);
       } catch {
         errCount++;
       }
@@ -148,10 +154,12 @@ export default function RevisionCoranPage() {
     setSaving(false);
     if (errCount === 0) {
       setSaveResult({ type: 'success', message: `${presents.length} révision(s) enregistrée(s) avec succès !` });
+      setDernieresRevisions(savedRevisions);
       setSelectedClasse('');
       setEleves([]);
     } else {
       setSaveResult({ type: 'error', message: `${errCount} erreur(s) sur ${presents.length} élève(s). Vérifiez les données.` });
+      if (savedRevisions.length > 0) setDernieresRevisions(savedRevisions);
     }
   };
 
@@ -294,6 +302,21 @@ export default function RevisionCoranPage() {
                 </select>
               )}
             </div>
+
+            {/* Numéro de séance — visible uniquement en saisie */}
+            {activeTab === 'saisie' && (
+              <div className="col-12 col-md-3">
+                <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Nº Séance</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={numeroSeance}
+                  onChange={e => setNumeroSeance(Math.max(1, Number(e.target.value)))}
+                  className="form-control"
+                  style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}
+                />
+              </div>
+            )}
 
             {/* Filtres date historique */}
             {activeTab === 'historique' && (
@@ -466,31 +489,6 @@ export default function RevisionCoranPage() {
             </div>
           </div>
 
-          {/* Résultat de l'enregistrement */}
-          {saveResult && (
-            <div
-              className="rounded-3 p-3 d-flex align-items-start gap-3"
-              style={{
-                backgroundColor: saveResult.type === 'success' ? '#f0fdf4' : '#fef2f2',
-                border: `1px solid ${saveResult.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
-                borderLeft: `4px solid ${saveResult.type === 'success' ? '#2563eb' : '#dc2626'}`,
-              }}
-            >
-              <span style={{ fontSize: 20, flexShrink: 0 }}>
-                {saveResult.type === 'success' ? '✅' : '❌'}
-              </span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: saveResult.type === 'success' ? '#1d4ed8' : '#dc2626', flex: 1 }}>
-                {saveResult.message}
-              </span>
-              <button
-                onClick={() => setSaveResult(null)}
-                className="btn-close"
-                style={{ fontSize: 10, flexShrink: 0 }}
-                aria-label="Fermer"
-              />
-            </div>
-          )}
-
           {/* Bouton enregistrer */}
           <div className="d-flex justify-content-end">
             <button
@@ -504,6 +502,103 @@ export default function RevisionCoranPage() {
             </button>
           </div>
         </>
+      )}
+
+      {/* Résultat de l'enregistrement — toujours visible même après reset du formulaire */}
+      {saveResult && (
+        <div
+          className="rounded-3 p-3 d-flex align-items-start gap-3"
+          style={{
+            backgroundColor: saveResult.type === 'success' ? '#f0fdf4' : '#fef2f2',
+            border: `1px solid ${saveResult.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
+            borderLeft: `4px solid ${saveResult.type === 'success' ? '#2563eb' : '#dc2626'}`,
+          }}
+        >
+          <span style={{ fontSize: 20, flexShrink: 0 }}>
+            {saveResult.type === 'success' ? '✅' : '❌'}
+          </span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: saveResult.type === 'success' ? '#1d4ed8' : '#dc2626', flex: 1 }}>
+            {saveResult.message}
+          </span>
+          <button
+            onClick={() => setSaveResult(null)}
+            className="btn-close"
+            style={{ fontSize: 10, flexShrink: 0 }}
+            aria-label="Fermer"
+          />
+        </div>
+      )}
+
+      {/* Récapitulatif des dernières révisions enregistrées */}
+      {dernieresRevisions.length > 0 && (
+        <div className="rounded-4 overflow-hidden" style={{ border: '1px solid #dbeafe', boxShadow: '0 2px 12px rgba(37,99,235,0.07)' }}>
+          <div className="p-3 d-flex align-items-center justify-content-between" style={{ background: 'linear-gradient(90deg, #eff6ff 0%, #ffffff 100%)', borderBottom: '1px solid #dbeafe' }}>
+            <div className="d-flex align-items-center gap-2">
+              <div style={{ width: 4, height: 18, backgroundColor: '#2563eb', borderRadius: 2 }} />
+              <span className="fw-bold" style={{ fontSize: 14, color: '#1d4ed8' }}>
+                📋 Dernières révisions enregistrées
+              </span>
+              <span className="badge rounded-pill" style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', fontSize: 12, fontWeight: 600 }}>
+                {dernieresRevisions.length}
+              </span>
+            </div>
+            <button
+              onClick={() => setDernieresRevisions([])}
+              className="btn-close"
+              style={{ fontSize: 10 }}
+              aria-label="Fermer"
+            />
+          </div>
+          <div className="table-responsive">
+            <table className="table table-hover mb-0" style={{ fontSize: 13 }}>
+              <thead style={{ backgroundColor: '#f8faff' }}>
+                <tr>
+                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Prénom</th>
+                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Nom</th>
+                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Matricule</th>
+                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Sourate</th>
+                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>V. Début</th>
+                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>V. Fin</th>
+                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Nº Séance</th>
+                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dernieresRevisions.map((rv) => (
+                  <tr key={rv.id}>
+                    <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>{rv.elevePrenom}</td>
+                    <td className="py-2 px-3 fw-semibold" style={{ verticalAlign: 'middle' }}>{rv.eleveNom}</td>
+                    <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
+                      {(rv.matricule || rv.eleveMatricule) ? (
+                        <span className="badge rounded-pill" style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontSize: 10, fontFamily: 'monospace' }}>
+                          {rv.matricule || rv.eleveMatricule}
+                        </span>
+                      ) : <span style={{ color: '#d1d5db' }}>—</span>}
+                    </td>
+                    <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
+                      <span style={{ color: '#374151' }}>
+                        {rv.sourateNomArabe && <span style={{ fontFamily: 'serif', marginRight: 4 }}>{rv.sourateNomArabe}</span>}
+                        <span style={{ color: '#9ca3af', fontSize: 11 }}>{rv.sourateNom}</span>
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
+                      <span className="badge" style={{ backgroundColor: '#eff6ff', color: '#2563eb', fontWeight: 700 }}>{rv.versetRevisionDebut}</span>
+                    </td>
+                    <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
+                      <span className="badge" style={{ backgroundColor: '#eff6ff', color: '#2563eb', fontWeight: 700 }}>{rv.versetRevisionFin}</span>
+                    </td>
+                    <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
+                      <span className="badge rounded-pill" style={{ backgroundColor: '#f0fdf4', color: '#15803d', fontSize: 11 }}>#{rv.numeroSeance ?? 1}</span>
+                    </td>
+                    <td className="py-2 px-3" style={{ verticalAlign: 'middle', color: '#6b7280', fontSize: 12 }}>
+                      {new Date(rv.date).toLocaleDateString('fr-FR')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* ========== TAB HISTORIQUE ========== */}

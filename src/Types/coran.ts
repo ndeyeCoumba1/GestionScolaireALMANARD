@@ -62,7 +62,7 @@ export interface SeanceRequest {
   enseignantId: number;
   numeroSeance?: number;
   verifierRevision?: boolean;
-  versets: VersetJourRequest[];
+  versets?: VersetJourRequest[];
   recitations: EleveRecitationRequest[];
 }
 
@@ -97,10 +97,15 @@ export interface EleveRecitation {
 
 export interface EleveRecitationRequest {
   eleveId: number;
-  groupeNiveau: string;
+  groupeNiveau?: string;
   present: boolean;
   niveauMemorisation: NiveauMemorisation;
   commentaire?: string;
+  sourateNumero?: number;
+  sourateNom?: string;
+  sourateNomArabe?: string;
+  versetDebut?: number;
+  versetFin?: number;
 }
 
 export interface EleveRecitationResponse {
@@ -160,6 +165,7 @@ export interface SeanceRevisionRequest {
   eleveId: number;
   classeId: number;
   enseignantId: number;
+  numeroSeance?: number;
   sourateNumero?: number;
   sourateNom?: string;
   sourateNomArabe?: string;
@@ -175,10 +181,12 @@ export interface SeanceRevisionResponse {
   eleveNom: string;
   elevePrenom: string;
   eleveMatricule?: string;
+  matricule?: string;
   classeId: number;
   classeNiveau: string;
   enseignantId: number;
   enseignantNom: string;
+  numeroSeance?: number;
   sourateNumero?: number;
   sourateNom?: string;
   sourateNomArabe?: string;
