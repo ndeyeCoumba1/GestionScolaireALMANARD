@@ -2,6 +2,7 @@ package com.example.GestionScolaire.Service;
 
 import com.example.GestionScolaire.DTO.CoranDTO;
 import com.example.GestionScolaire.DTO.CoranDTO.*;
+import com.example.GestionScolaire.DTO.RapportCoranDTO;
 import com.example.GestionScolaire.Enum.NiveauMemorisation;
 import com.example.GestionScolaire.Model.*;
 import com.example.GestionScolaire.Repository.*;
@@ -421,6 +422,143 @@ public class CoranService {
                 ? revisionRepo.findByClasseIdAndDateBetween(classeId, dateDebut, dateFin)
                 : revisionRepo.findByClasseIdOrderByDateDesc(classeId);
         return revisions.stream().map(this::toRevisionResponse).toList();
+    }
+
+    // ═══════════════════════════════════════════
+    //  Rapport consolidé (journalier / hebdo / mensuel)
+    // ═══════════════════════════════════════════
+
+    @Transactional
+    public RapportCoranDTO.RapportResponse genererRapport(Long classeId, LocalDate dateDebut, LocalDate dateFin) {
+        Classe classe = classeRepo.findById(classeId)
+                .orElseThrow(() -> new RuntimeException("Classe introuvable : " + classeId));
+
+        List<SeanceRecitation> seances = (dateDebut != null && dateFin != null)
+                ? seanceRepo.findByClasseIdAndDateBetweenOrderByDateDesc(classeId, dateDebut, dateFin)
+                : seanceRepo.findByClasseIdOrderByDateDesc(classeId);
+
+        List<EleveRecitation> toutesRecitations = (dateDebut != null && dateFin != null)
+                ? recitationRepo.findByClasseIdAndDateRange(classeId, dateDebut, dateFin)
+                : recitationRepo.findBySeanceClasseId(classeId);
+
+        List<SeanceRevision> toutesRevisions = (dateDebut != null && dateFin != null)
+                ? revisionRepo.findByClasseIdAndDateBetween(classeId, dateDebut, dateFin)
+                : revisionRepo.findByClasseIdOrderByDateDesc(classeId);
+
+        Map<Long, List<EleveRecitation>> recParEleve = toutesRecitations.stream()
+                .collect(Collectors.groupingBy(r -> r.getEleve().getId()));
+
+        Map<Long, List<SeanceRevision>> revParEleve = toutesRevisions.stream()
+                .collect(Collectors.groupingBy(r -> r.getEleve().getId()));
+
+        List<RapportCoranDTO.LigneEleve> lignes = recParEleve.entrySet().stream()
+                .map(e -> buildLigneEleve(e.getValue(), revParEleve.getOrDefault(e.getKey(), List.of())))
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(l -> l.getNom() + " " + l.getPrenom()))
+                .toList();
+
+        int totalPresents = lignes.stream().mapToInt(RapportCoranDTO.LigneEleve::getPresents).sum();
+        int totalAbsents  = lignes.stream().mapToInt(RapportCoranDTO.LigneEleve::getAbsents).sum();
+        int totalMemo     = lignes.stream().mapToInt(RapportCoranDTO.LigneEleve::getMemorises).sum();
+        int totalPartiels = lignes.stream().mapToInt(RapportCoranDTO.LigneEleve::getPartiels).sum();
+        int total         = totalPresents + totalAbsents;
+        int tauxPresence  = total > 0 ? (int) Math.round((double) totalPresents / total * 100) : 0;
+        int tauxMemo      = totalPresents > 0
+                ? (int) Math.round((totalMemo + totalPartiels * 0.5) / totalPresents * 100) : 0;
+
+        String enseignantClasse = "";
+        if (classe.getEnseignant() != null) {
+            User ens = classe.getEnseignant();
+            enseignantClasse = ens.getPrenom() + " " + ens.getNom();
+        }
+
+        return RapportCoranDTO.RapportResponse.builder()
+                .classeId(classeId)
+                .classeNom(classe.getNiveau() != null ? classe.getNiveau().name() : "")
+                .enseignantClasse(enseignantClasse)
+                .dateDebut(dateDebut)
+                .dateFin(dateFin)
+                .totalSeances(seances.size())
+                .totalPresents(totalPresents)
+                .totalAbsents(totalAbsents)
+                .totalMemorises(totalMemo)
+                .totalPartiels(totalPartiels)
+                .tauxPresenceMoyen(tauxPresence)
+                .tauxMemorisationMoyen(tauxMemo)
+                .eleves(lignes)
+                .build();
+    }
+
+    private RapportCoranDTO.LigneEleve buildLigneEleve(
+            List<EleveRecitation> recitations,
+            List<SeanceRevision> revisions) {
+
+        if (recitations.isEmpty()) return null;
+
+        Eleve eleve = recitations.get(0).getEleve();
+
+        int presents  = (int) recitations.stream().filter(EleveRecitation::isPresent).count();
+        int absents   = recitations.size() - presents;
+        int memorises = (int) recitations.stream()
+                .filter(r -> r.isPresent() && r.getNiveauMemorisation() == NiveauMemorisation.MEMORISE).count();
+        int partiels  = (int) recitations.stream()
+                .filter(r -> r.isPresent() && r.getNiveauMemorisation() == NiveauMemorisation.PARTIEL).count();
+
+        int tauxPresence = recitations.size() > 0
+                ? (int) Math.round((double) presents / recitations.size() * 100) : 0;
+        int tauxMemo = presents > 0
+                ? (int) Math.round((memorises + partiels * 0.5) / presents * 100) : 0;
+
+        String niveau = tauxMemo >= 80 ? "ممتاز" : tauxMemo >= 60 ? "جيد" : tauxMemo >= 40 ? "متوسط" : "ضعيف";
+
+        // Dernière récitation présente → sourate et versets tlatwa
+        EleveRecitation lastPresente = recitations.stream()
+                .filter(EleveRecitation::isPresent)
+                .reduce((a, b) -> b)
+                .orElse(null);
+
+        // Dernière révision (liste déjà triée DESC par date)
+        SeanceRevision lastRevision = revisions.isEmpty() ? null : revisions.get(0);
+
+        // المسمع : enseignant(s) des séances (distinct, séparé par ،)
+        String enseignantNom = recitations.stream()
+                .map(r -> r.getSeance().getEnseignant())
+                .filter(Objects::nonNull)
+                .map(u -> u.getNom() + " " + u.getPrenom())
+                .distinct()
+                .collect(Collectors.joining("، "));
+
+        // Observations : 2 premiers commentaires non vides
+        String commentaire = recitations.stream()
+                .filter(r -> r.getCommentaire() != null && !r.getCommentaire().isBlank())
+                .limit(2)
+                .map(EleveRecitation::getCommentaire)
+                .collect(Collectors.joining("، "));
+
+        return RapportCoranDTO.LigneEleve.builder()
+                .eleveId(eleve.getId())
+                .nom(eleve.getNom())
+                .prenom(eleve.getPrenom())
+                .nomArabe(eleve.getNomArabe())
+                .prenomArabe(eleve.getPrenomArabe())
+                .matricule(eleve.getMatricule())
+                .totalSeances(recitations.size())
+                .presents(presents)
+                .absents(absents)
+                .tauxPresence(tauxPresence)
+                .memorises(memorises)
+                .partiels(partiels)
+                .tauxMemorisation(tauxMemo)
+                .niveau(niveau)
+                .sourateNomArabe(lastPresente != null ? lastPresente.getSourateNomArabe() : null)
+                .sourateNom(lastPresente != null ? lastPresente.getSourateNom() : null)
+                .versetTlatwaDebut(lastPresente != null ? lastPresente.getVersetDebut() : null)
+                .versetTlatwaFin(lastPresente != null ? lastPresente.getVersetFin() : null)
+                .versetRevisionDebut(lastRevision != null ? lastRevision.getVersetRevisionDebut() : null)
+                .versetRevisionFin(lastRevision != null ? lastRevision.getVersetRevisionFin() : null)
+                .enseignantNom(enseignantNom)
+                .commentaire(commentaire)
+                .build();
     }
 
     @Transactional

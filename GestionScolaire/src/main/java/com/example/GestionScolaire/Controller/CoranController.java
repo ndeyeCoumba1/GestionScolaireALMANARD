@@ -1,6 +1,7 @@
 package com.example.GestionScolaire.Controller;
 
 import com.example.GestionScolaire.DTO.CoranDTO;
+import com.example.GestionScolaire.DTO.RapportCoranDTO;
 import com.example.GestionScolaire.Service.CoranService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -185,6 +186,24 @@ public class CoranController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFin) {
         return ResponseEntity.ok(coranService.getRevisionsByClasse(classeId, dateDebut, dateFin));
+    }
+
+    // ═══════════════════════════════════════════
+    //  Rapport consolidé
+    // ═══════════════════════════════════════════
+
+    /**
+     * GET /api/coran/rapport?classeId=1&dateDebut=2026-06-01&dateFin=2026-06-07
+     * Rapport consolidé (journalier / hebdomadaire / mensuel) : une ligne agrégée par élève
+     * avec présences, mémorisation, versets tlatwa, versets révision et المسمع.
+     */
+    @GetMapping("/rapport")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    public ResponseEntity<RapportCoranDTO.RapportResponse> getRapport(
+            @RequestParam Long classeId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFin) {
+        return ResponseEntity.ok(coranService.genererRapport(classeId, dateDebut, dateFin));
     }
 
     /**

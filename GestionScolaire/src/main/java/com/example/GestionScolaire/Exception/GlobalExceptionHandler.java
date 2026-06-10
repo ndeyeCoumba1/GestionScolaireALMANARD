@@ -26,6 +26,18 @@ public class GlobalExceptionHandler {
                 ));
     }
 
+    @ExceptionHandler(PaiementException.class)
+    public ResponseEntity<ErrorResponse> handlePaiementException(PaiementException ex) {
+        return ResponseEntity
+                .status(ex.getStatus())
+                .body(new ErrorResponse(
+                        ex.getStatus().value(),
+                        ex.getStatus().getReasonPhrase(),
+                        ex.getMessage(),
+                        ex.getTimestamp()
+                ));
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ErrorResponse> handleRuntimeException(RuntimeException ex) {
         return ResponseEntity

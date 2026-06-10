@@ -70,4 +70,10 @@ public interface PaiementRepository extends JpaRepository<Paiement, Long> {
                                            @Param("motif") MotifPaiement motif);
 
     List<Paiement> findByInscriptionIdOrderByDatePaiementDesc(Long inscriptionId);
+
+    /** Tous les paiements d'un mois dont le statut est parmi ceux fournis (pour calcul impayés / taux) */
+    List<Paiement> findByMoisIdAndStatutIn(Long moisId, List<StatutPaiement> statuts);
+
+    /** Paiements d'un élève pour une année donnée (mensualités) */
+    List<Paiement> findByEleveIdAndAnneeId(Long eleveId, Long anneeId);
 }
