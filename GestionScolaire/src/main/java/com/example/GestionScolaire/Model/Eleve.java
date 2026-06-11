@@ -41,6 +41,7 @@ public class Eleve {
 
     private String adresse;
 
+    @Column(columnDefinition = "TEXT")
     private String photoUrl;
 
     @Enumerated(EnumType.STRING)

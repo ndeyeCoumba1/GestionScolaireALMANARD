@@ -22,6 +22,8 @@ public enum TypeDepense {
     Denrees,
     PRET,
     Vidange,
-    Cartouche_Imprimante
+    Cartouche_Imprimante,
+    Autre
+
 
 }

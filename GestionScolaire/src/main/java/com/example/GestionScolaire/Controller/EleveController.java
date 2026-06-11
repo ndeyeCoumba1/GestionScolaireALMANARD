@@ -27,8 +27,8 @@ public class EleveController {
         List<Eleve> eleves = (classeId != null)
                 ? eleveService.findByClasseId(classeId)
                 : eleveService.findAll();
-    return ResponseEntity.ok(
-                eleveService.findAll().stream()
+        return ResponseEntity.ok(
+                eleves.stream()
                         .map(mapper::toEleveDTO)
                         .collect(Collectors.toList())
         );

@@ -77,6 +77,11 @@ public class EleveService {
     @Transactional
     public Eleve create(Eleve eleve) {
         eleve.setStatut(StatutEleve.NON_INSCRIT);
+        String matricule = genererMatricule();
+        while (!isMatriculeUnique(matricule)) {
+            matricule = genererMatricule();
+        }
+        eleve.setMatricule(matricule);
         return eleveRepository.save(eleve);
     }
 
