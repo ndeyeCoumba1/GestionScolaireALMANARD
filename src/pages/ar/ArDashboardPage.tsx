@@ -43,6 +43,8 @@ export default function ArDashboardPage() {
   const [dailyActivity, setDailyActivity] = useState<DayActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [weeklyStats, setWeeklyStats] = useState({ totalSeances: 0, totalRevisions: 0, tauxPresence: 0, tauxMemorisation: 0 });
+  const [monthlyStats, setMonthlyStats] = useState({ totalSeances: 0, totalRevisions: 0, tauxPresence: 0, tauxMemorisation: 0 });
 
   useEffect(() => {
     fetchAllData();
@@ -52,12 +54,60 @@ export default function ArDashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      await Promise.all([fetchStats(), fetchRecentSessions()]);
+      const today = new Date().toISOString().split('T')[0];
+      const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+      const monthAgo = new Date(); monthAgo.setDate(monthAgo.getDate() - 30);
+      await Promise.all([
+        fetchStats(),
+        fetchRecentSessions(),
+        fetchPeriodStats(weekAgo.toISOString().split('T')[0], today).then(setWeeklyStats),
+        fetchPeriodStats(monthAgo.toISOString().split('T')[0], today).then(setMonthlyStats),
+      ]);
     } catch (err) {
       console.error('Erreur globale:', err);
       setError('Erreur de chargement des données');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPeriodStats = async (dateDebut: string, dateFin: string) => {
+    try {
+      const classesRes = await api.get('/classes');
+      const classes = classesRes.data || [];
+      let totalSeances = 0;
+      let totalRevisions = 0;
+      let totalPresence = 0;
+      let totalMemorisation = 0;
+      let totalClassesAvecStats = 0;
+      await Promise.all(classes.map(async (classe: any) => {
+        try {
+          const [seancesRes, statsRes, revRes] = await Promise.allSettled([
+            api.get('/coran/seances/historique', { params: { classeId: classe.id, dateDebut, dateFin } }),
+            api.get(`/coran/stats/classe/${classe.id}`, { params: { dateDebut, dateFin } }),
+            api.get(`/coran/revisions/classe/${classe.id}`, { params: { dateDebut, dateFin } }),
+          ]);
+          if (seancesRes.status === 'fulfilled') totalSeances += seancesRes.value.data?.length || 0;
+          if (revRes.status === 'fulfilled') totalRevisions += revRes.value.data?.length || 0;
+          if (statsRes.status === 'fulfilled' && statsRes.value.data) {
+            const tp = statsRes.value.data.tauxPresenceMoyen || 0;
+            const tm = statsRes.value.data.tauxMemorisationMoyen || 0;
+            if (tp > 0 || tm > 0) {
+              totalPresence += tp;
+              totalMemorisation += tm;
+              totalClassesAvecStats++;
+            }
+          }
+        } catch (_) {}
+      }));
+      return {
+        totalSeances,
+        totalRevisions,
+        tauxPresence: totalClassesAvecStats > 0 ? Math.min(Math.round(totalPresence / totalClassesAvecStats), 100) : 0,
+        tauxMemorisation: totalClassesAvecStats > 0 ? Math.min(Math.round(totalMemorisation / totalClassesAvecStats), 100) : 0,
+      };
+    } catch (_) {
+      return { totalSeances: 0, totalRevisions: 0, tauxPresence: 0, tauxMemorisation: 0 };
     }
   };
 
@@ -270,6 +320,76 @@ export default function ArDashboardPage() {
               </div>
               <div className="text-muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{card.label}</div>
               <div style={{ fontSize: 12, color: card.accent, fontFamily: 'serif' }}>{card.arabic}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Résumés hebdomadaire et mensuel */}
+      <div className="row g-4">
+        {[
+          {
+            title: 'Résumé hebdomadaire',
+            arabic: 'ملخص الأسبوع',
+            period: '7 derniers jours',
+            data: weeklyStats,
+            accent: C_BLUE,
+            bg: C_BLUE_L,
+            icon: '📅',
+          },
+          {
+            title: 'Résumé mensuel',
+            arabic: 'ملخص الشهر',
+            period: '30 derniers jours',
+            data: monthlyStats,
+            accent: C_PURPLE,
+            bg: '#f5f3ff',
+            icon: '📊',
+          },
+        ].map((summary, i) => (
+          <div key={i} className="col-12 col-md-6">
+            <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0', borderTop: `3px solid ${summary.accent}` }}>
+              <div className="d-flex align-items-center gap-3 mb-4">
+                <div style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: summary.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
+                  {summary.icon}
+                </div>
+                <div>
+                  <div className="fw-bold" style={{ fontSize: 15, color: '#111827' }}>{summary.title}</div>
+                  <div style={{ fontSize: 12, color: '#6b7280' }}>{summary.period} — <span style={{ fontFamily: 'serif', color: summary.accent }}>{summary.arabic}</span></div>
+                </div>
+              </div>
+              <div className="row g-3">
+                {[
+                  { label: 'Séances', labelAr: 'الجلسات', value: summary.data.totalSeances, color: C_GREEN, bg: C_GREEN_L },
+                  { label: 'Révisions', labelAr: 'المراجعات', value: summary.data.totalRevisions, color: C_AMBER, bg: C_AMBER_L },
+                  { label: 'Taux présence', labelAr: 'نسبة الحضور', value: `${summary.data.tauxPresence}%`, color: summary.accent, bg: summary.bg },
+                  { label: 'Mémorisation', labelAr: 'نسبة الحفظ', value: `${summary.data.tauxMemorisation}%`, color: C_PURPLE, bg: '#f5f3ff' },
+                ].map((metric, j) => (
+                  <div key={j} className="col-6">
+                    <div className="p-3 rounded-3" style={{ backgroundColor: metric.bg, border: `1px solid ${metric.bg}` }}>
+                      <div className="fw-bold" style={{ fontSize: 24, color: metric.color, lineHeight: 1 }}>{metric.value}</div>
+                      <div style={{ fontSize: 11, color: '#374151', marginTop: 4 }}>{metric.label}</div>
+                      <div style={{ fontSize: 11, color: metric.color, fontFamily: 'serif', opacity: 0.8 }}>{metric.labelAr}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 pt-3" style={{ borderTop: '1px solid #f3f4f6' }}>
+                <div className="d-flex gap-4">
+                  <div>
+                    <div style={{ height: 6, width: 80, backgroundColor: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ width: `${summary.data.tauxPresence}%`, height: '100%', backgroundColor: summary.accent, borderRadius: 3 }} />
+                    </div>
+                    <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 3 }}>Présence {summary.data.tauxPresence}%</div>
+                  </div>
+                  <div>
+                    <div style={{ height: 6, width: 80, backgroundColor: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ width: `${summary.data.tauxMemorisation}%`, height: '100%', backgroundColor: C_PURPLE, borderRadius: 3 }} />
+                    </div>
+                    <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 3 }}>Mémorisation {summary.data.tauxMemorisation}%</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         ))}

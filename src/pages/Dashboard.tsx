@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../Context/AuthContext';
 import { Link } from 'react-router-dom';
@@ -6,6 +6,8 @@ import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell
 } from 'recharts';
+import type { TauxRecouvrementDTO } from '../Types/paiement';
+import type { Annee, Mois } from '../Types/index';
 
 interface Stats {
   totalEleves: number;
@@ -47,6 +49,14 @@ export default function Dashboard() {
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [yearComparisonData, setYearComparisonData] = useState<YearComparisonData[]>([]);
   const [classeData, setClasseData] = useState<ClasseData[]>([]);
+
+  // Taux de recouvrement
+  const [annees, setAnnees] = useState<Annee[]>([]);
+  const [moisList, setMoisList] = useState<Mois[]>([]);
+  const [tauxAnneeId, setTauxAnneeId] = useState('');
+  const [tauxMoisId, setTauxMoisId] = useState('');
+  const [tauxData, setTauxData] = useState<TauxRecouvrementDTO | null>(null);
+  const [loadingTaux, setLoadingTaux] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -164,6 +174,37 @@ export default function Dashboard() {
     fetchStats();
   }, []);
 
+  // Fetch annees + mois pour les sélecteurs taux
+  useEffect(() => {
+    api.get('/annees').then(r => {
+      const sorted = [...r.data].sort((a: Annee, b: Annee) => b.id - a.id);
+      setAnnees(sorted);
+      const actif = sorted.find((a: Annee) => a.actif);
+      if (actif) setTauxAnneeId(String(actif.id));
+    }).catch(() => {});
+    api.get('/mois').then(r => setMoisList(r.data)).catch(() => {});
+  }, []);
+
+  // Fetch taux de recouvrement quand annee ou mois change
+  const fetchTaux = useCallback(async (anneeId: string, moisId: string) => {
+    if (!anneeId) return;
+    setLoadingTaux(true);
+    try {
+      const params = new URLSearchParams({ anneeId });
+      if (moisId) params.append('moisId', moisId);
+      const res = await api.get(`/paiements/taux-recouvrement?${params}`);
+      setTauxData(res.data);
+    } catch {
+      setTauxData(null);
+    } finally {
+      setLoadingTaux(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tauxAnneeId) fetchTaux(tauxAnneeId, tauxMoisId);
+  }, [tauxAnneeId, tauxMoisId, fetchTaux]);
+
   const statCards = [
     { label: 'Total Élèves', value: stats.totalEleves, icon: '🎓' },
     { label: 'Total Parents', value: stats.totalParents, icon: '👨‍👩‍👧' },
@@ -246,6 +287,102 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* Taux de recouvrement */}
+              <div className="row g-3 mb-4">
+                <div className="col-12">
+                  <div className="card border-0 shadow-sm rounded-4 p-4">
+                    <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                      <h6 className="fw-semibold mb-0" style={{ color: '#1a1a1a' }}>
+                        📊 Taux de Recouvrement
+                      </h6>
+                      <div className="d-flex gap-2 align-items-center flex-wrap">
+                        <select value={tauxAnneeId} onChange={e => setTauxAnneeId(e.target.value)}
+                          className="form-select form-select-sm" style={{ borderRadius: 8, fontSize: 12, minWidth: 140, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
+                          <option value="">Toutes les années</option>
+                          {annees.map(a => <option key={a.id} value={a.id}>{a.libelle}{a.actif ? ' ★' : ''}</option>)}
+                        </select>
+                        <select value={tauxMoisId} onChange={e => setTauxMoisId(e.target.value)}
+                          className="form-select form-select-sm" style={{ borderRadius: 8, fontSize: 12, minWidth: 120, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
+                          <option value="">Tous les mois</option>
+                          {moisList.map(m => <option key={m.id} value={m.id}>{m.libelle}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    {loadingTaux ? (
+                      <div className="text-center py-3 text-muted" style={{ fontSize: 13 }}>Chargement...</div>
+                    ) : tauxData ? (
+                      <>
+                        {/* Barre progression */}
+                        <div className="mb-4">
+                          <div className="d-flex justify-content-between mb-1">
+                            <span style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>Taux global</span>
+                            <span style={{ fontSize: 15, fontWeight: 800, color: '#0A6E3F' }}>
+                              {Math.round(tauxData.tauxRecouvrement)}%
+                            </span>
+                          </div>
+                          <div className="rounded-pill overflow-hidden" style={{ height: 14, backgroundColor: '#e5e7eb' }}>
+                            <div className="rounded-pill" style={{
+                              height: '100%',
+                              width: `${Math.min(Math.round(tauxData.tauxRecouvrement), 100)}%`,
+                              background: tauxData.tauxRecouvrement >= 80
+                                ? 'linear-gradient(90deg, #0A6E3F, #16a34a)'
+                                : tauxData.tauxRecouvrement >= 50
+                                  ? 'linear-gradient(90deg, #d97706, #f59e0b)'
+                                  : 'linear-gradient(90deg, #dc2626, #ef4444)',
+                              transition: 'width 0.7s ease',
+                            }} />
+                          </div>
+                        </div>
+
+                        {/* 3 cartes */}
+                        <div className="row g-3 mb-3">
+                          {[
+                            { icon: '👥', label: 'Total inscrits', value: tauxData.totalEleves, bg: '#f3f4f6', color: '#111827' },
+                            { icon: '✅', label: 'Ont payé', value: tauxData.elevesPayes, bg: '#dcfce7', color: '#166534' },
+                            { icon: '❌', label: "N'ont pas payé", value: tauxData.elevesImpaye, bg: '#fee2e2', color: '#dc2626' },
+                          ].map((c, i) => (
+                            <div key={i} className="col-4">
+                              <div className="rounded-3 p-3 text-center" style={{ backgroundColor: c.bg }}>
+                                <div style={{ fontSize: 22 }}>{c.icon}</div>
+                                <div className="fw-bold" style={{ fontSize: 20, color: c.color }}>{c.value}</div>
+                                <div style={{ fontSize: 11, color: '#6b7280' }}>{c.label}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Montants */}
+                        <div className="d-flex gap-3 flex-wrap">
+                          <div className="flex-fill rounded-3 p-3" style={{ backgroundColor: '#f3f4f6' }}>
+                            <div style={{ fontSize: 11, color: '#9ca3af' }}>Montant attendu</div>
+                            <div className="fw-bold" style={{ fontSize: 16, color: '#374151' }}>
+                              {tauxData.montantAttendu.toLocaleString('fr-FR')} FCFA
+                            </div>
+                          </div>
+                          <div className="flex-fill rounded-3 p-3" style={{ backgroundColor: '#dcfce7' }}>
+                            <div style={{ fontSize: 11, color: '#9ca3af' }}>Montant reçu</div>
+                            <div className="fw-bold" style={{ fontSize: 16, color: '#166534' }}>
+                              {tauxData.montantRecu.toLocaleString('fr-FR')} FCFA
+                            </div>
+                          </div>
+                          <div className="flex-fill rounded-3 p-3" style={{ backgroundColor: '#fee2e2' }}>
+                            <div style={{ fontSize: 11, color: '#9ca3af' }}>Reste à encaisser</div>
+                            <div className="fw-bold" style={{ fontSize: 16, color: '#dc2626' }}>
+                              {(tauxData.montantAttendu - tauxData.montantRecu).toLocaleString('fr-FR')} FCFA
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-4 text-muted" style={{ fontSize: 13 }}>
+                        Sélectionnez une année pour afficher le taux de recouvrement.
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Graphiques */}

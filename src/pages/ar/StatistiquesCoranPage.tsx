@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import type { Classe } from '../../Types/index';
+import type { RapportCoranResponse } from '../../Types/coran';
 import coranService from '../../services/coranService';
 import { SkeletonTable } from '../../components/Common/SkeletonLoader';
 import toast from 'react-hot-toast';
@@ -13,6 +14,7 @@ export default function StatistiquesCoranPage() {
   const [endDate, setEndDate] = useState('');
   const [classes, setClasses] = useState<Classe[]>([]);
   const [stats, setStats] = useState<any>(null);
+  const [rapport, setRapport] = useState<RapportCoranResponse | null>(null);
   const [revisions, setRevisions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingRevisions, setLoadingRevisions] = useState(false);
@@ -23,7 +25,9 @@ export default function StatistiquesCoranPage() {
   useEffect(() => {
     fetchClasses();
     const today = new Date().toISOString().split('T')[0];
-    setStartDate(today);
+    const monthAgo = new Date();
+    monthAgo.setDate(monthAgo.getDate() - 30);
+    setStartDate(monthAgo.toISOString().split('T')[0]);
     setEndDate(today);
   }, []);
 
@@ -50,8 +54,12 @@ export default function StatistiquesCoranPage() {
     if (!selectedClasse) return;
     setLoading(true);
     try {
-      const res = await coranService.getStatistiquesClasse(Number(selectedClasse), startDate, endDate);
-      setStats(res);
+      const [statsRes, rapportRes] = await Promise.all([
+        coranService.getStatistiquesClasse(Number(selectedClasse), startDate, endDate),
+        coranService.getRapport(Number(selectedClasse), startDate, endDate),
+      ]);
+      setStats(statsRes);
+      setRapport(rapportRes);
     } catch (err) {
       console.error(err);
       toast.error('Erreur lors du chargement des statistiques');
@@ -111,7 +119,7 @@ export default function StatistiquesCoranPage() {
     souratesCount: e.sourates.size,
   })).sort((a: any, b: any) => b.count - a.count);
 
-  const sortedEleves = stats?.eleveStats ? [...stats.eleveStats].sort((a: any, b: any) => {
+  const sortedEleves = rapport?.eleves ? [...rapport.eleves].sort((a: any, b: any) => {
     let comparison = 0;
     if (sortField === 'nom') {
       comparison = a.nom.localeCompare(b.nom);
@@ -256,13 +264,13 @@ export default function StatistiquesCoranPage() {
                 <div className="col-12 col-md-6 col-lg-3">
                   <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
                     <div className="text-muted mb-2" style={{ fontSize: 13 }}>Total des élèves</div>
-                    <div className="fw-bold" style={{ fontSize: 28, color: '#111827' }}>{stats.totalEleves || 0}</div>
+                    <div className="fw-bold" style={{ fontSize: 28, color: '#111827' }}>{stats.nombreTotalEleves || 0}</div>
                   </div>
                 </div>
                 <div className="col-12 col-md-6 col-lg-3">
                   <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
                     <div className="text-muted mb-2" style={{ fontSize: 13 }}>Taux de présence moyen</div>
-                    <div className="fw-bold" style={{ fontSize: 28, color: '#111827' }}>{stats.tauxPresenceMoyen ? `${stats.tauxPresenceMoyen}%` : '0%'}</div>
+                    <div className="fw-bold" style={{ fontSize: 28, color: '#111827' }}>{stats.tauxPresenceMoyen ? `${Math.min(Math.round(stats.tauxPresenceMoyen), 100)}%` : '0%'}</div>
                   </div>
                 </div>
                 <div className="col-12 col-md-6 col-lg-3">
@@ -314,7 +322,7 @@ export default function StatistiquesCoranPage() {
                           </tr>
                         ) : (
                           sortedEleves.map((eleve: any) => (
-                            <tr key={eleve.id}>
+                            <tr key={eleve.eleveId}>
                               <td className="py-3 px-3">
                                 <div className="d-flex flex-column">
                                   <span className="fw-semibold">{eleve.nomArabe || eleve.nom}</span>
@@ -324,9 +332,9 @@ export default function StatistiquesCoranPage() {
                               <td className="py-3 px-3">
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                   <div style={{ flex: 1, height: 8, backgroundColor: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
-                                    <div style={{ width: `${eleve.tauxPresence}%`, height: '100%', backgroundColor: '#0A6E3F', borderRadius: 4 }} />
+                                    <div style={{ width: `${Math.min(eleve.tauxPresence, 100)}%`, height: '100%', backgroundColor: '#0A6E3F', borderRadius: 4 }} />
                                   </div>
-                                  <span style={{ fontSize: 12, minWidth: 40 }}>{eleve.tauxPresence}%</span>
+                                  <span style={{ fontSize: 12, minWidth: 40 }}>{Math.min(Math.round(eleve.tauxPresence), 100)}%</span>
                                 </div>
                               </td>
                               <td className="py-3 px-3">{eleve.memorises || 0}</td>
@@ -334,9 +342,9 @@ export default function StatistiquesCoranPage() {
                               <td className="py-3 px-3">
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                   <div style={{ flex: 1, height: 8, backgroundColor: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
-                                    <div style={{ width: `${eleve.tauxMemorisation}%`, height: '100%', backgroundColor: '#0A6E3F', borderRadius: 4 }} />
+                                    <div style={{ width: `${Math.min(eleve.tauxMemorisation, 100)}%`, height: '100%', backgroundColor: '#0A6E3F', borderRadius: 4 }} />
                                   </div>
-                                  <span style={{ fontSize: 12, minWidth: 40 }}>{eleve.tauxMemorisation}%</span>
+                                  <span style={{ fontSize: 12, minWidth: 40 }}>{Math.min(Math.round(eleve.tauxMemorisation), 100)}%</span>
                                 </div>
                               </td>
                             </tr>

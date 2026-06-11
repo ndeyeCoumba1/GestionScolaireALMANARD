@@ -117,6 +117,7 @@ export interface EleveRecitationResponse {
   matricule: string;
   groupeNiveau: string;
   versetJourId?: number;
+  sourateNumero?: number;
   sourateNom?: string;
   sourateNomArabe?: string;
   versetDebut?: number;
@@ -172,6 +173,47 @@ export interface SeanceRevisionRequest {
   versetRevisionDebut: number;
   versetRevisionFin: number;
   commentaire?: string;
+}
+
+export interface RapportLigneEleve {
+  eleveId: number;
+  nom: string;
+  prenom: string;
+  nomArabe?: string;
+  prenomArabe?: string;
+  matricule: string;
+  totalSeances: number;
+  presents: number;
+  absents: number;
+  tauxPresence: number;
+  memorises: number;
+  partiels: number;
+  tauxMemorisation: number;
+  niveau: string;
+  sourateNomArabe?: string;
+  sourateNom?: string;
+  versetTlatwaDebut?: number;
+  versetTlatwaFin?: number;
+  versetRevisionDebut?: number;
+  versetRevisionFin?: number;
+  enseignantNom?: string;
+  commentaire?: string;
+}
+
+export interface RapportCoranResponse {
+  classeId: number;
+  classeNom: string;
+  enseignantClasse: string;
+  dateDebut: string;
+  dateFin: string;
+  totalSeances: number;
+  totalPresents: number;
+  totalAbsents: number;
+  totalMemorises: number;
+  totalPartiels: number;
+  tauxPresenceMoyen: number;
+  tauxMemorisationMoyen: number;
+  eleves: RapportLigneEleve[];
 }
 
 export interface SeanceRevisionResponse {

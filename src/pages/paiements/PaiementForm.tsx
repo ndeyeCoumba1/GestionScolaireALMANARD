@@ -152,6 +152,7 @@ export default function PaiementForm({ onClose, paiementId }: PaiementFormProps)
                 className="form-select" style={inputStyle}>
                 <option value="MENSUALITE">Mensualité</option>
                 <option value="INSCRIPTION">Inscription</option>
+                <option value="REMBOURSEMENT">Remboursement</option>
               </select>
             </div>
 

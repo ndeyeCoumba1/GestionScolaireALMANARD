@@ -56,10 +56,8 @@ export default function ArLoginPage() {
         localStorage.setItem('portail', 'AR');
       }
       
-      // Redirection selon le rôle
-      const destination = res.data.role === 'RECITATEUR' ? '/ar/seance' : '/ar/dashboard';
-      console.log('Redirection vers', destination);
-      window.location.href = destination;
+      console.log('Redirection vers /ar/dashboard');
+      window.location.href = '/ar/dashboard';
       
     } catch (err: any) {
       console.error('Erreur:', err);

@@ -32,6 +32,8 @@ export default function RevisionCoranPage() {
   const [saveResult, setSaveResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [dernieresRevisions, setDernieresRevisions] = useState<SeanceRevisionResponse[]>([]);
   const [historique, setHistorique] = useState<SeanceRevisionResponse[]>([]);
+  const [recentesSeances, setRecentesSeances] = useState<any[]>([]);
+  const [loadingRecentes, setLoadingRecentes] = useState(false);
   const [loadingHisto, setLoadingHisto] = useState(false);
   const [histoDateDebut, setHistoDateDebut] = useState('');
   const [histoDateFin, setHistoDateFin] = useState('');
@@ -40,6 +42,49 @@ export default function RevisionCoranPage() {
     fetchClasses();
     fetchEnseignants();
   }, []);
+
+  // Charger les 5 dernières séances dès que les classes sont disponibles
+  useEffect(() => {
+    if (classes.length > 0) fetchRecentesSeances();
+  }, [classes]); // eslint-disable-line
+
+  const fetchRecentesSeances = async () => {
+    setLoadingRecentes(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const dateDebut = weekAgo.toISOString().split('T')[0];
+
+      const results = await Promise.allSettled(
+        classes.map(c => coranService.getRevisionsByClasse(c.id, dateDebut, today))
+      );
+      const all: SeanceRevisionResponse[] = results
+        .filter(r => r.status === 'fulfilled')
+        .flatMap(r => (r as PromiseFulfilledResult<SeanceRevisionResponse[]>).value);
+
+      // Grouper par date + classeId + enseignantId + numeroSeance
+      const map = new Map<string, { date: string; classeNiveau: string; enseignantNom: string; numeroSeance: number; count: number }>();
+      all.forEach(rv => {
+        const num = rv.numeroSeance ?? 1;
+        const key = `${rv.date}_${rv.classeId}_${rv.enseignantId}_${num}`;
+        if (!map.has(key)) {
+          map.set(key, { date: rv.date, classeNiveau: rv.classeNiveau, enseignantNom: rv.enseignantNom, numeroSeance: num, count: 0 });
+        }
+        map.get(key)!.count++;
+      });
+
+      const seances = Array.from(map.values())
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 5);
+
+      setRecentesSeances(seances);
+    } catch {
+      // silently ignore
+    } finally {
+      setLoadingRecentes(false);
+    }
+  };
 
   useEffect(() => {
     if (selectedClasse) fetchEleves(Number(selectedClasse));
@@ -155,6 +200,7 @@ export default function RevisionCoranPage() {
     if (errCount === 0) {
       setSaveResult({ type: 'success', message: `${presents.length} révision(s) enregistrée(s) avec succès !` });
       setDernieresRevisions(savedRevisions);
+      fetchRecentesSeances();
       setSelectedClasse('');
       setEleves([]);
     } else {
@@ -600,6 +646,78 @@ export default function RevisionCoranPage() {
           </div>
         </div>
       )}
+
+      {/* ── 5 dernières séances de révision ── */}
+      <div className="rounded-4 overflow-hidden" style={{ border: '1px solid #dbeafe', boxShadow: '0 2px 12px rgba(37,99,235,0.06)' }}>
+        <div className="p-3 d-flex align-items-center justify-content-between" style={{ background: 'linear-gradient(90deg, #eff6ff 0%, #ffffff 100%)', borderBottom: '1px solid #dbeafe' }}>
+          <div className="d-flex align-items-center gap-2">
+            <div style={{ width: 4, height: 18, backgroundColor: '#2563eb', borderRadius: 2 }} />
+            <span className="fw-bold" style={{ fontSize: 14, color: '#1d4ed8' }}>🕐 Dernières séances de révision</span>
+            <span className="badge rounded-pill" style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', fontSize: 11, fontWeight: 600 }}>
+              {loadingRecentes ? '...' : `${recentesSeances.length} séance(s)`}
+            </span>
+          </div>
+          <button
+            onClick={fetchRecentesSeances}
+            className="btn btn-sm fw-medium d-flex align-items-center gap-1"
+            style={{ fontSize: 12, color: '#2563eb', backgroundColor: 'transparent', border: '1px solid #bfdbfe', borderRadius: 8 }}
+          >
+            🔄 Actualiser
+          </button>
+        </div>
+
+        {loadingRecentes ? (
+          <div className="p-4 text-center text-muted" style={{ fontSize: 13 }}>
+            <span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14, borderWidth: 2 }} />
+            Chargement...
+          </div>
+        ) : recentesSeances.length === 0 ? (
+          <div className="p-4 text-center text-muted" style={{ fontSize: 13 }}>
+            Aucune séance de révision ces 7 derniers jours
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="table table-hover mb-0" style={{ fontSize: 13 }}>
+              <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                <tr>
+                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Date</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Classe</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>N° Séance</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Récitateur</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>Élèves révisés</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentesSeances.map((s, idx) => (
+                  <tr key={idx}>
+                    <td className="py-2 px-3 fw-semibold" style={{ verticalAlign: 'middle', color: '#111827' }}>
+                      {new Date(s.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </td>
+                    <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
+                      <span className="badge rounded-pill" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 600 }}>
+                        {s.classeNiveau}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
+                      <span className="badge rounded-pill" style={{ backgroundColor: '#f0fdf4', color: '#15803d', fontSize: 11, fontWeight: 600 }}>
+                        Séance {s.numeroSeance}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3" style={{ verticalAlign: 'middle', color: '#374151', fontWeight: 500 }}>
+                      🎧 {s.enseignantNom}
+                    </td>
+                    <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
+                      <span className="badge" style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', fontWeight: 700 }}>
+                        {s.count} élève(s)
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* ========== TAB HISTORIQUE ========== */}
       {activeTab === 'historique' && (

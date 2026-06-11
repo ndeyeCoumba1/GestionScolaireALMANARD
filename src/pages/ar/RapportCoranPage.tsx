@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../../api/axios';
 import type { Classe } from '../../Types/index';
-import type { SeanceResponse, SeanceRevisionResponse } from '../../Types/coran';
+import type { RapportCoranResponse, RapportLigneEleve } from '../../Types/coran';
 import coranService from '../../services/coranService';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../Context/AuthContext';
@@ -9,6 +9,19 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 type PeriodeType = 'journalier' | 'hebdomadaire' | 'mensuel';
+
+interface RecentReport {
+  id: string;
+  classeId: number;
+  classeNom: string;
+  periode: PeriodeType;
+  dateDebut: string;
+  dateFin: string;
+  periodLabel: string;
+  totalSeances: number;
+  totalEleves: number;
+  generatedAt: string;
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -44,93 +57,24 @@ function frWeek(date: string) {
   return `${frDate(debut)} – ${frDate(fin)}`;
 }
 
-// Aggregate per student across séances
-interface StudentRow {
-  id: number;
-  nom: string;
-  prenom: string;
-  matricule: string;
-  totalSeances: number;
-  presents: number;
-  memorises: number;
-  partiels: number;
-  absents: number;
-  sourates: string[];
-  commentaires: string[];
-  reciteurs: string[];
-  enseignants: string[];
-  versetTlatwaDebut?: number;
-  versetTlatwaFin?: number;
-}
-
-function buildStudentRows(seances: SeanceResponse[]): StudentRow[] {
-  const map = new Map<number, StudentRow>();
-  seances.forEach((s) => {
-    s.recitations?.forEach((r: any) => {
-      if (!map.has(r.eleveId)) {
-        map.set(r.eleveId, {
-          id: r.eleveId,
-          nom: r.eleveNom || '',
-          prenom: r.elevePrenom || '',
-          matricule: r.matricule || '',
-          totalSeances: 0,
-          presents: 0,
-          memorises: 0,
-          partiels: 0,
-          absents: 0,
-          sourates: [],
-          commentaires: [],
-          reciteurs: [],
-          enseignants: [],
-        });
-      }
-      const row = map.get(r.eleveId)!;
-      row.totalSeances++;
-      if (r.present) {
-        row.presents++;
-        if (r.niveauMemorisation === 'MEMORISE') row.memorises++;
-        else if (r.niveauMemorisation === 'PARTIEL') row.partiels++;
-        // Sourate et versets depuis la récitation de l'élève (pas depuis versets séance)
-        const sourateLabel = r.sourateNomArabe || r.sourateNom || '';
-        if (sourateLabel && !row.sourates.includes(sourateLabel)) row.sourates.push(sourateLabel);
-        if (r.versetDebut) row.versetTlatwaDebut = r.versetDebut;
-        if (r.versetFin) row.versetTlatwaFin = r.versetFin;
-      } else {
-        row.absents++;
-      }
-      if (r.commentaire) row.commentaires.push(r.commentaire);
-      // المسمع = récitateur de la séance
-      const recNom = s.enseignantNom || '';
-      if (recNom && !row.reciteurs.includes(recNom)) row.reciteurs.push(recNom);
-      if (recNom && !row.enseignants.includes(recNom)) row.enseignants.push(recNom);
-    });
-  });
-  return Array.from(map.values()).sort((a, b) =>
-    `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`)
-  );
-}
-
 // ─── PrintableTable ──────────────────────────────────────────────────────────
 
 interface PrintableTableProps {
   titre: string;
-  periode: string;
   classeNom: string;
-  seances: SeanceResponse[];
-  students: StudentRow[];
-  revisions: SeanceRevisionResponse[];
+  totalSeances: number;
+  eleves: RapportLigneEleve[];
   enseignantClasse: string;
   periodLabel: string;
   logoDataUrl?: string;
 }
 
 const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
-  ({ titre, classeNom, seances, students, revisions, enseignantClasse, periodLabel, logoDataUrl }, ref) => {
-    const totalPresents = students.reduce((a, s) => a + s.presents, 0);
-    const totalAbsents = students.reduce((a, s) => a + s.absents, 0);
-    const totalMemo = students.reduce((a, s) => a + s.memorises, 0);
-    const totalPartiel = students.reduce((a, s) => a + s.partiels, 0);
-    const totalSeances = seances.length;
+  ({ titre, classeNom, totalSeances, eleves, enseignantClasse, periodLabel, logoDataUrl }, ref) => {
+    const totalPresents = eleves.reduce((a, e) => a + e.presents, 0);
+    const totalAbsents  = eleves.reduce((a, e) => a + e.absents, 0);
+    const totalMemo     = eleves.reduce((a, e) => a + e.memorises, 0);
+    const totalPartiel  = eleves.reduce((a, e) => a + e.partiels, 0);
 
     return (
       <div
@@ -148,15 +92,9 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
       >
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12, borderBottom: '2px solid #0A6E3F', paddingBottom: 10 }}>
-          {/* Logo */}
           {logoDataUrl && (
-            <img
-              src={logoDataUrl}
-              alt="Logo"
-              style={{ width: 64, height: 64, objectFit: 'contain', flexShrink: 0, borderRadius: 8 }}
-            />
+            <img src={logoDataUrl} alt="Logo" style={{ width: 64, height: 64, objectFit: 'contain', flexShrink: 0, borderRadius: 8 }} />
           )}
-          {/* Titre centré */}
           <div style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ fontSize: 18, fontWeight: 'bold', color: '#0A6E3F' }}>مدرسة المنارد الثالثة الإسلامية</div>
             <div style={{ fontSize: 14, fontWeight: 'bold', marginTop: 4 }}>{titre}</div>
@@ -168,25 +106,13 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
               عدد الجلسات: <strong>{totalSeances}</strong>
             </div>
           </div>
-          {/* Logo (côté gauche pour symétrie) */}
           {logoDataUrl && (
-            <img
-              src={logoDataUrl}
-              alt="Logo"
-              style={{ width: 64, height: 64, objectFit: 'contain', flexShrink: 0, borderRadius: 8, opacity: 0.3 }}
-            />
+            <img src={logoDataUrl} alt="Logo" style={{ width: 64, height: 64, objectFit: 'contain', flexShrink: 0, borderRadius: 8, opacity: 0.3 }} />
           )}
         </div>
 
         {/* Main table */}
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            fontSize: 11,
-            direction: 'rtl',
-          }}
-        >
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, direction: 'rtl' }}>
           <thead>
             <tr style={{ backgroundColor: '#0A6E3F', color: '#fff' }}>
               <th style={{ ...th, minWidth: 90 }}>رقم التعريف</th>
@@ -209,55 +135,50 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
             </tr>
           </thead>
           <tbody>
-            {students.map((s, i) => {
-              const tauxPresence = s.totalSeances > 0 ? Math.round((s.presents / s.totalSeances) * 100) : 0;
-              const tauxMemo = s.presents > 0 ? Math.round(((s.memorises + s.partiels * 0.5) / s.presents) * 100) : 0;
-              const niveau = tauxMemo >= 80 ? 'ممتاز' : tauxMemo >= 60 ? 'جيد' : tauxMemo >= 40 ? 'متوسط' : 'ضعيف';
-              const niveauColor = tauxMemo >= 80 ? '#0A6E3F' : tauxMemo >= 60 ? '#1d4ed8' : tauxMemo >= 40 ? '#d97706' : '#dc2626';
+            {eleves.map((e, i) => {
+              const niveauColor = e.tauxMemorisation >= 80 ? '#0A6E3F'
+                : e.tauxMemorisation >= 60 ? '#1d4ed8'
+                : e.tauxMemorisation >= 40 ? '#d97706'
+                : '#dc2626';
               const bg = i % 2 === 0 ? '#fff' : '#f9fafb';
 
-              // Dernière révision de cet élève sur la période
-              const eleveRevisions = revisions.filter(rv => rv.eleveId === s.id);
-              const lastRev = eleveRevisions.at(-1);
-
               return (
-                <tr key={s.id} style={{ backgroundColor: bg }}>
-                  <td style={{ ...td, fontFamily: 'monospace', fontSize: 10, color: '#6b7280' }}>{s.matricule || '—'}</td>
-                  <td style={{ ...td, fontWeight: 600, textAlign: 'right' }}>{s.prenom} {s.nom}</td>
-                  <td style={td}>{s.sourates[0] || '—'}</td>
-                  <td style={td}>{s.versetTlatwaDebut || '—'}</td>
-                  <td style={td}>{s.versetTlatwaFin || '—'}</td>
-                  <td style={{ ...td, color: '#7c3aed', fontWeight: 600 }}>{lastRev?.versetRevisionDebut ?? '—'}</td>
-                  <td style={{ ...td, color: '#7c3aed', fontWeight: 600 }}>{lastRev?.versetRevisionFin ?? '—'}</td>
-                  <td style={{ ...td, color: '#1d4ed8', fontWeight: 600 }}>{s.presents}</td>
-                  <td style={{ ...td, color: '#dc2626', fontWeight: 600 }}>{s.absents}</td>
+                <tr key={e.eleveId} style={{ backgroundColor: bg }}>
+                  <td style={{ ...td, fontFamily: 'monospace', fontSize: 10, color: '#6b7280' }}>{e.matricule || '—'}</td>
+                  <td style={{ ...td, fontWeight: 600, textAlign: 'right' }}>{e.prenom} {e.nom}</td>
+                  <td style={td}>{e.sourateNomArabe || e.sourateNom || '—'}</td>
+                  <td style={td}>{e.versetTlatwaDebut ?? '—'}</td>
+                  <td style={td}>{e.versetTlatwaFin ?? '—'}</td>
+                  <td style={{ ...td, color: '#7c3aed', fontWeight: 600 }}>{e.versetRevisionDebut ?? '—'}</td>
+                  <td style={{ ...td, color: '#7c3aed', fontWeight: 600 }}>{e.versetRevisionFin ?? '—'}</td>
+                  <td style={{ ...td, color: '#1d4ed8', fontWeight: 600 }}>{e.presents}</td>
+                  <td style={{ ...td, color: '#dc2626', fontWeight: 600 }}>{e.absents}</td>
                   <td style={td}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
                       <div style={{ width: 40, height: 6, backgroundColor: '#e5e7eb', borderRadius: 99, overflow: 'hidden' }}>
-                        <div style={{ width: `${tauxPresence}%`, height: '100%', backgroundColor: '#1d4ed8', borderRadius: 99 }} />
+                        <div style={{ width: `${e.tauxPresence}%`, height: '100%', backgroundColor: '#1d4ed8', borderRadius: 99 }} />
                       </div>
-                      <span style={{ fontSize: 10, color: '#1d4ed8', fontWeight: 600 }}>{tauxPresence}%</span>
+                      <span style={{ fontSize: 10, color: '#1d4ed8', fontWeight: 600 }}>{e.tauxPresence}%</span>
                     </div>
                   </td>
-                  <td style={{ ...td, color: '#0A6E3F', fontWeight: 600 }}>{s.memorises}</td>
-                  <td style={{ ...td, color: '#d97706', fontWeight: 600 }}>{s.partiels}</td>
+                  <td style={{ ...td, color: '#0A6E3F', fontWeight: 600 }}>{e.memorises}</td>
+                  <td style={{ ...td, color: '#d97706', fontWeight: 600 }}>{e.partiels}</td>
                   <td style={td}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
                       <div style={{ width: 40, height: 6, backgroundColor: '#e5e7eb', borderRadius: 99, overflow: 'hidden' }}>
-                        <div style={{ width: `${tauxMemo}%`, height: '100%', backgroundColor: '#0A6E3F', borderRadius: 99 }} />
+                        <div style={{ width: `${e.tauxMemorisation}%`, height: '100%', backgroundColor: '#0A6E3F', borderRadius: 99 }} />
                       </div>
-                      <span style={{ fontSize: 10, color: '#0A6E3F', fontWeight: 600 }}>{tauxMemo}%</span>
+                      <span style={{ fontSize: 10, color: '#0A6E3F', fontWeight: 600 }}>{e.tauxMemorisation}%</span>
                     </div>
                   </td>
-                  <td style={{ ...td, fontWeight: 600, color: niveauColor }}>{niveau}</td>
-                  <td style={{ ...td, fontSize: 10, color: '#0A6E3F', fontWeight: 600 }}>{s.enseignants.join('، ') || '—'}</td>
+                  <td style={{ ...td, fontWeight: 600, color: niveauColor }}>{e.niveau}</td>
+                  <td style={{ ...td, fontSize: 10, color: '#0A6E3F', fontWeight: 600 }}>{e.enseignantNom || '—'}</td>
                   <td style={{ ...td, fontSize: 10, color: '#1d4ed8', fontWeight: 600 }}>{enseignantClasse || '—'}</td>
-                  <td style={{ ...td, fontSize: 9, color: '#6b7280' }}>{s.commentaires.slice(0, 2).join('، ') || '—'}</td>
+                  <td style={{ ...td, fontSize: 9, color: '#6b7280' }}>{e.commentaire || '—'}</td>
                 </tr>
               );
             })}
           </tbody>
-          {/* Totals row */}
           <tfoot>
             <tr style={{ backgroundColor: '#e8f5e9', fontWeight: 700, borderTop: '2px solid #0A6E3F' }}>
               <td style={td} colSpan={2}>المجموع</td>
@@ -265,12 +186,12 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
               <td style={{ ...td, color: '#1d4ed8' }}>{totalPresents}</td>
               <td style={{ ...td, color: '#dc2626' }}>{totalAbsents}</td>
               <td style={td}>
-                {students.length > 0 ? Math.round((totalPresents / (totalPresents + totalAbsents)) * 100) : 0}%
+                {totalPresents + totalAbsents > 0 ? Math.round(totalPresents / (totalPresents + totalAbsents) * 100) : 0}%
               </td>
               <td style={{ ...td, color: '#0A6E3F' }}>{totalMemo}</td>
               <td style={{ ...td, color: '#d97706' }}>{totalPartiel}</td>
               <td style={td}>
-                {totalPresents > 0 ? Math.round(((totalMemo + totalPartiel * 0.5) / totalPresents) * 100) : 0}%
+                {totalPresents > 0 ? Math.round((totalMemo + totalPartiel * 0.5) / totalPresents * 100) : 0}%
               </td>
               <td style={td} colSpan={4}></td>
             </tr>
@@ -313,16 +234,19 @@ export default function RapportCoranPage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [classes, setClasses] = useState<Classe[]>([]);
-  const [seances, setSeances] = useState<SeanceResponse[]>([]);
-  const [revisions, setRevisions] = useState<SeanceRevisionResponse[]>([]);
+  const [enseignants, setEnseignants] = useState<any[]>([]);
+  const [rapport, setRapport] = useState<RapportCoranResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [logoDataUrl, setLogoDataUrl] = useState<string>('');
+  const [recentReports, setRecentReports] = useState<RecentReport[]>([]);
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.get('/classes').then(r => setClasses(r.data)).catch(console.error);
-    // Charge le logo en base64 pour html2canvas
+    api.get('/users/enseignants').then(r => setEnseignants(r.data)).catch(() => {});
+    const saved = JSON.parse(localStorage.getItem('recentReports') || '[]');
+    setRecentReports(saved);
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -344,33 +268,66 @@ export default function RapportCoranPage() {
     return getMonthBounds(selectedMonth);
   }, [periode, selectedDate, selectedMonth]);
 
+  const saveToRecents = useCallback((res: RapportCoranResponse, debut: string, fin: string, label: string) => {
+    const entry: RecentReport = {
+      id: `${Date.now()}`,
+      classeId: res.classeId,
+      classeNom: res.classeNom,
+      periode,
+      dateDebut: debut,
+      dateFin: fin,
+      periodLabel: label,
+      totalSeances: res.totalSeances,
+      totalEleves: res.eleves.length,
+      generatedAt: new Date().toISOString(),
+    };
+    const existing: RecentReport[] = JSON.parse(localStorage.getItem('recentReports') || '[]');
+    const filtered = existing.filter(r => !(r.classeId === entry.classeId && r.dateDebut === entry.dateDebut && r.dateFin === entry.dateFin));
+    const updated = [entry, ...filtered].slice(0, 5);
+    localStorage.setItem('recentReports', JSON.stringify(updated));
+    setRecentReports(updated);
+  }, [periode]);
+
+  const loadRecent = (r: RecentReport) => {
+    setSelectedClasse(r.classeId);
+    setPeriode(r.periode);
+    if (r.periode === 'mensuel') {
+      setSelectedMonth(r.dateDebut.slice(0, 7));
+    } else {
+      setSelectedDate(r.dateDebut);
+    }
+  };
+
   const fetchData = useCallback(async () => {
     if (!selectedClasse) return;
     setLoading(true);
     try {
       const { debut, fin } = getDateBounds();
-      const [seancesRes, revisionsRes] = await Promise.all([
-        coranService.getHistoriqueSeances(Number(selectedClasse), debut, fin),
-        coranService.getRevisionsByClasse(Number(selectedClasse), debut, fin).catch(() => []),
-      ]);
-      setSeances(seancesRes);
-      setRevisions(revisionsRes);
-      if (seancesRes.length === 0) toast('Aucune séance pour cette période', { icon: '📭' });
+      const res = await coranService.getRapport(Number(selectedClasse), debut, fin);
+      setRapport(res);
+      if (res.totalSeances === 0) {
+        toast('Aucune séance pour cette période', { icon: '📭' });
+      } else {
+        const label = periode === 'journalier' ? frDate(debut)
+          : periode === 'hebdomadaire' ? frWeek(debut)
+          : frMonth(debut.slice(0, 7));
+        saveToRecents(res, debut, fin, label);
+      }
     } catch {
       toast.error('Erreur lors du chargement');
     } finally {
       setLoading(false);
     }
-  }, [selectedClasse, getDateBounds]);
+  }, [selectedClasse, getDateBounds, saveToRecents, periode]);
 
   useEffect(() => {
     if (selectedClasse) fetchData();
-    else setSeances([]);
+    else setRapport(null);
   }, [fetchData, selectedClasse]);
 
   const generatePDF = async () => {
     const el = printRef.current;
-    if (!el || students.length === 0) return;
+    if (!el || !rapport || rapport.eleves.length === 0) return;
     setGenerating(true);
     try {
       const canvas = await html2canvas(el, {
@@ -389,7 +346,6 @@ export default function RapportCoranPage() {
       if (pdfH <= ph) {
         pdf.addImage(imgData, 'PNG', 0, 0, pw, pdfH);
       } else {
-        // Multi-page
         let yPos = 0;
         const pageH = (ph * canvas.width) / pw;
         while (yPos < canvas.height) {
@@ -426,18 +382,21 @@ export default function RapportCoranPage() {
     : frMonth(selectedMonth);
 
   const selectedClasseObj = classes.find(c => c.id === selectedClasse);
-  const classeNom = selectedClasseObj?.niveau || '';
-  const enseignantClasse = selectedClasseObj?.enseignant
-    ? `${selectedClasseObj.enseignant.prenom} ${selectedClasseObj.enseignant.nom}`.trim()
-    : '';
-  const students = buildStudentRows(seances);
+  const classeNom = rapport?.classeNom || selectedClasseObj?.niveau || '';
 
-  // Stats
-  const totalPresents = students.reduce((a, s) => a + s.presents, 0);
-  const totalPersonnes = students.reduce((a, s) => a + s.totalSeances, 0);
-  const tauxPresenceMoyen = totalPersonnes > 0 ? Math.round((totalPresents / totalPersonnes) * 100) : 0;
-  const totalMemo = students.reduce((a, s) => a + s.memorises, 0);
-  const tauxMemoMoyen = totalPresents > 0 ? Math.round(((totalMemo + students.reduce((a, s) => a + s.partiels, 0) * 0.5) / totalPresents) * 100) : 0;
+  // Priorité : backend → liste enseignants par enseignantId de la classe
+  const enseignantClasse = (() => {
+    if (rapport?.enseignantClasse) return rapport.enseignantClasse;
+    const eid = selectedClasseObj?.enseignantId;
+    if (eid) {
+      const e = enseignants.find((en: any) => en.id === eid);
+      if (e) return `${e.prenom} ${e.nom}`.trim();
+    }
+    return '';
+  })();
+
+  const eleves = rapport?.eleves ?? [];
+  const hasData = eleves.length > 0;
 
   if (role === 'COMPTABLE') {
     return <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}><div className="text-muted">Accès non autorisé</div></div>;
@@ -461,7 +420,7 @@ export default function RapportCoranPage() {
               <p className="mb-0" style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>Générez et téléchargez les rapports journaliers, hebdomadaires et mensuels</p>
             </div>
           </div>
-          {students.length > 0 && (
+          {hasData && (
             <div className="d-flex gap-2 flex-wrap">
               <button onClick={() => window.print()} className="btn fw-semibold" style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff', borderRadius: 8, fontSize: 13, border: '1px solid rgba(255,255,255,0.3)' }}>
                 🖨️ Imprimer
@@ -482,12 +441,11 @@ export default function RapportCoranPage() {
           <div style={{ width: 4, height: 20, backgroundColor: '#4338ca', borderRadius: 2 }} />
           <span className="fw-semibold" style={{ fontSize: 13, color: '#374151' }}>Période du rapport — فترة التقرير</span>
         </div>
-        {/* Onglets */}
         <div className="d-flex gap-2 mb-4">
           {(['journalier', 'hebdomadaire', 'mensuel'] as PeriodeType[]).map((p) => (
             <button
               key={p}
-              onClick={() => { setPeriode(p); setSeances([]); }}
+              onClick={() => { setPeriode(p); setRapport(null); }}
               className="btn fw-semibold"
               style={{
                 borderRadius: 8, fontSize: 13, padding: '8px 18px',
@@ -535,14 +493,70 @@ export default function RapportCoranPage() {
           </div>
         </div>
 
-        {/* Période affichée */}
         {selectedClasse && (
-          <div className="mt-3 p-2 rounded-3 d-inline-block" style={{ backgroundColor: '#f0fdf4', border: '1px solid #d1fae5', fontSize: 12, color: '#0A6E3F' }}>
-            {periode === 'journalier' ? '📅' : periode === 'hebdomadaire' ? '📆' : '🗓️'}
-            &nbsp;<strong>{classeNom}</strong> — {periodLabel}
+          <div className="mt-3 d-flex flex-wrap gap-2 align-items-center">
+            <div className="p-2 rounded-3 d-inline-block" style={{ backgroundColor: '#f0fdf4', border: '1px solid #d1fae5', fontSize: 12, color: '#0A6E3F' }}>
+              {periode === 'journalier' ? '📅' : periode === 'hebdomadaire' ? '📆' : '🗓️'}
+              &nbsp;<strong>{classeNom}</strong> — {periodLabel}
+            </div>
+            {enseignantClasse && (
+              <div className="p-2 rounded-3 d-inline-block" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 12, color: '#1d4ed8' }}>
+                👨‍🏫 المعلم : <strong>{enseignantClasse}</strong>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Derniers rapports générés */}
+      {recentReports.length > 0 && (
+        <div className="rounded-4 p-4" style={{ backgroundColor: '#ffffff', boxShadow: '0 2px 16px rgba(67,56,202,0.08)', border: '1px solid #e0e7ff' }}>
+          <div className="d-flex align-items-center gap-2 mb-3">
+            <div style={{ width: 4, height: 20, backgroundColor: '#4338ca', borderRadius: 2 }} />
+            <span className="fw-semibold" style={{ fontSize: 13, color: '#374151' }}>Derniers rapports générés — آخر التقارير</span>
+          </div>
+          <div className="d-flex flex-wrap gap-3">
+            {recentReports.map((r) => (
+              <div
+                key={r.id}
+                onClick={() => loadRecent(r)}
+                style={{
+                  cursor: 'pointer',
+                  border: '1px solid #e0e7ff',
+                  borderRadius: 12,
+                  padding: '12px 16px',
+                  backgroundColor: '#f8f7ff',
+                  minWidth: 180,
+                  flex: '1 1 180px',
+                  maxWidth: 240,
+                  transition: 'box-shadow 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(67,56,202,0.15)')}
+                onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
+              >
+                <div className="d-flex align-items-center gap-2 mb-2">
+                  <span style={{ fontSize: 16 }}>
+                    {r.periode === 'journalier' ? '📅' : r.periode === 'hebdomadaire' ? '📆' : '🗓️'}
+                  </span>
+                  <span className="fw-bold" style={{ fontSize: 13, color: '#3730a3' }}>{r.classeNom}</span>
+                </div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>{r.periodLabel}</div>
+                <div className="d-flex gap-2 flex-wrap">
+                  <span className="badge rounded-pill" style={{ backgroundColor: '#e0e7ff', color: '#4338ca', fontSize: 10 }}>
+                    📖 {r.totalSeances} séance{r.totalSeances > 1 ? 's' : ''}
+                  </span>
+                  <span className="badge rounded-pill" style={{ backgroundColor: '#e8f5e9', color: '#0A6E3F', fontSize: 10 }}>
+                    👥 {r.totalEleves} élève{r.totalEleves > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 6 }}>
+                  {new Date(r.generatedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Placeholder */}
       {!selectedClasse && (
@@ -553,7 +567,7 @@ export default function RapportCoranPage() {
         </div>
       )}
 
-      {selectedClasse && !loading && seances.length === 0 && (
+      {selectedClasse && !loading && rapport !== null && eleves.length === 0 && (
         <div className="bg-white rounded-4 shadow-sm p-5 text-center" style={{ border: '1px solid #f0f0f0' }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
           <p className="text-muted mb-0" style={{ fontSize: 13 }}>Aucune séance enregistrée pour cette période</p>
@@ -561,13 +575,13 @@ export default function RapportCoranPage() {
       )}
 
       {/* KPI cards */}
-      {students.length > 0 && (
+      {hasData && rapport && (
         <div className="row g-3">
           {[
-            { label: 'Séances', value: seances.length, color: '#0A6E3F', bg: '#e8f5e9', icon: '📖' },
-            { label: 'Élèves', value: students.length, color: '#7c3aed', bg: '#f5f3ff', icon: '👥' },
-            { label: 'Taux de présence', value: `${tauxPresenceMoyen}%`, color: '#1d4ed8', bg: '#dbeafe', icon: '✅' },
-            { label: 'Taux de mémorisation', value: `${tauxMemoMoyen}%`, color: '#d97706', bg: '#fef3c7', icon: '⭐' },
+            { label: 'Séances', value: rapport.totalSeances, color: '#0A6E3F', bg: '#e8f5e9', icon: '📖' },
+            { label: 'Élèves', value: eleves.length, color: '#7c3aed', bg: '#f5f3ff', icon: '👥' },
+            { label: 'Taux de présence', value: `${rapport.tauxPresenceMoyen}%`, color: '#1d4ed8', bg: '#dbeafe', icon: '✅' },
+            { label: 'Taux de mémorisation', value: `${rapport.tauxMemorisationMoyen}%`, color: '#d97706', bg: '#fef3c7', icon: '⭐' },
           ].map((card) => (
             <div key={card.label} className="col-6 col-md-3">
               <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: `1px solid ${card.color}22` }}>
@@ -580,8 +594,8 @@ export default function RapportCoranPage() {
         </div>
       )}
 
-      {/* ──── PRINTABLE TABLE (visible + used for PDF capture) ──── */}
-      {students.length > 0 && (
+      {/* Printable Table */}
+      {hasData && rapport && (
         <div className="rounded-4 overflow-hidden" style={{ boxShadow: '0 2px 16px rgba(67,56,202,0.08)', border: '1px solid #e0e7ff' }}>
           <div className="p-4 d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(90deg, #eef2ff 0%, #ffffff 100%)', borderBottom: '1px solid #e0e7ff' }}>
             <div className="d-flex align-items-center gap-2">
@@ -591,20 +605,17 @@ export default function RapportCoranPage() {
               </h5>
             </div>
             <span className="badge rounded-pill" style={{ backgroundColor: '#e0e7ff', color: '#4338ca', fontSize: 12 }}>
-              {students.length} élève(s)
+              {eleves.length} élève(s)
             </span>
           </div>
 
-          {/* This div is captured for PDF */}
           <div style={{ overflowX: 'auto', padding: 16 }}>
             <PrintableTable
               ref={printRef}
               titre="قائمة التلاوة"
-              periode={periode}
               classeNom={classeNom}
-              seances={seances}
-              students={students}
-              revisions={revisions}
+              totalSeances={rapport.totalSeances}
+              eleves={eleves}
               enseignantClasse={enseignantClasse}
               periodLabel={periodLabel}
               logoDataUrl={logoDataUrl}
@@ -613,7 +624,6 @@ export default function RapportCoranPage() {
         </div>
       )}
 
-      {/* Print CSS */}
       <style>{`
         @media print {
           body * { visibility: hidden; }

@@ -16,6 +16,9 @@ import AnneeList from './pages/Annees/AnneeList';
 import AnneeForm from './pages/Annees/AnneeForm';
 import PaiementList from './pages/paiements/PaiementList';
 import PaiementForm from './pages/paiements/PaiementForm';
+import SituationInscriptionPage from './pages/paiements/SituationInscriptionPage';
+import SituationAnnuellePage from './pages/paiements/SituationAnnuellePage';
+import ElevesImpayesPage from './pages/paiements/ElevesImpayesPage';
 import InscriptionList from './pages/inscriptions/InscriptionList';
 import DepenseList from './pages/depenses/DepenseList';
 import DepenseForm from './pages/depenses/DepenseForm';
@@ -193,6 +196,9 @@ export default function App() {
             <Route path="inscriptions" element={<InscriptionList />} />
             <Route path="paiements" element={<PaiementList />} />
             <Route path="paiements/nouveau" element={<PaiementFormWrapper />} />
+            <Route path="paiements/situation-inscription" element={<SituationInscriptionPage />} />
+            <Route path="paiements/situation-annuelle" element={<SituationAnnuellePage />} />
+            <Route path="paiements/impayés" element={<ElevesImpayesPage />} />
             <Route path="mois" element={<MoisList />} />
             <Route path="depenses" element={<DepenseList />} />
             <Route path="depenses/nouvelle" element={<DepenseFormWrapper />} />

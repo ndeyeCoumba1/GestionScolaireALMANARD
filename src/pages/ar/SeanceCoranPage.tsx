@@ -28,6 +28,8 @@ export default function SeanceCoranPage() {
   const [dernieresRecitations, setDernieresRecitations] = useState<any[]>([]);
   const [derniereDateSeance, setDerniereDateSeance] = useState<string>('');
   const [dernierNumeroSeance, setDernierNumeroSeance] = useState<number>(1);
+  const [dernieresSeances, setDernieresSeances] = useState<any[]>([]);
+  const [loadingDernieres, setLoadingDernieres] = useState(false);
 
   const elevesForSeance = useMemo(
     () => eleves.map((e) => ({ id: e.id, groupeNiveau: e.classeNiveau || 'A' })),
@@ -50,6 +52,36 @@ export default function SeanceCoranPage() {
     fetchEnseignants();
     fetchTeachers();
   }, []);
+
+  // Charger les 5 dernières séances dès que les classes sont disponibles
+  useEffect(() => {
+    if (classes.length > 0) fetchDernieresSeances();
+  }, [classes]); // eslint-disable-line
+
+  const fetchDernieresSeances = async () => {
+    setLoadingDernieres(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const monthAgo = new Date();
+      monthAgo.setDate(monthAgo.getDate() - 30);
+      const dateDebut = monthAgo.toISOString().split('T')[0];
+
+      const results = await Promise.allSettled(
+        classes.map(c =>
+          api.get(`/coran/seances/historique?classeId=${c.id}&dateDebut=${dateDebut}&dateFin=${today}`)
+        )
+      );
+      const seances: any[] = results
+        .filter(r => r.status === 'fulfilled')
+        .flatMap(r => (r as PromiseFulfilledResult<any>).value.data ?? []);
+      seances.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setDernieresSeances(seances.slice(0, 5));
+    } catch {
+      // silently ignore
+    } finally {
+      setLoadingDernieres(false);
+    }
+  };
 
   useEffect(() => {
     if (selectedClasse) {
@@ -199,6 +231,7 @@ export default function SeanceCoranPage() {
         : (userId ?? 0);
       const seanceResponse = await sauvegarderSeance(date, Number(selectedClasse), enseignantId, numeroSeance, verifierRevision);
       setSaveResult({ type: 'success', message: 'Séance enregistrée avec succès !' });
+      fetchDernieresSeances();
       if (seanceResponse?.recitations) {
         setDernieresRecitations(seanceResponse.recitations);
         setDerniereDateSeance(seanceResponse.date);
@@ -614,6 +647,94 @@ export default function SeanceCoranPage() {
           </div>
         </div>
       )}
+
+      {/* ── 5 dernières séances enregistrées ── */}
+      <div className="rounded-4 overflow-hidden" style={{ border: '1px solid #e8f5e9', boxShadow: '0 2px 12px rgba(10,110,63,0.06)' }}>
+        <div className="p-3 d-flex align-items-center justify-content-between" style={{ background: 'linear-gradient(90deg, #f0fdf4 0%, #ffffff 100%)', borderBottom: '1px solid #e8f5e9' }}>
+          <div className="d-flex align-items-center gap-2">
+            <div style={{ width: 4, height: 18, backgroundColor: '#0A6E3F', borderRadius: 2 }} />
+            <span className="fw-bold" style={{ fontSize: 14, color: '#0A6E3F' }}>🕐 Dernières séances enregistrées</span>
+            <span className="badge rounded-pill" style={{ backgroundColor: '#d1fae5', color: '#065f46', fontSize: 11, fontWeight: 600 }}>
+              {loadingDernieres ? '...' : `${dernieresSeances.length} séance(s)`}
+            </span>
+          </div>
+          <button
+            onClick={fetchDernieresSeances}
+            className="btn btn-sm fw-medium d-flex align-items-center gap-1"
+            style={{ fontSize: 12, color: '#0A6E3F', backgroundColor: 'transparent', border: '1px solid #bbf7d0', borderRadius: 8 }}
+          >
+            🔄 Actualiser
+          </button>
+        </div>
+
+        {loadingDernieres ? (
+          <div className="p-4 text-center text-muted" style={{ fontSize: 13 }}>
+            <span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14, borderWidth: 2 }} />
+            Chargement...
+          </div>
+        ) : dernieresSeances.length === 0 ? (
+          <div className="p-4 text-center text-muted" style={{ fontSize: 13 }}>
+            Aucune séance enregistrée ces 7 derniers jours
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="table table-hover mb-0" style={{ fontSize: 13 }}>
+              <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                <tr>
+                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Date</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Classe</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>N° Séance</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Récitateur</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>Présents</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>Mémorisés</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>Total élèves</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dernieresSeances.map((s: any, idx: number) => {
+                  const recits: any[] = s.recitations ?? [];
+                  const presents = recits.filter(r => r.present).length;
+                  const memorises = recits.filter(r => r.niveauMemorisation === 'MEMORISE').length;
+                  const total = recits.length;
+                  const tauxPresence = total > 0 ? Math.round((presents / total) * 100) : 0;
+                  return (
+                    <tr key={s.id ?? idx}>
+                      <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
+                        <span className="fw-semibold" style={{ color: '#111827' }}>
+                          {s.date ? new Date(s.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
+                        <span className="badge rounded-pill" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 600 }}>
+                          {s.classeNiveau ?? '—'}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3" style={{ verticalAlign: 'middle', color: '#6b7280' }}>
+                        Séance {s.numeroSeance ?? 1}
+                      </td>
+                      <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
+                        <span style={{ color: '#374151', fontWeight: 500 }}>{s.enseignantNom ?? '—'}</span>
+                      </td>
+                      <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
+                        <div className="d-flex align-items-center justify-content-center gap-1">
+                          <span className="badge" style={{ backgroundColor: '#d1fae5', color: '#065f46', fontWeight: 700 }}>{presents}</span>
+                          <span style={{ fontSize: 10, color: '#9ca3af' }}>{tauxPresence}%</span>
+                        </div>
+                      </td>
+                      <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
+                        <span className="badge" style={{ backgroundColor: '#fef9c3', color: '#854d0e', fontWeight: 700 }}>{memorises}</span>
+                      </td>
+                      <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle', color: '#6b7280' }}>
+                        {total}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Résultat de l'enregistrement — toujours visible même après reset du formulaire */}
       {saveResult && (
