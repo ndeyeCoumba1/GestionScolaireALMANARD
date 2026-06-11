@@ -58,8 +58,10 @@ export interface Eleve {
   classeNiveau: string;
   parentId: number;
   parentNom: string;
+  parentPrenom?: string;
   parentTelephone: string;
   matricule?: string;
+  photoUrl?: string;
 }
 
 export interface Annee {

@@ -10,33 +10,35 @@ import type { TauxRecouvrementDTO } from '../Types/paiement';
 import type { Annee, Mois } from '../Types/index';
 
 interface Stats {
-  totalEleves: number;
-  totalParents: number;
-  totalClasses: number;
-  totalPaiements: number;
-  totalDepenses: number;
-  totalImpayes: number;
+  totalEleves: number; totalParents: number; totalClasses: number;
+  totalPaiements: number; totalDepenses: number; totalImpayes: number;
+}
+interface ChartData { mois: string; paiements: number; depenses: number; }
+interface YearComparisonData { mois: string; anneeActuelle: number; anneePrecedente: number; }
+interface ClasseData { name: string; value: number; color: string; }
+
+const COLORS = ['#0A6E3F','#1d4ed8','#7c3aed','#d97706','#dc2626','#0f766e'];
+
+const QUICK_LINKS = [
+  { to: '/eleves',       icon: '🎓', label: 'Élèves',      desc: 'Gérer les élèves',   accent: '#0A6E3F', bg: '#f0fdf4', border: '#bbf7d0' },
+  { to: '/parents',      icon: '👪', label: 'Parents',     desc: 'Gérer les parents',  accent: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+  { to: '/paiements',    icon: '💳', label: 'Paiements',   desc: 'Suivi des paiements',accent: '#0f766e', bg: '#f0fdfa', border: '#99f6e4' },
+  { to: '/depenses',     icon: '💸', label: 'Dépenses',    desc: 'Gérer les dépenses', accent: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+  { to: '/inscriptions', icon: '📋', label: 'Inscriptions',desc: 'Gérer les inscrip.', accent: '#7c3aed', bg: '#f5f3ff', border: '#c4b5fd' },
+  { to: '/classes',      icon: '🏫', label: 'Classes',     desc: 'Gérer les classes',  accent: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+];
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Bonjour';
+  if (h < 18) return 'Bon après-midi';
+  return 'Bonsoir';
 }
 
-interface ChartData {
-  mois: string;
-  paiements: number;
-  depenses: number;
-}
-
-interface YearComparisonData {
-  mois: string;
-  anneeActuelle: number;
-  anneePrecedente: number;
-}
-
-interface ClasseData {
-  name: string;
-  value: number;
-  color: string;
-}
-
-const COLORS = ['#0f9d58', '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899'];
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN: 'Administrateur', COMPTABLE: 'Comptable',
+  ENSEIGNANT: 'Enseignant', RECITATEUR: 'Récitateur',
+};
 
 export default function Dashboard() {
   const { nom, role } = useAuth();
@@ -45,12 +47,10 @@ export default function Dashboard() {
     totalPaiements: 0, totalDepenses: 0, totalImpayes: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [recentActions, setRecentActions] = useState<string[]>([]);
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [yearComparisonData, setYearComparisonData] = useState<YearComparisonData[]>([]);
   const [classeData, setClasseData] = useState<ClasseData[]>([]);
 
-  // Taux de recouvrement
   const [annees, setAnnees] = useState<Annee[]>([]);
   const [moisList, setMoisList] = useState<Mois[]>([]);
   const [tauxAnneeId, setTauxAnneeId] = useState('');
@@ -62,119 +62,40 @@ export default function Dashboard() {
     const fetchStats = async () => {
       try {
         const [elevesRes, parentsRes, classesRes, paiementsRes, depensesRes] = await Promise.all([
-          api.get('/eleves'),
-          api.get('/parents'),
-          api.get('/classes'),
-          api.get('/paiements'),
-          api.get('/depenses'),
+          api.get('/eleves'), api.get('/parents'), api.get('/classes'),
+          api.get('/paiements'), api.get('/depenses'),
         ]);
-
         const eleves = elevesRes.data || [];
         const paiements = paiementsRes.data || [];
         const depenses = depensesRes.data || [];
         const classes = classesRes.data || [];
 
-        const totalPaiements = paiements
-          .filter((p: any) => p.statut === 'PAYE')
-          .reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
+        const totalPaiements = paiements.filter((p: any) => p.statut === 'PAYE').reduce((s: number, p: any) => s + (p.montant || 0), 0);
+        const totalImpayes   = paiements.filter((p: any) => p.statut === 'PARTIEL' || p.statut === 'IMPAYE').reduce((s: number, p: any) => s + (p.montant || 0), 0);
+        const totalDepenses  = depenses.reduce((s: number, d: any) => s + (d.montant || 0), 0);
 
-        const totalImpayes = paiements
-          .filter((p: any) => p.statut === 'PARTIEL' || p.statut === 'IMPAYE')
-          .reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
+        setStats({ totalEleves: eleves.length, totalParents: (parentsRes.data || []).length, totalClasses: classes.length, totalPaiements, totalDepenses, totalImpayes });
 
-        const totalDepenses = depenses
-          .reduce((sum: number, d: any) => sum + (d.montant || 0), 0);
-
-        setStats({
-          totalEleves: eleves.length,
-          totalParents: (parentsRes.data || []).length,
-          totalClasses: classes.length,
-          totalPaiements,
-          totalDepenses,
-          totalImpayes,
-        });
-
-        // Generate dynamic chart data based on actual payments and expenses
         const months = ['Oct', 'Nov', 'Dec', 'Jan', 'Fev', 'Mar', 'Avr', 'Mai'];
-        const dynamicChartData: ChartData[] = months.map((mois, index) => {
-          const monthPaiements = paiements
-            .filter((p: any) => {
-              const paymentDate = new Date(p.datePaiement);
-              const monthIndex = paymentDate.getMonth();
-              return monthIndex === (index + 9) % 12; // Adjust for starting from October
-            })
-            .reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
+        setChartData(months.map((mois, idx) => ({
+          mois,
+          paiements: paiements.filter((p: any) => new Date(p.datePaiement).getMonth() === (idx + 9) % 12).reduce((s: number, p: any) => s + (p.montant || 0), 0) || 0,
+          depenses:  depenses.filter((d: any)  => new Date(d.dateDepense).getMonth()  === (idx + 9) % 12).reduce((s: number, d: any) => s + (d.montant || 0), 0) || 0,
+        })));
 
-          const monthDepenses = depenses
-            .filter((d: any) => {
-              const expenseDate = new Date(d.dateDepense);
-              const monthIndex = expenseDate.getMonth();
-              return monthIndex === (index + 9) % 12;
-            })
-            .reduce((sum: number, d: any) => sum + (d.montant || 0), 0);
+        const cy = new Date().getFullYear();
+        setYearComparisonData(months.map((mois, idx) => ({
+          mois,
+          anneeActuelle:  paiements.filter((p: any) => { const d = new Date(p.datePaiement); return d.getFullYear() === cy   && d.getMonth() === (idx+9)%12; }).reduce((s: number, p: any) => s + (p.montant||0), 0),
+          anneePrecedente: paiements.filter((p: any) => { const d = new Date(p.datePaiement); return d.getFullYear() === cy-1 && d.getMonth() === (idx+9)%12; }).reduce((s: number, p: any) => s + (p.montant||0), 0),
+        })));
 
-          return {
-            mois,
-            paiements: monthPaiements || Math.floor(Math.random() * 50) + 20, // Fallback to random if no data
-            depenses: monthDepenses || Math.floor(Math.random() * 30) + 15,
-          };
-        });
-        setChartData(dynamicChartData);
-
-        // Generate year comparison data
-        const currentYear = new Date().getFullYear();
-        const previousYear = currentYear - 1;
-        const yearComparison: YearComparisonData[] = months.map((mois, index) => {
-          const currentYearPayments = paiements
-            .filter((p: any) => {
-              const paymentDate = new Date(p.datePaiement);
-              const paymentYear = paymentDate.getFullYear();
-              const monthIndex = paymentDate.getMonth();
-              return paymentYear === currentYear && monthIndex === (index + 9) % 12;
-            })
-            .reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
-
-          const previousYearPayments = paiements
-            .filter((p: any) => {
-              const paymentDate = new Date(p.datePaiement);
-              const paymentYear = paymentDate.getFullYear();
-              const monthIndex = paymentDate.getMonth();
-              return paymentYear === previousYear && monthIndex === (index + 9) % 12;
-            })
-            .reduce((sum: number, p: any) => sum + (p.montant || 0), 0);
-
-          return {
-            mois,
-            anneeActuelle: currentYearPayments || 0,
-            anneePrecedente: previousYearPayments || 0,
-          };
-        });
-        setYearComparisonData(yearComparison);
-
-        // Generate class distribution data
-        const classeDistribution: ClasseData[] = classes.map((c: any, index: number) => ({
-          name: c.niveau || `Classe ${index + 1}`,
-          value: c.capaciteMax || Math.floor(Math.random() * 50) + 20,
-          color: COLORS[index % COLORS.length],
-        }));
-        setClasseData(classeDistribution);
-
-        setRecentActions([
-          `${nom} et Système de Al-Manard3s`,
-          `${nom} et Dépenses Al-Manard3s`,
-          `${nom} et Paiements Al-Manard3s`,
-          `${nom} et Élèves Al-Manard3s`,
-        ]);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+        setClasseData(classes.map((c: any, i: number) => ({ name: c.niveau || `Classe ${i+1}`, value: c.capaciteMax || 30, color: COLORS[i % COLORS.length] })));
+      } catch {} finally { setLoading(false); }
     };
     fetchStats();
   }, []);
 
-  // Fetch annees + mois pour les sélecteurs taux
   useEffect(() => {
     api.get('/annees').then(r => {
       const sorted = [...r.data].sort((a: Annee, b: Annee) => b.id - a.id);
@@ -185,7 +106,6 @@ export default function Dashboard() {
     api.get('/mois').then(r => setMoisList(r.data)).catch(() => {});
   }, []);
 
-  // Fetch taux de recouvrement quand annee ou mois change
   const fetchTaux = useCallback(async (anneeId: string, moisId: string) => {
     if (!anneeId) return;
     setLoadingTaux(true);
@@ -194,487 +114,327 @@ export default function Dashboard() {
       if (moisId) params.append('moisId', moisId);
       const res = await api.get(`/paiements/taux-recouvrement?${params}`);
       setTauxData(res.data);
-    } catch {
-      setTauxData(null);
-    } finally {
-      setLoadingTaux(false);
-    }
+    } catch { setTauxData(null); }
+    finally { setLoadingTaux(false); }
   }, []);
 
-  useEffect(() => {
-    if (tauxAnneeId) fetchTaux(tauxAnneeId, tauxMoisId);
-  }, [tauxAnneeId, tauxMoisId, fetchTaux]);
+  useEffect(() => { if (tauxAnneeId) fetchTaux(tauxAnneeId, tauxMoisId); }, [tauxAnneeId, tauxMoisId, fetchTaux]);
 
-  const statCards = [
-    { label: 'Total Élèves', value: stats.totalEleves, icon: '🎓' },
-    { label: 'Total Parents', value: stats.totalParents, icon: '👨‍👩‍👧' },
-    { label: 'Total Classes', value: stats.totalClasses, icon: '🏫' },
-    {
-      label: 'Paiements Reçus (Ce mois)',
-      value: `${stats.totalPaiements.toLocaleString()} FCFA`,
-      icon: '💰',
-    },
-    {
-      label: 'Impayés (Partiel + Non-payé)',
-      value: `${stats.totalImpayes.toLocaleString()} FCFA`,
-      icon: '⚠️',
-    },
-    {
-      label: 'Dépenses (Ce mois)',
-      value: `${stats.totalDepenses.toLocaleString()} FCFA`,
-      icon: '🛒',
-    },
+  const kpiCards = [
+    { icon: '🎓', label: 'Total élèves',   value: stats.totalEleves,    sub: 'inscrits dans l\'établissement', accent: '#0A6E3F',  bg: '#f0fdf4',  border: '#22c55e' },
+    { icon: '👪', label: 'Total parents',   value: stats.totalParents,   sub: 'responsables enregistrés',       accent: '#1d4ed8',  bg: '#eff6ff',  border: '#3b82f6' },
+    { icon: '🏫', label: 'Classes',         value: stats.totalClasses,   sub: 'niveaux disponibles',            accent: '#d97706',  bg: '#fffbeb',  border: '#f59e0b' },
+    { icon: '✅', label: 'Paiements reçus', value: `${stats.totalPaiements.toLocaleString('fr-FR')} FCFA`, sub: 'total encaissé', accent: '#0f766e', bg: '#f0fdfa', border: '#14b8a6' },
+    { icon: '⚠️', label: 'Impayés',         value: `${stats.totalImpayes.toLocaleString('fr-FR')} FCFA`,  sub: 'partiel + non payé', accent: '#dc2626', bg: '#fef2f2', border: '#ef4444' },
+    { icon: '💸', label: 'Dépenses',        value: `${stats.totalDepenses.toLocaleString('fr-FR')} FCFA`, sub: 'charges enregistrées', accent: '#7c3aed', bg: '#f5f3ff', border: '#8b5cf6' },
   ];
 
-  return (
-    <div className="container-fluid py-4" style={{ backgroundColor: '#f4f9f6', minHeight: '100vh' }}>
+  const tauxPct = tauxData ? Math.min(Math.round(tauxData.tauxRecouvrement), 100) : 0;
+  const tauxColor = tauxPct >= 80 ? '#0A6E3F' : tauxPct >= 50 ? '#d97706' : '#dc2626';
+  const tauxGrad  = tauxPct >= 80
+    ? 'linear-gradient(90deg, #0A6E3F, #16a34a)'
+    : tauxPct >= 50
+      ? 'linear-gradient(90deg, #d97706, #f59e0b)'
+      : 'linear-gradient(90deg, #dc2626, #ef4444)';
 
-      {/* En-tête */}
-      <div className="row mb-4">
-        <div className="col-12">
-          <div className="card border-0 shadow-sm rounded-4 p-4">
-            <div className="d-flex align-items-center justify-content-between">
-              <div className="d-flex align-items-center gap-3">
-                <div
-                  className="rounded-circle d-flex align-items-center justify-content-center"
-                  style={{ width: 48, height: 48, backgroundColor: '#d4edda', fontSize: 20 }}
-                >
-                  👤
-                </div>
-                <div>
-                  <h5 className="fw-bold mb-0" style={{ color: '#1a1a1a', fontSize: 18 }}>
-                    Bonjour {nom},
-                  </h5>
-                  <span className="text-muted small">#{role?.toLowerCase()}</span>
-                </div>
+  return (
+    <div className="d-flex flex-column gap-4" style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+
+      {/* ── Bannière de bienvenue ── */}
+      <div className="rounded-4 overflow-hidden shadow-sm position-relative" style={{ background: 'linear-gradient(135deg, #0A6E3F 0%, #15803d 60%, #166534 100%)', padding: '32px 36px' }}>
+        <div style={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.06)' }} />
+        <div style={{ position: 'absolute', bottom: -30, right: 180, width: 120, height: 120, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.04)' }} />
+        <div style={{ position: 'absolute', top: 20, right: 80, width: 60, height: 60, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.04)' }} />
+
+        <div className="d-flex align-items-center justify-content-between gap-4 flex-wrap position-relative">
+          <div className="d-flex align-items-center gap-4">
+            <div className="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
+              style={{ width: 68, height: 68, backgroundColor: 'rgba(255,255,255,0.15)', fontSize: 32, backdropFilter: 'blur(4px)' }}>
+              👤
+            </div>
+            <div>
+              <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>
+                Portail Français — Al-Manard3s
               </div>
-              <div className="text-end text-muted small">
-                {new Date().toLocaleDateString('fr-FR', {
-                  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-                })}
+              <h1 style={{ color: '#fff', fontSize: 28, fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.3px' }}>
+                {getGreeting()}, {nom} 👋
+              </h1>
+              <div className="d-flex align-items-center gap-2 flex-wrap">
+                <span style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 600, color: '#fff' }}>
+                  {ROLE_LABEL[role ?? ''] ?? role}
+                </span>
+                <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
+                  {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </span>
               </div>
             </div>
           </div>
+
+          {role !== 'ENSEIGNANT' && (
+            <div className="d-flex flex-column align-items-end gap-2">
+              <div className="d-flex gap-2">
+                {[
+                  { label: 'Nouvel élève', to: '/eleves' },
+                  { label: 'Paiement', to: '/paiements' },
+                ].map(l => (
+                  <Link key={l.to} to={l.to} style={{ backgroundColor: '#fff', color: '#0A6E3F', borderRadius: 10, padding: '8px 18px', fontSize: 13, fontWeight: 600, textDecoration: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', gap: 6, transition: 'transform 0.15s' }}
+                    onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-1px)')}
+                    onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}>
+                    <span>+</span>{l.label}
+                  </Link>
+                ))}
+              </div>
+              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>© {new Date().getFullYear()} Fondation Daroul Manar D3S</span>
+            </div>
+          )}
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-5">
-          <div className="spinner-border text-success" role="status" />
+        <div className="d-flex align-items-center justify-content-center py-5">
+          <div className="d-flex flex-column align-items-center gap-3">
+            <div className="spinner-border" style={{ width: 40, height: 40, color: '#0A6E3F', borderWidth: 3 }} role="status" />
+            <span style={{ fontSize: 13, color: '#9ca3af' }}>Chargement du tableau de bord…</span>
+          </div>
         </div>
       ) : (
         <>
-          {/* Statistics - Hide for ENSEIGNANT */}
           {role !== 'ENSEIGNANT' && (
             <>
-              {/* Titre Statistics */}
-              <div className="row mb-3">
-                <div className="col-12">
-                  <h5 className="fw-semibold" style={{ color: '#1a1a1a' }}>Statistics</h5>
-                </div>
-              </div>
-
-              {/* Cartes statistiques */}
-              <div className="row g-3 mb-4">
-                {statCards.map(({ label, value, icon }) => (
-                  <div key={label} className="col-12 col-sm-6 col-lg">
-                    <div className="card border-0 shadow-sm rounded-4 h-100 p-3">
-                      <div className="d-flex align-items-start justify-content-between mb-2">
-                        <p className="text-muted small mb-0" style={{ lineHeight: 1.3, fontSize: 11 }}>{label}</p>
-                        <span style={{ fontSize: 18 }}>{icon}</span>
+              {/* ── KPI Cards ── */}
+              <div className="row g-3">
+                {kpiCards.map((c, i) => (
+                  <div key={i} className="col-6 col-lg-2">
+                    <div className="bg-white rounded-3 shadow-sm h-100" style={{ border: '1px solid #f0f0f0', borderLeft: `3px solid ${c.border}`, overflow: 'hidden' }}>
+                      <div style={{ padding: '12px 16px' }}>
+                        <div className="d-flex align-items-center justify-content-between mb-2">
+                          <div className="rounded-2 d-flex align-items-center justify-content-center" style={{ width: 32, height: 32, backgroundColor: c.bg, fontSize: 15 }}>{c.icon}</div>
+                          <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: c.border }} />
+                        </div>
+                        <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{c.label}</div>
+                        <div style={{ fontSize: typeof c.value === 'string' && c.value.length > 10 ? 13 : 18, fontWeight: 800, color: c.accent, lineHeight: 1.2 }}>{c.value}</div>
+                        <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>{c.sub}</div>
                       </div>
-                      <h5 className="fw-bold mb-0" style={{ color: '#1a1a1a', fontSize: 16 }}>{value}</h5>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Taux de recouvrement */}
-              <div className="row g-3 mb-4">
-                <div className="col-12">
-                  <div className="card border-0 shadow-sm rounded-4 p-4">
-                    <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-                      <h6 className="fw-semibold mb-0" style={{ color: '#1a1a1a' }}>
-                        📊 Taux de Recouvrement
-                      </h6>
-                      <div className="d-flex gap-2 align-items-center flex-wrap">
-                        <select value={tauxAnneeId} onChange={e => setTauxAnneeId(e.target.value)}
-                          className="form-select form-select-sm" style={{ borderRadius: 8, fontSize: 12, minWidth: 140, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
-                          <option value="">Toutes les années</option>
-                          {annees.map(a => <option key={a.id} value={a.id}>{a.libelle}{a.actif ? ' ★' : ''}</option>)}
-                        </select>
-                        <select value={tauxMoisId} onChange={e => setTauxMoisId(e.target.value)}
-                          className="form-select form-select-sm" style={{ borderRadius: 8, fontSize: 12, minWidth: 120, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
-                          <option value="">Tous les mois</option>
-                          {moisList.map(m => <option key={m.id} value={m.id}>{m.libelle}</option>)}
-                        </select>
-                      </div>
+              {/* ── Accès rapides ── */}
+              <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
+                <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Navigation</div>
+                <p className="fw-bold mb-0" style={{ fontSize: 14, color: '#111827', marginBottom: 16 }}>Accès Rapides</p>
+                <div className="row g-3">
+                  {QUICK_LINKS.map(l => (
+                    <div key={l.to} className="col-6 col-md-4 col-lg-2">
+                      <Link to={l.to} style={{ textDecoration: 'none' }}>
+                        <div className="rounded-3 d-flex flex-column align-items-center justify-content-center p-3 gap-2 text-center"
+                          style={{ backgroundColor: l.bg, border: `1.5px solid ${l.border}`, transition: 'all 0.15s', cursor: 'pointer', minHeight: 90 }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 6px 16px rgba(0,0,0,0.08)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}>
+                          <span style={{ fontSize: 26 }}>{l.icon}</span>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 12, color: l.accent }}>{l.label}</div>
+                            <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>{l.desc}</div>
+                          </div>
+                        </div>
+                      </Link>
                     </div>
-
-                    {loadingTaux ? (
-                      <div className="text-center py-3 text-muted" style={{ fontSize: 13 }}>Chargement...</div>
-                    ) : tauxData ? (
-                      <>
-                        {/* Barre progression */}
-                        <div className="mb-4">
-                          <div className="d-flex justify-content-between mb-1">
-                            <span style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>Taux global</span>
-                            <span style={{ fontSize: 15, fontWeight: 800, color: '#0A6E3F' }}>
-                              {Math.round(tauxData.tauxRecouvrement)}%
-                            </span>
-                          </div>
-                          <div className="rounded-pill overflow-hidden" style={{ height: 14, backgroundColor: '#e5e7eb' }}>
-                            <div className="rounded-pill" style={{
-                              height: '100%',
-                              width: `${Math.min(Math.round(tauxData.tauxRecouvrement), 100)}%`,
-                              background: tauxData.tauxRecouvrement >= 80
-                                ? 'linear-gradient(90deg, #0A6E3F, #16a34a)'
-                                : tauxData.tauxRecouvrement >= 50
-                                  ? 'linear-gradient(90deg, #d97706, #f59e0b)'
-                                  : 'linear-gradient(90deg, #dc2626, #ef4444)',
-                              transition: 'width 0.7s ease',
-                            }} />
-                          </div>
-                        </div>
-
-                        {/* 3 cartes */}
-                        <div className="row g-3 mb-3">
-                          {[
-                            { icon: '👥', label: 'Total inscrits', value: tauxData.totalEleves, bg: '#f3f4f6', color: '#111827' },
-                            { icon: '✅', label: 'Ont payé', value: tauxData.elevesPayes, bg: '#dcfce7', color: '#166534' },
-                            { icon: '❌', label: "N'ont pas payé", value: tauxData.elevesImpaye, bg: '#fee2e2', color: '#dc2626' },
-                          ].map((c, i) => (
-                            <div key={i} className="col-4">
-                              <div className="rounded-3 p-3 text-center" style={{ backgroundColor: c.bg }}>
-                                <div style={{ fontSize: 22 }}>{c.icon}</div>
-                                <div className="fw-bold" style={{ fontSize: 20, color: c.color }}>{c.value}</div>
-                                <div style={{ fontSize: 11, color: '#6b7280' }}>{c.label}</div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Montants */}
-                        <div className="d-flex gap-3 flex-wrap">
-                          <div className="flex-fill rounded-3 p-3" style={{ backgroundColor: '#f3f4f6' }}>
-                            <div style={{ fontSize: 11, color: '#9ca3af' }}>Montant attendu</div>
-                            <div className="fw-bold" style={{ fontSize: 16, color: '#374151' }}>
-                              {tauxData.montantAttendu.toLocaleString('fr-FR')} FCFA
-                            </div>
-                          </div>
-                          <div className="flex-fill rounded-3 p-3" style={{ backgroundColor: '#dcfce7' }}>
-                            <div style={{ fontSize: 11, color: '#9ca3af' }}>Montant reçu</div>
-                            <div className="fw-bold" style={{ fontSize: 16, color: '#166534' }}>
-                              {tauxData.montantRecu.toLocaleString('fr-FR')} FCFA
-                            </div>
-                          </div>
-                          <div className="flex-fill rounded-3 p-3" style={{ backgroundColor: '#fee2e2' }}>
-                            <div style={{ fontSize: 11, color: '#9ca3af' }}>Reste à encaisser</div>
-                            <div className="fw-bold" style={{ fontSize: 16, color: '#dc2626' }}>
-                              {(tauxData.montantAttendu - tauxData.montantRecu).toLocaleString('fr-FR')} FCFA
-                            </div>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="text-center py-4 text-muted" style={{ fontSize: 13 }}>
-                        Sélectionnez une année pour afficher le taux de recouvrement.
-                      </div>
-                    )}
-                  </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Graphiques */}
-              <div className="row g-3 mb-4">
-
-                {/* Graphique barres - Paiements vs Dépenses */}
-                <div className="col-12 col-lg-8">
-                  <div className="card border-0 shadow-sm rounded-4 p-4 h-100">
-                    <div className="d-flex align-items-center justify-content-between mb-3">
-                      <h6 className="fw-semibold mb-0" style={{ color: '#1a1a1a' }}>
-                        Tendance Mensuelle des Paiements vs Dépenses
-                      </h6>
-                      <span
-                        className="badge rounded-pill px-3 py-2"
-                        style={{ backgroundColor: '#e8f5e9', color: '#0f9d58', fontSize: 12 }}
-                      >
-                        Dynamique
-                      </span>
+              {/* ── Taux de recouvrement ── */}
+              <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
+                <div style={{ borderBottom: '1px solid #f3f4f6', padding: '20px 24px' }}>
+                  <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                    <div>
+                      <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Finance</div>
+                      <h6 className="fw-bold mb-0" style={{ color: '#111827', fontSize: 15 }}>Taux de Recouvrement</h6>
                     </div>
-
-                    {/* Barres */}
-                    <ResponsiveContainer width="100%" height={180}>
-                      <BarChart data={chartData} barCategoryGap="35%">
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                        <XAxis
-                          dataKey="mois"
-                          tick={{ fontSize: 11, fill: '#9ca3af' }}
-                          axisLine={false}
-                          tickLine={false}
-                        />
-                        <YAxis
-                          tick={{ fontSize: 11, fill: '#9ca3af' }}
-                          axisLine={false}
-                          tickLine={false}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            borderRadius: 12,
-                            border: 'none',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                          }}
-                        />
-                        <Legend
-                          wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-                        />
-                        <Bar
-                          dataKey="paiements"
-                          name="Paiements"
-                          fill="#0f9d58"
-                          radius={[6, 6, 0, 0]}
-                        />
-                        <Bar
-                          dataKey="depenses"
-                          name="Dépenses"
-                          fill="#d1d5db"
-                          radius={[6, 6, 0, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-
-                    {/* Ligne de tendance */}
-                    <ResponsiveContainer width="100%" height={50}>
-                      <LineChart data={chartData}>
-                        <Line
-                          type="monotone"
-                          dataKey="paiements"
-                          stroke="#0f9d58"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="depenses"
-                          stroke="#9ca3af"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <div className="d-flex gap-2 align-items-center flex-wrap">
+                      <select value={tauxAnneeId} onChange={e => setTauxAnneeId(e.target.value)}
+                        style={{ borderRadius: 8, fontSize: 12, minWidth: 145, border: '1.5px solid #e5e7eb', backgroundColor: '#f9fafb', padding: '6px 10px', outline: 'none', color: '#374151' }}>
+                        <option value="">Toutes les années</option>
+                        {annees.map(a => <option key={a.id} value={a.id}>{a.libelle}{a.actif ? ' ★' : ''}</option>)}
+                      </select>
+                      <select value={tauxMoisId} onChange={e => setTauxMoisId(e.target.value)}
+                        style={{ borderRadius: 8, fontSize: 12, minWidth: 125, border: '1.5px solid #e5e7eb', backgroundColor: '#f9fafb', padding: '6px 10px', outline: 'none', color: '#374151' }}>
+                        <option value="">Tous les mois</option>
+                        {moisList.map(m => <option key={m.id} value={m.id}>{m.libelle}</option>)}
+                      </select>
+                    </div>
                   </div>
                 </div>
 
-                {/* Graphique camembert - Répartition des classes */}
-                <div className="col-12 col-lg-4">
-                  <div className="card border-0 shadow-sm rounded-4 p-4 h-100">
-                    <div className="d-flex align-items-center justify-content-between mb-3">
-                      <h6 className="fw-semibold mb-0" style={{ color: '#1a1a1a' }}>
-                        Répartition des Classes
-                      </h6>
-                      <span
-                        className="badge rounded-pill px-3 py-2"
-                        style={{ backgroundColor: '#e8f5e9', color: '#0f9d58', fontSize: 12 }}
-                      >
-                        Dynamique
-                      </span>
+                <div style={{ padding: '24px' }}>
+                  {loadingTaux ? (
+                    <div className="text-center py-4" style={{ color: '#9ca3af', fontSize: 13 }}>
+                      <div className="spinner-border spinner-border-sm me-2" style={{ color: '#0A6E3F' }} />
+                      Chargement…
                     </div>
-                    <ResponsiveContainer width="100%" height={220}>
+                  ) : tauxData ? (
+                    <div className="d-flex flex-column gap-4">
+                      {/* Barre + % */}
+                      <div>
+                        <div className="d-flex align-items-end justify-content-between mb-2">
+                          <div>
+                            <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 2 }}>Taux global de recouvrement</div>
+                            <div style={{ fontSize: 36, fontWeight: 900, color: tauxColor, lineHeight: 1 }}>
+                              {Math.round(tauxData.tauxRecouvrement)}%
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 11, color: '#9ca3af', textAlign: 'right' }}>
+                            <div>{tauxData.elevesPayes} élèves ont payé</div>
+                            <div>{tauxData.elevesImpaye} n'ont pas payé</div>
+                          </div>
+                        </div>
+                        <div className="rounded-pill overflow-hidden" style={{ height: 10, backgroundColor: '#f3f4f6' }}>
+                          <div className="rounded-pill" style={{ height: '100%', width: `${tauxPct}%`, background: tauxGrad, transition: 'width 0.8s ease' }} />
+                        </div>
+                      </div>
+
+                      {/* 3 mini blocs élèves */}
+                      <div className="row g-3">
+                        {[
+                          { icon: '👥', label: 'Total inscrits',   value: tauxData.totalEleves,   bg: '#f8fafc', accent: '#374151',  border: '#e5e7eb' },
+                          { icon: '✅', label: 'Ont payé',          value: tauxData.elevesPayes,   bg: '#f0fdf4', accent: '#166534',  border: '#bbf7d0' },
+                          { icon: '❌', label: "N'ont pas payé",    value: tauxData.elevesImpaye,  bg: '#fef2f2', accent: '#dc2626',  border: '#fecaca' },
+                        ].map((c, i) => (
+                          <div key={i} className="col-4">
+                            <div className="rounded-3 d-flex align-items-center gap-3 p-3" style={{ backgroundColor: c.bg, border: `1px solid ${c.border}` }}>
+                              <span style={{ fontSize: 22 }}>{c.icon}</span>
+                              <div>
+                                <div style={{ fontSize: 20, fontWeight: 800, color: c.accent, lineHeight: 1 }}>{c.value}</div>
+                                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{c.label}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Montants */}
+                      <div className="row g-3">
+                        {[
+                          { label: 'Montant attendu',     value: tauxData.montantAttendu,                              bg: '#f8fafc', accent: '#374151',  border: '#e5e7eb' },
+                          { label: 'Montant reçu',        value: tauxData.montantRecu,                                 bg: '#f0fdf4', accent: '#166534',  border: '#bbf7d0' },
+                          { label: 'Reste à encaisser',   value: tauxData.montantAttendu - tauxData.montantRecu,       bg: '#fef2f2', accent: '#dc2626',  border: '#fecaca' },
+                        ].map((c, i) => (
+                          <div key={i} className="col-4">
+                            <div className="rounded-3 p-3" style={{ backgroundColor: c.bg, border: `1px solid ${c.border}` }}>
+                              <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>{c.label}</div>
+                              <div style={{ fontSize: 14, fontWeight: 800, color: c.accent, whiteSpace: 'nowrap' }}>
+                                {c.value.toLocaleString('fr-FR')} FCFA
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="d-flex flex-column align-items-center justify-content-center py-4 gap-2">
+                      <span style={{ fontSize: 28 }}>📊</span>
+                      <span style={{ fontSize: 13, color: '#9ca3af' }}>Sélectionnez une année pour afficher le taux de recouvrement</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Graphiques ── */}
+              <div className="row g-3">
+                <div className="col-12 col-lg-8">
+                  <div className="bg-white rounded-4 shadow-sm p-4 h-100" style={{ border: '1px solid #f0f0f0' }}>
+                    <div className="d-flex align-items-start justify-content-between mb-1">
+                      <div>
+                        <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Analyse mensuelle</div>
+                        <p className="fw-bold mb-0" style={{ fontSize: 14, color: '#111827' }}>Paiements vs Dépenses</p>
+                      </div>
+                      <span style={{ backgroundColor: '#f0fdf4', color: '#0A6E3F', border: '1px solid #bbf7d0', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 600 }}>Dynamique</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: '#9ca3af', marginBottom: 16 }}>Évolution sur 8 mois</p>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={chartData} barCategoryGap="35%">
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                        <XAxis dataKey="mois" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                        <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e5e7eb', fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
+                        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                        <Bar dataKey="paiements" name="Paiements" fill="#0A6E3F" radius={[6,6,0,0]} />
+                        <Bar dataKey="depenses"  name="Dépenses"  fill="#e5e7eb" radius={[6,6,0,0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                    <div style={{ marginTop: 8, borderTop: '1px solid #f3f4f6', paddingTop: 8 }}>
+                      <ResponsiveContainer width="100%" height={44}>
+                        <LineChart data={chartData}>
+                          <Line type="monotone" dataKey="paiements" stroke="#0A6E3F" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="depenses"  stroke="#9ca3af" strokeWidth={2} dot={false} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="col-12 col-lg-4">
+                  <div className="bg-white rounded-4 shadow-sm p-4 h-100" style={{ border: '1px solid #f0f0f0' }}>
+                    <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Organisation</div>
+                    <p className="fw-bold mb-0" style={{ fontSize: 14, color: '#111827' }}>Répartition des Classes</p>
+                    <p style={{ fontSize: 11, color: '#9ca3af', marginBottom: 8 }}>Capacité par niveau</p>
+                    <ResponsiveContainer width="100%" height={200}>
                       <PieChart>
-                        <Pie
-                          data={classeData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={35}
-                          outerRadius={70}
-                          paddingAngle={5}
-                          dataKey="value"
-                        >
-                          {classeData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
+                        <Pie data={classeData} cx="50%" cy="50%" innerRadius={45} outerRadius={72} paddingAngle={4} dataKey="value">
+                          {classeData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                         </Pie>
-                        <Tooltip
-                          contentStyle={{
-                            borderRadius: 12,
-                            border: 'none',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                          }}
-                        />
-                        <Legend
-                          wrapperStyle={{ fontSize: 10, paddingTop: 8 }}
-                          verticalAlign="bottom"
-                          height={50}
-                        />
+                        <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
               </div>
 
-              {/* Graphique comparaison année précédente vs année actuelle */}
-              <div className="row g-3 mb-4">
-                <div className="col-12">
-                  <div className="card border-0 shadow-sm rounded-4 p-4">
-                    <div className="d-flex align-items-center justify-content-between mb-3">
-                      <h6 className="fw-semibold mb-0" style={{ color: '#1a1a1a' }}>
-                        Comparaison Année Précédente vs Année Actuelle
-                      </h6>
-                      <span
-                        className="badge rounded-pill px-3 py-2"
-                        style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', fontSize: 12 }}
-                      >
-                        Évolution
-                      </span>
-                    </div>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={yearComparisonData} barCategoryGap="20%">
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                        <XAxis
-                          dataKey="mois"
-                          tick={{ fontSize: 11, fill: '#9ca3af' }}
-                          axisLine={false}
-                          tickLine={false}
-                        />
-                        <YAxis
-                          tick={{ fontSize: 11, fill: '#9ca3af' }}
-                          axisLine={false}
-                          tickLine={false}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            borderRadius: 12,
-                            border: 'none',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                          }}
-                        />
-                        <Legend
-                          wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-                        />
-                        <Bar
-                          dataKey="anneePrecedente"
-                          name={`Année ${new Date().getFullYear() - 1}`}
-                          fill="#9ca3af"
-                          radius={[4, 4, 0, 0]}
-                        />
-                        <Bar
-                          dataKey="anneeActuelle"
-                          name={`Année ${new Date().getFullYear()}`}
-                          fill="#0f9d58"
-                          radius={[4, 4, 0, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
+              {/* ── Comparaison années ── */}
+              <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: '1px solid #f0f0f0' }}>
+                <div className="d-flex align-items-start justify-content-between mb-1">
+                  <div>
+                    <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Comparaison</div>
+                    <p className="fw-bold mb-0" style={{ fontSize: 14, color: '#111827' }}>Année précédente vs Année actuelle</p>
                   </div>
+                  <span style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 600 }}>Évolution</span>
                 </div>
+                <p style={{ fontSize: 11, color: '#9ca3af', marginBottom: 16 }}>Paiements {new Date().getFullYear()-1} vs {new Date().getFullYear()}</p>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={yearComparisonData} barCategoryGap="25%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                    <XAxis dataKey="mois" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e5e7eb', fontSize: 12 }} />
+                    <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                    <Bar dataKey="anneePrecedente" name={`${new Date().getFullYear()-1}`} fill="#e5e7eb" radius={[4,4,0,0]} />
+                    <Bar dataKey="anneeActuelle"   name={`${new Date().getFullYear()}`}   fill="#0A6E3F" radius={[4,4,0,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
 
-              {/* Actions récentes + Accès rapides */}
-              <div className="row g-3">
-                <div className="col-12 col-lg-6">
-                  <div className="card border-0 shadow-sm rounded-4 p-4 h-100">
-                    <h6 className="fw-semibold mb-3" style={{ color: '#1a1a1a' }}>
-                      Actions Récentes
-                    </h6>
-                    <div className="d-flex flex-column gap-2">
-                      {recentActions.map((action, i) => (
-                        <div key={i} className="d-flex align-items-center gap-3">
-                          <div
-                            className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                            style={{
-                              width: 36, height: 36,
-                              backgroundColor: i === 0 ? '#e8f5e9' : '#f3f4f6',
-                              fontSize: 14,
-                            }}
-                          >
-                            {i === 0 ? '✅' : '📅'}
-                          </div>
-                          <div>
-                            <p className="mb-0 small">
-                              <strong>{nom}</strong>{' '}
-                              <span className="text-muted">
-                                et {action.split('et ')[1]}
-                              </span>
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className="col-12 col-lg-6">
-                  <div className="card border-0 shadow-sm rounded-4 p-4 h-100">
-                    <h6 className="fw-semibold mb-3" style={{ color: '#1a1a1a' }}>
-                      Accès Rapides
-                    </h6>
-                    <div className="d-grid gap-2">
-                      {[
-                        { to: '/eleves/nouveau', label: '➕ Nouvel Élève' },
-                        { to: '/parents/nouveau', label: '➕ Nouveau Parent' },
-                        { to: '/paiements/nouveau', label: '💳 Nouveau Paiement' },
-                        { to: '/depenses/nouvelle', label: '📉 Nouvelle Dépense' },
-                        { to: '/eleves', label: '📋 Liste Élèves' },
-                        { to: '/classes', label: '📋 Liste classe' },
-                        { to: '/parents', label: '📋 Liste Parent' },
-                      ].map(({ to, label }) => (
-                        <Link
-                          key={to}
-                          to={to}
-                          className="btn btn-sm text-start px-3 py-2 rounded-3"
-                          style={{
-                            backgroundColor: '#f0fdf4',
-                            color: '#0f9d58',
-                            border: '1px solid #bbf7d0',
-                            fontWeight: 500,
-                            fontSize: 14,
-                          }}
-                        >
-                          {label}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
             </>
           )}
 
-          {/* ENSEIGNANT - Simple welcome message */}
+          {/* ── Vue ENSEIGNANT ── */}
           {role === 'ENSEIGNANT' && (
-            <div className="row">
-              <div className="col-12">
-                <div className="card border-0 shadow-sm rounded-4 p-5 text-center">
-                  <div style={{ fontSize: 64, marginBottom: 20 }}>👨‍🏫</div>
-                  <h4 className="fw-bold mb-3" style={{ color: '#1a1a1a' }}>
-                    Bienvenue, {nom}
-                  </h4>
-                  <p className="text-muted mb-4">
-                    En tant qu'enseignant, vous pouvez consulter la liste des élèves et leurs informations.
-                  </p>
-                  <div className="d-flex justify-content-center gap-3">
-                    <Link
-                      to="/eleves"
-                      className="btn px-4 py-2 rounded-3"
-                      style={{
-                        backgroundColor: '#0f9d58',
-                        color: 'white',
-                        border: 'none',
-                        fontWeight: 500,
-                      }}
-                    >
-                      📋 Voir les Élèves
-                    </Link>
-                  </div>
-                </div>
-              </div>
+            <div className="bg-white rounded-4 shadow-sm p-5 text-center" style={{ border: '1px solid #f0f0f0' }}>
+              <div style={{ fontSize: 64, marginBottom: 20 }}>👨‍🏫</div>
+              <h4 className="fw-bold mb-2" style={{ color: '#111827', fontSize: 22 }}>Bienvenue, {nom}</h4>
+              <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 28 }}>
+                En tant qu'enseignant, vous pouvez consulter la liste des élèves et leurs informations.
+              </p>
+              <Link to="/eleves" style={{ backgroundColor: '#0A6E3F', color: '#fff', borderRadius: 10, padding: '12px 28px', fontSize: 14, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                📋 Voir les Élèves
+              </Link>
             </div>
           )}
 
-          {/* Footer */}
-          <div className="text-center mt-4">
-            <p className="text-muted small">
-              © {new Date().getFullYear()} Al-Manard3s — Tous droits réservés
-            </p>
+          {/* ── Footer ── */}
+          <div style={{ borderTop: '1px solid #f3f4f6', padding: '12px 0', textAlign: 'center', fontSize: 11, color: '#d1d5db' }}>
+            © {new Date().getFullYear()} Al-Manard3s / Fondation Daroul Manar D3S
           </div>
         </>
       )}
