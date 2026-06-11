@@ -120,6 +120,15 @@ export interface Depense {
   enregistreParNom: string;
 }
 
+export interface Etablissement {
+  id?: number;
+  nom: string;
+  adresse?: string;
+  telephone?: string;
+  email?: string;
+  logoUrl?: string;
+}
+
 export interface AuthResponse {
   token: string;
   role: Role;

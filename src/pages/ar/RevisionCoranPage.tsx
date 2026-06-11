@@ -14,6 +14,7 @@ interface RevisionRow {
   versetDebut: number;
   versetFin: number;
   commentaire: string;
+  enseignantId: number | '';
 }
 
 export default function RevisionCoranPage() {
@@ -22,6 +23,7 @@ export default function RevisionCoranPage() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClasse, setSelectedClasse] = useState<number | ''>('');
   const [selectedEnseignant, setSelectedEnseignant] = useState<number | ''>('');
+  const [selectedEnseignantClasse, setSelectedEnseignantClasse] = useState<number | ''>('');
   const [classes, setClasses] = useState<Classe[]>([]);
   const [eleves, setEleves] = useState<Eleve[]>([]);
   const [enseignants, setEnseignants] = useState<any[]>([]);
@@ -93,10 +95,22 @@ export default function RevisionCoranPage() {
   useEffect(() => {
     const init: Record<number, RevisionRow> = {};
     eleves.forEach(e => {
-      init[e.id] = { present: true, sourateNumero: 1, versetDebut: 0, versetFin: 0, commentaire: '' };
+      init[e.id] = { present: true, sourateNumero: 1, versetDebut: 0, versetFin: 0, commentaire: '', enseignantId: selectedEnseignantClasse };
     });
     setRows(init);
-  }, [eleves]);
+  }, [eleves]); // eslint-disable-line
+
+  // Quand l'enseignant global change, mettre à jour toutes les lignes
+  useEffect(() => {
+    if (Object.keys(rows).length === 0) return;
+    setRows(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(id => {
+        updated[Number(id)] = { ...updated[Number(id)], enseignantId: selectedEnseignantClasse };
+      });
+      return updated;
+    });
+  }, [selectedEnseignantClasse]); // eslint-disable-line
 
   const fetchClasses = async () => {
     try {
@@ -108,27 +122,30 @@ export default function RevisionCoranPage() {
   };
 
   const fetchEnseignants = async () => {
-    if (role === 'RECITATEUR') {
-      let effectiveUserId = userId;
-      if (!effectiveUserId) {
-        try {
-          const meRes = await api.get('/auth/me');
-          const id = meRes.data?.id ?? meRes.data?.userId ?? null;
-          if (id) {
-            effectiveUserId = Number(id);
-            localStorage.setItem('userId', String(effectiveUserId));
-          }
-        } catch {}
-      }
-      setEnseignants([{ id: effectiveUserId ?? 0, nom: nom || '', prenom: prenom || '', role: 'RECITATEUR' }]);
-      if (effectiveUserId) setSelectedEnseignant(effectiveUserId);
-      return;
+    // Résoudre l'ID du récitateur connecté si nécessaire
+    let effectiveUserId = userId;
+    if (role === 'RECITATEUR' && !effectiveUserId) {
+      try {
+        const meRes = await api.get('/auth/me');
+        const id = meRes.data?.id ?? meRes.data?.userId ?? null;
+        if (id) {
+          effectiveUserId = Number(id);
+          localStorage.setItem('userId', String(effectiveUserId));
+        }
+      } catch {}
     }
+
+    // Toujours charger la liste complète des enseignants
     try {
       const res = await api.get('/users/enseignants');
       setEnseignants(res.data);
     } catch (err) {
       console.error(err);
+    }
+
+    // Pré-sélectionner le récitateur connecté dans le champ récitateur
+    if (role === 'RECITATEUR' && effectiveUserId) {
+      setSelectedEnseignant(effectiveUserId);
     }
   };
 
@@ -160,8 +177,8 @@ export default function RevisionCoranPage() {
   };
 
   const handleEnregistrer = async () => {
-    if (!selectedClasse || !selectedEnseignant) {
-      toast.error('Veuillez choisir une classe et un récitateur');
+    if (!selectedClasse) {
+      toast.error('Veuillez choisir une classe');
       return;
     }
     if (!date) { toast.error('Veuillez sélectionner une date'); return; }
@@ -178,11 +195,13 @@ export default function RevisionCoranPage() {
       const row = rows[eleve.id];
       const sourate = SOURATES.find(s => s.numero === row.sourateNumero);
       try {
+        const ensId = row.enseignantId || selectedEnseignantClasse;
+        if (!ensId) { errCount++; continue; }
         const res = await coranService.enregistrerRevision({
           date,
           eleveId: eleve.id,
           classeId: Number(selectedClasse),
-          enseignantId: Number(selectedEnseignant),
+          enseignantId: Number(ensId),
           numeroSeance,
           sourateNumero: row.sourateNumero,
           sourateNom: sourate?.nomFrancais || '',
@@ -299,13 +318,13 @@ export default function RevisionCoranPage() {
         <form className="p-4" onSubmit={e => e.preventDefault()}>
           <div className="row g-3 align-items-end">
             {/* Date */}
-            <div className="col-12 col-md-3">
+            <div className="col-12 col-md-2">
               <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Date</label>
               <input type="date" value={date} onChange={e => setDate(e.target.value)} className="form-control" style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }} />
             </div>
 
             {/* Classe */}
-            <div className="col-12 col-md-3">
+            <div className="col-12 col-md-2">
               <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Classe</label>
               <select
                 value={selectedClasse}
@@ -319,9 +338,9 @@ export default function RevisionCoranPage() {
             </div>
 
             {/* Récitateur */}
-            <div className="col-12 col-md-3">
+            <div className="col-12 col-md-2">
               <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>
-                {role === 'RECITATEUR' ? 'المسمع (Récitateur)' : 'Récitateur / Enseignant'}
+                المسمع (Récitateur)
               </label>
               {role === 'RECITATEUR' ? (
                 <div className="form-control d-flex align-items-center gap-2" style={{ borderRadius: 8, border: '1px solid #d1fae5', backgroundColor: '#f0fdf4', fontSize: 14, color: '#0A6E3F', fontWeight: 600 }}>
@@ -340,18 +359,36 @@ export default function RevisionCoranPage() {
                   style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}
                 >
                   <option value="">Choisir un récitateur</option>
-                  {enseignants.map((e: any) => (
-                    <option key={e.id} value={e.id}>
-                      {e.prenom} {e.nom} {e.role === 'RECITATEUR' ? '🎧' : '👨‍🏫'}
-                    </option>
+                  {enseignants.filter((e: any) => e.role === 'RECITATEUR').map((e: any) => (
+                    <option key={e.id} value={e.id}>🎧 {e.prenom} {e.nom}</option>
                   ))}
                 </select>
               )}
             </div>
 
+            {/* Enseignant */}
+            <div className="col-12 col-md-3">
+              <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>
+                👨‍🏫 Enseignant / المعلم
+              </label>
+              <select
+                value={selectedEnseignantClasse}
+                onChange={e => setSelectedEnseignantClasse(e.target.value ? Number(e.target.value) : '')}
+                className="form-select"
+                style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}
+              >
+                <option value="">Choisir un enseignant</option>
+                {enseignants
+                  .filter((e: any) => e.role === 'ENSEIGNANT' || e.role === 'ADMIN')
+                  .map((e: any) => (
+                    <option key={e.id} value={e.id}>👨‍🏫 {e.prenom} {e.nom}</option>
+                  ))}
+              </select>
+            </div>
+
             {/* Numéro de séance — visible uniquement en saisie */}
             {activeTab === 'saisie' && (
-              <div className="col-12 col-md-3">
+              <div className="col-12 col-md-2">
                 <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Nº Séance</label>
                 <input
                   type="number"
@@ -420,6 +457,7 @@ export default function RevisionCoranPage() {
                       <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>Matricule</th>
                       <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Prénom / الاسم</th>
                       <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Nom / اللقب</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Enseignant / المعلم</th>
                       <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Sourate révisée</th>
                       <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>V. Début</th>
                       <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>V. Fin</th>
@@ -429,13 +467,13 @@ export default function RevisionCoranPage() {
                   <tbody>
                     {eleves.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="text-center py-5 text-muted">
+                        <td colSpan={9} className="text-center py-5 text-muted">
                           Sélectionnez une classe pour charger les élèves
                         </td>
                       </tr>
                     ) : (
                       eleves.map(eleve => {
-                        const row = rows[eleve.id] ?? { present: true, sourateNumero: 1, versetDebut: 0, versetFin: 0, commentaire: '' };
+                        const row = rows[eleve.id] ?? { present: true, sourateNumero: 1, versetDebut: 0, versetFin: 0, commentaire: '', enseignantId: selectedEnseignantClasse };
                         const isAbsent = !row.present;
                         const sourate = SOURATES.find(s => s.numero === row.sourateNumero);
                         const maxV = sourate?.nombreVersets ?? 286;
@@ -469,6 +507,29 @@ export default function RevisionCoranPage() {
                               <span className="fw-semibold" style={{ fontSize: 13, color: '#111827', fontFamily: 'serif', direction: 'rtl' }}>
                                 {eleve.nomArabe || eleve.nom}
                               </span>
+                            </td>
+                            {/* Enseignant */}
+                            <td className="py-2 px-2" style={{ verticalAlign: 'middle', minWidth: 160 }}>
+                              {role === 'RECITATEUR' ? (
+                                <span style={{ fontSize: 12, color: '#0A6E3F', fontWeight: 600 }}>
+                                  🎧 {enseignants[0]?.prenom} {enseignants[0]?.nom}
+                                </span>
+                              ) : (
+                                <select
+                                  value={row.enseignantId}
+                                  onChange={e => updateRow(eleve.id, { enseignantId: e.target.value ? Number(e.target.value) : '' })}
+                                  disabled={isAbsent}
+                                  className="form-select"
+                                  style={{ ...inputStyle, opacity: isAbsent ? 0.5 : 1 }}
+                                >
+                                  <option value="">— Choisir —</option>
+                                  {enseignants.map((ens: any) => (
+                                    <option key={ens.id} value={ens.id}>
+                                      {ens.prenom} {ens.nom} {ens.role === 'RECITATEUR' ? '🎧' : '👨‍🏫'}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
                             </td>
                             {/* Sourate */}
                             <td className="py-2 px-2" style={{ verticalAlign: 'middle', minWidth: 180 }}>
@@ -683,7 +744,7 @@ export default function RevisionCoranPage() {
                   <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Date</th>
                   <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Classe</th>
                   <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>N° Séance</th>
-                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Récitateur</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Enseignant</th>
                   <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>Élèves révisés</th>
                 </tr>
               </thead>
@@ -703,8 +764,11 @@ export default function RevisionCoranPage() {
                         Séance {s.numeroSeance}
                       </span>
                     </td>
-                    <td className="py-2 px-3" style={{ verticalAlign: 'middle', color: '#374151', fontWeight: 500 }}>
-                      🎧 {s.enseignantNom}
+                    <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
+                      <div className="d-flex align-items-center gap-1">
+                        <span style={{ fontSize: 14 }}>👨‍🏫</span>
+                        <span style={{ fontSize: 12, color: '#6366f1', fontWeight: 600 }}>{s.enseignantNom}</span>
+                      </div>
                     </td>
                     <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
                       <span className="badge" style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', fontWeight: 700 }}>
@@ -749,7 +813,7 @@ export default function RevisionCoranPage() {
                     <th className="py-3 px-3 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>Matricule</th>
                     <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Sourate</th>
                     <th className="py-3 px-3 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>Versets</th>
-                    <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Récitateur</th>
+                    <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Enseignant</th>
                     <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Commentaire</th>
                     {canDelete && (
                       <th className="py-3 px-3 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>Action</th>
@@ -791,7 +855,10 @@ export default function RevisionCoranPage() {
                         </span>
                       </td>
                       <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
-                        <span style={{ fontSize: 12, color: '#0A6E3F', fontWeight: 600 }}>🎧 {r.enseignantNom}</span>
+                        <div className="d-flex align-items-center gap-1">
+                          <span style={{ fontSize: 14 }}>👨‍🏫</span>
+                          <span style={{ fontSize: 12, color: '#6366f1', fontWeight: 600 }}>{r.enseignantNom || '—'}</span>
+                        </div>
                       </td>
                       <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
                         <span className="text-muted" style={{ fontSize: 12 }}>{r.commentaire || '—'}</span>

@@ -106,37 +106,30 @@ export default function SeanceCoranPage() {
   };
 
   const fetchEnseignants = async () => {
-    if (role === 'RECITATEUR') {
-      let effectiveUserId = userId;
-
-      // /auth/me est maintenant accessible au RECITATEUR
-      if (!effectiveUserId) {
-        try {
-          const meRes = await api.get('/auth/me');
-          const id = meRes.data?.id ?? meRes.data?.userId ?? null;
-          if (id) {
-            effectiveUserId = Number(id);
-            localStorage.setItem('userId', String(effectiveUserId));
-          }
-        } catch {}
-      }
-
-      setEnseignants([{
-        id: effectiveUserId ?? 0,
-        nom: nom || '',
-        prenom: prenom || '',
-        role: 'RECITATEUR',
-      }]);
-      if (effectiveUserId) {
-        setSelectedEnseignant(effectiveUserId);
-      }
-      return;
+    // Résoudre l'ID du récitateur connecté si nécessaire
+    let effectiveUserId = userId;
+    if (role === 'RECITATEUR' && !effectiveUserId) {
+      try {
+        const meRes = await api.get('/auth/me');
+        const id = meRes.data?.id ?? meRes.data?.userId ?? null;
+        if (id) {
+          effectiveUserId = Number(id);
+          localStorage.setItem('userId', String(effectiveUserId));
+        }
+      } catch {}
     }
+
+    // Toujours charger la liste complète des enseignants
     try {
       const res = await api.get('/users/enseignants');
       setEnseignants(res.data);
     } catch (err) {
       console.error(err);
+    }
+
+    // Pré-sélectionner le récitateur connecté dans le champ récitateur
+    if (role === 'RECITATEUR' && effectiveUserId) {
+      setSelectedEnseignant(effectiveUserId);
     }
   };
 
@@ -325,7 +318,7 @@ export default function SeanceCoranPage() {
               <option value={3}>Séance 3</option>
             </select>
           </div>
-          <div className="col-12 col-md-2">
+          <div className="col-12 col-md-3">
             <label className="form-label fw-semibold d-flex align-items-center gap-1" style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase' }}>
               🏫 Classe — الفصل
             </label>
@@ -339,29 +332,6 @@ export default function SeanceCoranPage() {
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>{c.niveau}</option>
               ))}
-            </select>
-          </div>
-          {/* Enseignant */}
-          <div className="col-12 col-md-3">
-            <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>
-              👨‍🏫 Enseignant — المعلم
-            </label>
-            <select
-              value={selectedTeacher}
-              onChange={(e) => setSelectedTeacher(e.target.value ? Number(e.target.value) : '')}
-              className="form-select"
-              style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}
-            >
-              <option value="">Choisir un enseignant</option>
-              {teachers.length === 0 ? (
-                <option disabled>Aucun enseignant disponible</option>
-              ) : (
-                teachers.map((t: any) => (
-                  <option key={t.id} value={t.id}>
-                    {t.prenomArabe || t.prenom} {t.nomArabe || t.nom}
-                  </option>
-                ))
-              )}
             </select>
           </div>
 
@@ -456,14 +426,13 @@ export default function SeanceCoranPage() {
                       <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Mémorisation</th>
                       <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Statut</th>
                       <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Récitateur</th>
-                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Enseignant</th>
                       <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Remarques</th>
                     </tr>
                   </thead>
                   <tbody>
                     {eleves.length === 0 ? (
                       <tr>
-                        <td colSpan={15} className="text-center py-5 text-muted">
+                        <td colSpan={14} className="text-center py-5 text-muted">
                           Sélectionnez une classe pour charger les élèves
                         </td>
                       </tr>
@@ -478,11 +447,6 @@ export default function SeanceCoranPage() {
                           recitateur={(() => {
                             const r = enseignants.find((e: any) => e.id === selectedEnseignant);
                             return r ? `${r.prenom || ''} ${r.nom || ''}`.trim() : `${prenom || ''} ${nom || ''}`.trim();
-                          })()}
-                          enseignant={(() => {
-                            if (selectedTeacher === '') return '';
-                            const t = teachers.find((t: any) => t.id === selectedTeacher);
-                            return t ? `${t.prenom || ''} ${t.nom || ''}`.trim() : '';
                           })()}
                           onPresenceChange={setPresence}
                           onNiveauChange={setNiveauMemorisation}

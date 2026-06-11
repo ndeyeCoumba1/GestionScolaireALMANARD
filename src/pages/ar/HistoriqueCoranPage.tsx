@@ -22,9 +22,10 @@ export default function HistoriqueCoranPage() {
 
   useEffect(() => {
     fetchClasses();
-    const today = new Date().toISOString().split('T')[0];
-    setStartDate(today);
-    setEndDate(today);
+    const today = new Date();
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    setStartDate(firstOfMonth.toISOString().split('T')[0]);
+    setEndDate(today.toISOString().split('T')[0]);
   }, []);
 
   useEffect(() => {
@@ -99,9 +100,9 @@ export default function HistoriqueCoranPage() {
             📚
           </div>
           <div>
-            <h1 className="fw-bold mb-1" style={{ fontSize: 26, color: '#ffffff' }}>Historique des séances de récitation</h1>
-            <p className="mb-1" style={{ fontSize: 17, color: 'rgba(255,255,255,0.9)', fontFamily: 'serif' }}>سجل جلسات التلاوة</p>
-            <p className="mb-0" style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>Consultez l'historique des séances et les détails de mémorisation</p>
+            <h1 className="fw-bold mb-1" style={{ fontSize: 26, color: '#ffffff' }}>Historique des séances et révisions</h1>
+            <p className="mb-1" style={{ fontSize: 17, color: 'rgba(255,255,255,0.9)', fontFamily: 'serif' }}>سجل جلسات التلاوة والمراجعة</p>
+            <p className="mb-0" style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>Consultez l'historique des séances de récitation et des révisions</p>
           </div>
         </div>
       </div>
@@ -311,18 +312,19 @@ export default function HistoriqueCoranPage() {
                   <thead style={{ backgroundColor: '#f9fafb' }}>
                     <tr>
                       <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Date</th>
+                      <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>N° Séance</th>
                       <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Matricule</th>
                       <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Élève</th>
                       <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Sourate</th>
                       <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Versets</th>
-                      <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Récitateur</th>
+                      <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Enseignant</th>
                       <th className="py-3 px-3 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 12 }}>Commentaire</th>
                     </tr>
                   </thead>
                   <tbody>
                     {revisions.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="text-center py-5 text-muted">
+                        <td colSpan={8} className="text-center py-5 text-muted">
                           Aucune révision trouvée pour cette période
                         </td>
                       </tr>
@@ -333,26 +335,36 @@ export default function HistoriqueCoranPage() {
                             {new Date(revision.date).toLocaleDateString('fr-FR')}
                           </td>
                           <td className="py-3 px-3">
+                            {revision.numeroSeance ? (
+                              <span className="badge rounded-pill fw-medium" style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', fontSize: 11 }}>
+                                Séance {revision.numeroSeance}
+                              </span>
+                            ) : <span className="text-muted">—</span>}
+                          </td>
+                          <td className="py-3 px-3">
                             <span className="badge" style={{ backgroundColor: '#f3f4f6', color: '#374151', fontSize: 11 }}>
-                              {revision.eleveMatricule || '-'}
+                              {revision.eleveMatricule || revision.matricule || '—'}
                             </span>
                           </td>
                           <td className="py-3 px-3">
                             <span className="fw-semibold">{revision.elevePrenom} {revision.eleveNom}</span>
                           </td>
-                          <td className="py-3 px-3">
-                            {revision.sourateNomArabe || revision.sourateNom || (revision.sourateNumero ? `Sourate ${revision.sourateNumero}` : '-')}
+                          <td className="py-3 px-3" style={{ direction: 'rtl', textAlign: 'right' }}>
+                            {revision.sourateNomArabe || revision.sourateNom || (revision.sourateNumero ? `Sourate ${revision.sourateNumero}` : '—')}
                           </td>
                           <td className="py-3 px-3">
-                            <span className="badge rounded-pill" style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', fontSize: 11 }}>
+                            <span className="badge rounded-pill" style={{ backgroundColor: '#dcfce7', color: '#166534', fontSize: 11 }}>
                               {revision.versetRevisionDebut} → {revision.versetRevisionFin}
                             </span>
                           </td>
                           <td className="py-3 px-3">
-                            {revision.enseignantNom || '-'}
+                            <div className="d-flex align-items-center gap-1">
+                              <span style={{ fontSize: 13 }}>👨‍🏫</span>
+                              <span style={{ fontSize: 12, color: '#6366f1', fontWeight: 600 }}>{revision.enseignantNom || '—'}</span>
+                            </div>
                           </td>
                           <td className="py-3 px-3 text-muted" style={{ maxWidth: 200 }}>
-                            {revision.commentaire || '-'}
+                            {revision.commentaire || '—'}
                           </td>
                         </tr>
                       ))

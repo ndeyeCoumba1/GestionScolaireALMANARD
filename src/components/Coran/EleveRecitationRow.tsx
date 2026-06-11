@@ -15,7 +15,6 @@ interface EleveRecitationRowProps {
   recitation?: EleveRecitation;
   classeName?: string;
   recitateur?: string;
-  enseignant?: string;
   hasError?: boolean;
   onPresenceChange: (eleveId: number, present: boolean) => void;
   onNiveauChange: (eleveId: number, niveau: NiveauMemorisation) => void;
@@ -39,7 +38,6 @@ export default function EleveRecitationRow({
   recitation,
   classeName,
   recitateur,
-  enseignant,
   hasError,
   onPresenceChange,
   onNiveauChange,
@@ -219,17 +217,7 @@ export default function EleveRecitationRow({
         </div>
       </td>
 
-      {/* 14. Enseignant */}
-      <td className="py-2 px-2" style={{ verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-        <div className="d-flex align-items-center gap-1">
-          <span style={{ fontSize: 14 }}>👨‍🏫</span>
-          <span style={{ fontSize: 12, color: '#6366f1', fontWeight: 600 }}>
-            {enseignant || '—'}
-          </span>
-        </div>
-      </td>
-
-      {/* 15. Remarques */}
+      {/* 14. Remarques */}
       <td className="py-2 px-2" style={{ verticalAlign: 'middle' }}>
         <input
           type="text"

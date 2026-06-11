@@ -236,6 +236,7 @@ export default function RapportCoranPage() {
   const [classes, setClasses] = useState<Classe[]>([]);
   const [enseignants, setEnseignants] = useState<any[]>([]);
   const [rapport, setRapport] = useState<RapportCoranResponse | null>(null);
+  const [enseignantNomRevision, setEnseignantNomRevision] = useState('');
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [logoDataUrl, setLogoDataUrl] = useState<string>('');
@@ -303,8 +304,14 @@ export default function RapportCoranPage() {
     setLoading(true);
     try {
       const { debut, fin } = getDateBounds();
-      const res = await coranService.getRapport(Number(selectedClasse), debut, fin);
+      const [res, revisions] = await Promise.all([
+        coranService.getRapport(Number(selectedClasse), debut, fin),
+        coranService.getRevisionsByClasse(Number(selectedClasse), debut, fin).catch(() => []),
+      ]);
       setRapport(res);
+      // Extraire l'enseignant depuis les révisions de la période
+      const ensFromRevision = (revisions as any[]).find((r: any) => r.enseignantNom)?.enseignantNom || '';
+      setEnseignantNomRevision(ensFromRevision);
       if (res.totalSeances === 0) {
         toast('Aucune séance pour cette période', { icon: '📭' });
       } else {
@@ -384,9 +391,10 @@ export default function RapportCoranPage() {
   const selectedClasseObj = classes.find(c => c.id === selectedClasse);
   const classeNom = rapport?.classeNom || selectedClasseObj?.niveau || '';
 
-  // Priorité : backend → liste enseignants par enseignantId de la classe
+  // Priorité : backend → révisions → enseignantId de la classe
   const enseignantClasse = (() => {
     if (rapport?.enseignantClasse) return rapport.enseignantClasse;
+    if (enseignantNomRevision) return enseignantNomRevision;
     const eid = selectedClasseObj?.enseignantId;
     if (eid) {
       const e = enseignants.find((en: any) => en.id === eid);

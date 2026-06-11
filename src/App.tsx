@@ -25,6 +25,7 @@ import DepenseForm from './pages/depenses/DepenseForm';
 import UserList from './pages/users/UserList';
 import MoisList from './pages/Mois/MoisList';
 import Reports from './pages/rapports/Reports';
+import EtablissementPage from './pages/etablissement/EtablissementPage';
 import ArDashboardPage from './pages/ar/ArDashboardPage';
 import ArSeanceCoranPage from './pages/ar/SeanceCoranPage';
 import ArHistoriqueCoranPage from './pages/ar/HistoriqueCoranPage';
@@ -204,6 +205,7 @@ export default function App() {
             <Route path="depenses/nouvelle" element={<DepenseFormWrapper />} />
             <Route path="users" element={<UserList />} />
             <Route path="rapports" element={<Reports />} />
+            <Route path="etablissement" element={<EtablissementPage />} />
           </Route>
           
           {/* Route 404 */}

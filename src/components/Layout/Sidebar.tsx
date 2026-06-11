@@ -13,6 +13,7 @@ const IcDepense   = () => <svg width="17" height="17" fill="none" viewBox="0 0 2
 const IcRapport   = () => <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>;
 const IcUser      = () => <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><circle cx="12" cy="8" r="4"/><path strokeLinecap="round" strokeLinejoin="round" d="M4 20c0-4 3.582-7 8-7s8 3 8 7"/></svg>;
 const IcLogout    = () => <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>;
+const IcEtabli    = () => <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M3 7l9-4 9 4M4 7v14M20 7v14M8 11h2m-2 4h2m4-4h2m-2 4h2M12 3v4"/></svg>;
 
 const navGroups = [
   {
@@ -43,7 +44,8 @@ const navGroups = [
   {
     label: 'Administration',
     items: [
-      { to: '/users', icon: <IcUser />, label: 'Utilisateurs', roles: ['ADMIN'] },
+      { to: '/users',          icon: <IcUser />,    label: 'Utilisateurs',   roles: ['ADMIN'] },
+      { to: '/etablissement',  icon: <IcEtabli />,  label: 'Établissement',  roles: ['ADMIN'] },
     ],
   },
 ];
