@@ -3,6 +3,7 @@ package com.example.GestionScolaire.Service;
 import com.example.GestionScolaire.DTO.CoranDTO;
 import com.example.GestionScolaire.DTO.CoranDTO.*;
 import com.example.GestionScolaire.DTO.RapportCoranDTO;
+import com.example.GestionScolaire.DTO.RapportDetailDTO;
 import com.example.GestionScolaire.Enum.NiveauMemorisation;
 import com.example.GestionScolaire.Model.*;
 import com.example.GestionScolaire.Repository.*;
@@ -451,8 +452,10 @@ public class CoranService {
         Map<Long, List<SeanceRevision>> revParEleve = toutesRevisions.stream()
                 .collect(Collectors.groupingBy(r -> r.getEleve().getId()));
 
+        int totalSeancesGlobal = seances.size();
+
         List<RapportCoranDTO.LigneEleve> lignes = recParEleve.entrySet().stream()
-                .map(e -> buildLigneEleve(e.getValue(), revParEleve.getOrDefault(e.getKey(), List.of())))
+                .map(e -> buildLigneEleve(e.getValue(), revParEleve.getOrDefault(e.getKey(), List.of()), totalSeancesGlobal))
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(l -> l.getNom() + " " + l.getPrenom()))
                 .toList();
@@ -491,34 +494,46 @@ public class CoranService {
 
     private RapportCoranDTO.LigneEleve buildLigneEleve(
             List<EleveRecitation> recitations,
-            List<SeanceRevision> revisions) {
+            List<SeanceRevision> revisions,
+            int totalSeancesGlobal) {
 
         if (recitations.isEmpty()) return null;
 
         Eleve eleve = recitations.get(0).getEleve();
 
         int presents  = (int) recitations.stream().filter(EleveRecitation::isPresent).count();
-        int absents   = recitations.size() - presents;
+        int absents   = totalSeancesGlobal - presents;
         int memorises = (int) recitations.stream()
                 .filter(r -> r.isPresent() && r.getNiveauMemorisation() == NiveauMemorisation.MEMORISE).count();
         int partiels  = (int) recitations.stream()
                 .filter(r -> r.isPresent() && r.getNiveauMemorisation() == NiveauMemorisation.PARTIEL).count();
 
-        int tauxPresence = recitations.size() > 0
-                ? (int) Math.round((double) presents / recitations.size() * 100) : 0;
+        int tauxPresence = totalSeancesGlobal > 0
+                ? (int) Math.round((double) presents / totalSeancesGlobal * 100) : 0;
         int tauxMemo = presents > 0
                 ? (int) Math.round((memorises + partiels * 0.5) / presents * 100) : 0;
 
         String niveau = tauxMemo >= 80 ? "ممتاز" : tauxMemo >= 60 ? "جيد" : tauxMemo >= 40 ? "متوسط" : "ضعيف";
 
-        // Dernière récitation présente → sourate et versets tlatwa
-        EleveRecitation lastPresente = recitations.stream()
-                .filter(EleveRecitation::isPresent)
-                .reduce((a, b) -> b)
-                .orElse(null);
+        // Récitations présentes AVEC versets renseignés, triées par date ASC
+        List<EleveRecitation> presentesAvecVersets = recitations.stream()
+                .filter(r -> r.isPresent() && r.getVersetDebut() != null && r.getVersetFin() != null)
+                .collect(Collectors.toList());
 
-        // Dernière révision (liste déjà triée DESC par date)
-        SeanceRevision lastRevision = revisions.isEmpty() ? null : revisions.get(0);
+        // Progression tlatwa : verset de début de la 1ère séance → verset de fin de la dernière séance
+        EleveRecitation firstPresente = presentesAvecVersets.isEmpty() ? null : presentesAvecVersets.get(0);
+        EleveRecitation lastPresente  = presentesAvecVersets.isEmpty() ? null : presentesAvecVersets.get(presentesAvecVersets.size() - 1);
+
+        Integer versetTlatwaDebut = firstPresente != null ? firstPresente.getVersetDebut() : null;
+        Integer versetTlatwaFin   = lastPresente  != null ? lastPresente.getVersetFin()   : null;
+
+        // Progression révision : du premier verset révisé au dernier sur la période
+        // revisions est trié DESC (plus récent en premier) → get(size-1) = plus ancien
+        SeanceRevision firstRevision = revisions.isEmpty() ? null : revisions.get(revisions.size() - 1);
+        SeanceRevision lastRevision  = revisions.isEmpty() ? null : revisions.get(0);
+
+        Integer versetRevisionDebut = firstRevision != null ? firstRevision.getVersetRevisionDebut() : null;
+        Integer versetRevisionFin   = lastRevision  != null ? lastRevision.getVersetRevisionFin()   : null;
 
         // المسمع : enseignant(s) des séances (distinct, séparé par ،)
         String enseignantNom = recitations.stream()
@@ -528,11 +543,11 @@ public class CoranService {
                 .distinct()
                 .collect(Collectors.joining("، "));
 
-        // Observations : 2 premiers commentaires non vides
+        // Observations : commentaires non vides séparés par ،
         String commentaire = recitations.stream()
                 .filter(r -> r.getCommentaire() != null && !r.getCommentaire().isBlank())
-                .limit(2)
                 .map(EleveRecitation::getCommentaire)
+                .distinct()
                 .collect(Collectors.joining("، "));
 
         return RapportCoranDTO.LigneEleve.builder()
@@ -542,7 +557,7 @@ public class CoranService {
                 .nomArabe(eleve.getNomArabe())
                 .prenomArabe(eleve.getPrenomArabe())
                 .matricule(eleve.getMatricule())
-                .totalSeances(recitations.size())
+                .totalSeances(totalSeancesGlobal)
                 .presents(presents)
                 .absents(absents)
                 .tauxPresence(tauxPresence)
@@ -552,12 +567,98 @@ public class CoranService {
                 .niveau(niveau)
                 .sourateNomArabe(lastPresente != null ? lastPresente.getSourateNomArabe() : null)
                 .sourateNom(lastPresente != null ? lastPresente.getSourateNom() : null)
-                .versetTlatwaDebut(lastPresente != null ? lastPresente.getVersetDebut() : null)
-                .versetTlatwaFin(lastPresente != null ? lastPresente.getVersetFin() : null)
-                .versetRevisionDebut(lastRevision != null ? lastRevision.getVersetRevisionDebut() : null)
-                .versetRevisionFin(lastRevision != null ? lastRevision.getVersetRevisionFin() : null)
+                .versetTlatwaDebut(versetTlatwaDebut)
+                .versetTlatwaFin(versetTlatwaFin)
+                .versetRevisionDebut(versetRevisionDebut)
+                .versetRevisionFin(versetRevisionFin)
                 .enseignantNom(enseignantNom)
                 .commentaire(commentaire)
+                .build();
+    }
+
+    // ═══════════════════════════════════════════
+    //  Rapport détaillé (une ligne par élève × séance)
+    // ═══════════════════════════════════════════
+
+    @Transactional
+    public RapportDetailDTO.RapportDetailResponse genererRapportDetail(
+            Long classeId, LocalDate dateDebut, LocalDate dateFin) {
+
+        Classe classe = classeRepo.findById(classeId)
+                .orElseThrow(() -> new RuntimeException("Classe introuvable : " + classeId));
+
+        List<SeanceRecitation> seances = (dateDebut != null && dateFin != null)
+                ? seanceRepo.findByClasseIdAndDateBetweenOrderByDateDesc(classeId, dateDebut, dateFin)
+                : seanceRepo.findByClasseIdOrderByDateDesc(classeId);
+
+        List<EleveRecitation> toutesRecitations = (dateDebut != null && dateFin != null)
+                ? recitationRepo.findByClasseIdAndDateRange(classeId, dateDebut, dateFin)
+                : recitationRepo.findBySeanceClasseId(classeId);
+
+        List<SeanceRevision> toutesRevisions = (dateDebut != null && dateFin != null)
+                ? revisionRepo.findByClasseIdAndDateBetween(classeId, dateDebut, dateFin)
+                : revisionRepo.findByClasseIdOrderByDateDesc(classeId);
+
+        // Clé : "eleveId_date_numeroSeance" → révision correspondante
+        Map<String, SeanceRevision> revParCle = toutesRevisions.stream()
+                .collect(Collectors.toMap(
+                        rv -> rv.getEleve().getId() + "_" + rv.getDate() + "_" + rv.getNumeroSeance(),
+                        rv -> rv,
+                        (a, b) -> a  // en cas de doublon, garder le premier
+                ));
+
+        List<RapportDetailDTO.LigneSeance> lignes = toutesRecitations.stream()
+                .sorted(Comparator.comparing((EleveRecitation r) -> r.getSeance().getDate())
+                        .thenComparing(r -> r.getSeance().getNumeroSeance())
+                        .thenComparing(r -> r.getEleve().getNom() + r.getEleve().getPrenom()))
+                .map(r -> {
+                    User ens = r.getSeance().getEnseignant();
+                    String cle = r.getEleve().getId() + "_" + r.getSeance().getDate() + "_" + r.getSeance().getNumeroSeance();
+                    SeanceRevision rev = revParCle.get(cle);
+                    return RapportDetailDTO.LigneSeance.builder()
+                            .seanceId(r.getSeance().getId())
+                            .date(r.getSeance().getDate())
+                            .numeroSeance(r.getSeance().getNumeroSeance())
+                            .eleveId(r.getEleve().getId())
+                            .nom(r.getEleve().getNom())
+                            .prenom(r.getEleve().getPrenom())
+                            .nomArabe(r.getEleve().getNomArabe())
+                            .prenomArabe(r.getEleve().getPrenomArabe())
+                            .matricule(r.getEleve().getMatricule())
+                            .present(r.isPresent())
+                            .sourateNomArabe(r.getSourateNomArabe())
+                            .sourateNom(r.getSourateNom())
+                            .versetDebut(r.getVersetDebut())
+                            .versetFin(r.getVersetFin())
+                            .niveauMemorisation(r.getNiveauMemorisation() != null
+                                    ? r.getNiveauMemorisation().name() : null)
+                            .enseignantNom(ens != null ? ens.getNom() + " " + ens.getPrenom() : null)
+                            .commentaire(r.getCommentaire())
+                            // Révision du même jour et même numéro de séance
+                            .sourateRevisionNomArabe(rev != null ? rev.getSourateNomArabe() : null)
+                            .sourateRevisionNom(rev != null ? rev.getSourateNom() : null)
+                            .versetRevisionDebut(rev != null ? rev.getVersetRevisionDebut() : null)
+                            .versetRevisionFin(rev != null ? rev.getVersetRevisionFin() : null)
+                            .enseignantRevisionNom(rev != null && rev.getEnseignant() != null
+                                    ? rev.getEnseignant().getNom() + " " + rev.getEnseignant().getPrenom() : null)
+                            .build();
+                })
+                .toList();
+
+        String enseignantClasse = "";
+        if (classe.getEnseignant() != null) {
+            User ens = classe.getEnseignant();
+            enseignantClasse = ens.getPrenom() + " " + ens.getNom();
+        }
+
+        return RapportDetailDTO.RapportDetailResponse.builder()
+                .classeId(classeId)
+                .classeNom(classe.getNiveau() != null ? classe.getNiveau().name() : "")
+                .enseignantClasse(enseignantClasse)
+                .dateDebut(dateDebut)
+                .dateFin(dateFin)
+                .totalSeances(seances.size())
+                .lignes(lignes)
                 .build();
     }
 

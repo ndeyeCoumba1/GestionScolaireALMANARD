@@ -61,12 +61,13 @@ public class RapportCoranDTO {
         private String sourateNom;
         private Integer versetTlatwaDebut;
         private Integer versetTlatwaFin;
+        private String recitateurNom;
 
         // Révision (مراجعة)
         private Integer versetRevisionDebut;
         private Integer versetRevisionFin;
 
-        // المسمع (enseignant qui a animé la séance de récitation)
+        // المع (enseignant qui a animé la séance de révision)
         private String enseignantNom;
 
         // Observations

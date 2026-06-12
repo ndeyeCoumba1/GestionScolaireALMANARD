@@ -23,11 +23,11 @@ public interface SeanceRecitationRepository extends JpaRepository<SeanceRecitati
 
     List<SeanceRecitation> findByClasseIdOrderByDateDesc(Long classeId);
 
-    @Query("SELECT COUNT(DISTINCT s.date) FROM SeanceRecitation s WHERE s.classe.id = :classeId")
+    @Query("SELECT COUNT(s.id) FROM SeanceRecitation s WHERE s.classe.id = :classeId")
     long countSeancesParClasse(@Param("classeId") Long classeId);
 
     @Query("""
-        SELECT COUNT(DISTINCT s.date)
+        SELECT COUNT(s.id)
         FROM SeanceRecitation s
         WHERE s.classe.id = :classeId
         AND s.date >= :dateDebut
