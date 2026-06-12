@@ -216,6 +216,36 @@ export interface RapportCoranResponse {
   eleves: RapportLigneEleve[];
 }
 
+export interface RapportDetailLigneSeance {
+  seanceId: number;
+  date: string;
+  numeroSeance: number;
+  eleveId: number;
+  nom: string;
+  prenom: string;
+  nomArabe?: string;
+  prenomArabe?: string;
+  matricule?: string;
+  present: boolean;
+  sourateNomArabe?: string;
+  sourateNom?: string;
+  versetDebut?: number;
+  versetFin?: number;
+  niveauMemorisation?: 'MEMORISE' | 'PARTIEL' | 'NON_MEMORISE' | null;
+  enseignantNom?: string;
+  commentaire?: string;
+}
+
+export interface RapportDetailResponse {
+  classeId: number;
+  classeNom: string;
+  enseignantClasse: string;
+  dateDebut: string;
+  dateFin: string;
+  totalSeances: number;
+  lignes: RapportDetailLigneSeance[];
+}
+
 export interface SeanceRevisionResponse {
   id: number;
   date: string;

@@ -230,9 +230,11 @@ export default function ArDashboardPage() {
 
   if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center flex-column gap-3" style={{ minHeight: '60vh' }}>
-        <div className="spinner-border" style={{ color: C_GREEN, width: 48, height: 48 }} role="status" />
-        <p className="text-muted" style={{ fontSize: 14 }}>Chargement du tableau de bord…</p>
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
+        <div className="d-flex flex-column align-items-center gap-3">
+          <div className="spinner-border" style={{ color: C_GREEN, width: 48, height: 48 }} role="status" />
+          <p className="text-muted text-center mb-0" style={{ fontSize: 14 }}>Chargement du tableau de bord…</p>
+        </div>
       </div>
     );
   }

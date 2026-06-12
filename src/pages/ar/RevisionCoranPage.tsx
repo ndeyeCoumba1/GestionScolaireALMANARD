@@ -5,6 +5,7 @@ import { SOURATES } from '../../services/coranService';
 import coranService from '../../services/coranService';
 import type { SeanceRevisionResponse } from '../../Types/coran';
 import { SkeletonTable } from '../../components/Common/SkeletonLoader';
+import { ConfirmModal } from '../../components/Common/ConfirmModal';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../Context/AuthContext';
 
@@ -39,6 +40,8 @@ export default function RevisionCoranPage() {
   const [loadingHisto, setLoadingHisto] = useState(false);
   const [histoDateDebut, setHistoDateDebut] = useState('');
   const [histoDateFin, setHistoDateFin] = useState('');
+  const [elevesMap, setElevesMap] = useState<Record<number, string>>({});
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchClasses();
@@ -154,6 +157,9 @@ export default function RevisionCoranPage() {
     try {
       const res = await api.get(`/eleves/classe/${classeId}`);
       setEleves(res.data);
+      const map: Record<number, string> = {};
+      res.data.forEach((e: any) => { map[e.id] = e.matricule || ''; });
+      setElevesMap(map);
       if (res.data.length === 0) toast('Aucun élève dans cette classe', { icon: '⚠️' });
     } catch (err) {
       console.error(err);
@@ -246,14 +252,20 @@ export default function RevisionCoranPage() {
     }
   };
 
-  const handleSupprimer = async (id: number) => {
-    if (!window.confirm('Supprimer cette révision ?')) return;
+  const handleSupprimer = (id: number) => {
+    setDeleteId(id);
+  };
+
+  const confirmSupprimer = async () => {
+    if (deleteId === null) return;
     try {
-      await coranService.supprimerRevision(id);
-      setHistorique(prev => prev.filter(r => r.id !== id));
+      await coranService.supprimerRevision(deleteId);
+      setHistorique(prev => prev.filter(r => r.id !== deleteId));
       toast.success('Révision supprimée');
     } catch {
       toast.error('Erreur lors de la suppression');
+    } finally {
+      setDeleteId(null);
     }
   };
 
@@ -676,9 +688,9 @@ export default function RevisionCoranPage() {
                     <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>{rv.elevePrenom}</td>
                     <td className="py-2 px-3 fw-semibold" style={{ verticalAlign: 'middle' }}>{rv.eleveNom}</td>
                     <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
-                      {(rv.matricule || rv.eleveMatricule) ? (
+                      {(rv.matricule || rv.eleveMatricule || elevesMap[rv.eleveId]) ? (
                         <span className="badge rounded-pill" style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontSize: 10, fontFamily: 'monospace' }}>
-                          {rv.matricule || rv.eleveMatricule}
+                          {rv.matricule || rv.eleveMatricule || elevesMap[rv.eleveId]}
                         </span>
                       ) : <span style={{ color: '#d1d5db' }}>—</span>}
                     </td>
@@ -832,9 +844,9 @@ export default function RevisionCoranPage() {
                         <span className="fw-semibold" style={{ fontSize: 13 }}>{r.elevePrenom} {r.eleveNom}</span>
                       </td>
                       <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
-                        {r.eleveMatricule ? (
+                        {(r.eleveMatricule || elevesMap[r.eleveId]) ? (
                           <span className="badge rounded-pill" style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontSize: 10, fontFamily: 'monospace' }}>
-                            {r.eleveMatricule}
+                            {r.eleveMatricule || elevesMap[r.eleveId]}
                           </span>
                         ) : '—'}
                       </td>
@@ -883,6 +895,16 @@ export default function RevisionCoranPage() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        isOpen={deleteId !== null}
+        onClose={() => setDeleteId(null)}
+        onConfirm={confirmSupprimer}
+        title="Supprimer la révision"
+        message="Êtes-vous sûr de vouloir supprimer cette révision ? Cette action est irréversible."
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="danger"
+      />
     </div>
   );
 }

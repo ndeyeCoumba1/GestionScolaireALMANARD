@@ -191,10 +191,10 @@ export default function Dashboard() {
       </div>
 
       {loading ? (
-        <div className="d-flex align-items-center justify-content-center py-5">
+        <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
           <div className="d-flex flex-column align-items-center gap-3">
             <div className="spinner-border" style={{ width: 40, height: 40, color: '#0A6E3F', borderWidth: 3 }} role="status" />
-            <span style={{ fontSize: 13, color: '#9ca3af' }}>Chargement du tableau de bord…</span>
+            <span className="text-center" style={{ fontSize: 13, color: '#9ca3af' }}>Chargement du tableau de bord…</span>
           </div>
         </div>
       ) : (

@@ -16,6 +16,7 @@ export default function HistoriqueCoranPage() {
   const [classes, setClasses] = useState<Classe[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
   const [revisions, setRevisions] = useState<any[]>([]);
+  const [elevesMap, setElevesMap] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [loadingRevisions, setLoadingRevisions] = useState(false);
   const [expandedSession, setExpandedSession] = useState<number | null>(null);
@@ -32,6 +33,11 @@ export default function HistoriqueCoranPage() {
     if (selectedClasse) {
       fetchSessions();
       fetchRevisions();
+      api.get(`/eleves/classe/${selectedClasse}`).then(r => {
+        const map: Record<number, string> = {};
+        r.data.forEach((e: any) => { map[e.id] = e.matricule || ''; });
+        setElevesMap(map);
+      }).catch(() => {});
     }
   }, [selectedClasse, startDate, endDate]);
 
@@ -342,8 +348,8 @@ export default function HistoriqueCoranPage() {
                             ) : <span className="text-muted">—</span>}
                           </td>
                           <td className="py-3 px-3">
-                            <span className="badge" style={{ backgroundColor: '#f3f4f6', color: '#374151', fontSize: 11 }}>
-                              {revision.eleveMatricule || revision.matricule || '—'}
+                            <span className="badge" style={{ backgroundColor: '#f3f4f6', color: '#374151', fontSize: 11, fontFamily: 'monospace' }}>
+                              {revision.eleveMatricule || revision.matricule || elevesMap[revision.eleveId] || '—'}
                             </span>
                           </td>
                           <td className="py-3 px-3">

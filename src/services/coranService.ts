@@ -11,6 +11,7 @@ import type {
   SeanceRevisionRequest,
   SeanceRevisionResponse,
   RapportCoranResponse,
+  RapportDetailResponse,
 } from '../Types/coran';
 
 // Liste statique des 114 sourates du Coran
@@ -234,6 +235,13 @@ export const coranService = {
     params.append('dateFin', dateFin);
     const response = await api.get(`${CORAN_BASE_URL}/rapport?${params.toString()}`);
     return response.data;
+  },
+
+  getRapportDetail: async (classeId: number, dateDebut: string, dateFin: string): Promise<RapportDetailResponse> => {
+    const res = await api.get('/coran/rapport/detail', {
+      params: { classeId, dateDebut, dateFin },
+    });
+    return res.data;
   },
 };
 

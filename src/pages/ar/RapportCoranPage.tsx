@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../../api/axios';
 import type { Classe } from '../../Types/index';
-import type { RapportCoranResponse, RapportLigneEleve } from '../../Types/coran';
+import type { RapportCoranResponse, RapportLigneEleve, RapportDetailResponse } from '../../Types/coran';
 import coranService from '../../services/coranService';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../Context/AuthContext';
@@ -25,16 +25,6 @@ interface RecentReport {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function getWeekBounds(date: string) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diff);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return { debut: monday.toISOString().split('T')[0], fin: sunday.toISOString().split('T')[0] };
-}
 
 function getMonthBounds(ym: string) {
   const [y, m] = ym.split('-').map(Number);
@@ -52,10 +42,6 @@ function frMonth(ym: string) {
   return new Date(y, m - 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 }
 
-function frWeek(date: string) {
-  const { debut, fin } = getWeekBounds(date);
-  return `${frDate(debut)} – ${frDate(fin)}`;
-}
 
 // ─── PrintableTable ──────────────────────────────────────────────────────────
 
@@ -117,6 +103,7 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
             <tr style={{ backgroundColor: '#0A6E3F', color: '#fff' }}>
               <th style={{ ...th, minWidth: 90 }}>رقم التعريف</th>
               <th style={{ ...th, minWidth: 120 }}>اسم الطالب</th>
+              <th style={{ ...th, minWidth: 90 }}>التاريخ</th>
               <th style={th}>السورة</th>
               <th style={th}>تلاوة من</th>
               <th style={th}>تلاوة إلى</th>
@@ -146,6 +133,7 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
                 <tr key={e.eleveId} style={{ backgroundColor: bg }}>
                   <td style={{ ...td, fontFamily: 'monospace', fontSize: 10, color: '#6b7280' }}>{e.matricule || '—'}</td>
                   <td style={{ ...td, fontWeight: 600, textAlign: 'right' }}>{e.prenom} {e.nom}</td>
+                  <td style={{ ...td, fontSize: 10, color: '#374151', whiteSpace: 'nowrap' }}>{periodLabel}</td>
                   <td style={td}>{e.sourateNomArabe || e.sourateNom || '—'}</td>
                   <td style={td}>{e.versetTlatwaDebut ?? '—'}</td>
                   <td style={td}>{e.versetTlatwaFin ?? '—'}</td>
@@ -181,7 +169,7 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
           </tbody>
           <tfoot>
             <tr style={{ backgroundColor: '#e8f5e9', fontWeight: 700, borderTop: '2px solid #0A6E3F' }}>
-              <td style={td} colSpan={2}>المجموع</td>
+              <td style={td} colSpan={3}>المجموع</td>
               <td style={td} colSpan={5}>{totalSeances} جلسة</td>
               <td style={{ ...td, color: '#1d4ed8' }}>{totalPresents}</td>
               <td style={{ ...td, color: '#dc2626' }}>{totalAbsents}</td>
@@ -233,9 +221,14 @@ export default function RapportCoranPage() {
   const [selectedClasse, setSelectedClasse] = useState<number | ''>('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [weekDebut, setWeekDebut] = useState(new Date().toISOString().split('T')[0]);
+  const [weekFin, setWeekFin] = useState(new Date().toISOString().split('T')[0]);
+  const [weekRangeError, setWeekRangeError] = useState('');
   const [classes, setClasses] = useState<Classe[]>([]);
   const [enseignants, setEnseignants] = useState<any[]>([]);
+  const [vue, setVue] = useState<'agrege' | 'detail'>('agrege');
   const [rapport, setRapport] = useState<RapportCoranResponse | null>(null);
+  const [rapportDetail, setRapportDetail] = useState<RapportDetailResponse | null>(null);
   const [enseignantNomRevision, setEnseignantNomRevision] = useState('');
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -265,9 +258,29 @@ export default function RapportCoranPage() {
 
   const getDateBounds = useCallback(() => {
     if (periode === 'journalier') return { debut: selectedDate, fin: selectedDate };
-    if (periode === 'hebdomadaire') return getWeekBounds(selectedDate);
+    if (periode === 'hebdomadaire') return { debut: weekDebut, fin: weekFin };
     return getMonthBounds(selectedMonth);
-  }, [periode, selectedDate, selectedMonth]);
+  }, [periode, selectedDate, weekDebut, weekFin, selectedMonth]);
+
+  const handleWeekDebutChange = (val: string) => {
+    setWeekDebut(val);
+    setWeekRangeError('');
+    if (weekFin && val) {
+      const diff = (new Date(weekFin).getTime() - new Date(val).getTime()) / 86400000;
+      if (diff < 0) { setWeekFin(val); }
+      else if (diff > 7) { setWeekRangeError('La période ne peut pas dépasser 7 jours.'); }
+    }
+  };
+
+  const handleWeekFinChange = (val: string) => {
+    setWeekFin(val);
+    setWeekRangeError('');
+    if (weekDebut && val) {
+      const diff = (new Date(val).getTime() - new Date(weekDebut).getTime()) / 86400000;
+      if (diff < 0) { setWeekRangeError('La date de fin doit être après la date de début.'); }
+      else if (diff > 7) { setWeekRangeError('La période ne peut pas dépasser 7 jours.'); }
+    }
+  };
 
   const saveToRecents = useCallback((res: RapportCoranResponse, debut: string, fin: string, label: string) => {
     const entry: RecentReport = {
@@ -294,6 +307,9 @@ export default function RapportCoranPage() {
     setPeriode(r.periode);
     if (r.periode === 'mensuel') {
       setSelectedMonth(r.dateDebut.slice(0, 7));
+    } else if (r.periode === 'hebdomadaire') {
+      setWeekDebut(r.dateDebut);
+      setWeekFin(r.dateFin);
     } else {
       setSelectedDate(r.dateDebut);
     }
@@ -304,11 +320,15 @@ export default function RapportCoranPage() {
     setLoading(true);
     try {
       const { debut, fin } = getDateBounds();
-      const [res, revisions] = await Promise.all([
+      const [res, revisions, detail] = await Promise.all([
         coranService.getRapport(Number(selectedClasse), debut, fin),
         coranService.getRevisionsByClasse(Number(selectedClasse), debut, fin).catch(() => []),
+        (periode === 'hebdomadaire' || periode === 'mensuel')
+          ? coranService.getRapportDetail(Number(selectedClasse), debut, fin).catch(() => null)
+          : Promise.resolve(null),
       ]);
       setRapport(res);
+      setRapportDetail(detail);
       // Extraire l'enseignant depuis les révisions de la période
       const ensFromRevision = (revisions as any[]).find((r: any) => r.enseignantNom)?.enseignantNom || '';
       setEnseignantNomRevision(ensFromRevision);
@@ -316,7 +336,7 @@ export default function RapportCoranPage() {
         toast('Aucune séance pour cette période', { icon: '📭' });
       } else {
         const label = periode === 'journalier' ? frDate(debut)
-          : periode === 'hebdomadaire' ? frWeek(debut)
+          : periode === 'hebdomadaire' ? `${frDate(debut)} – ${frDate(fin)}`
           : frMonth(debut.slice(0, 7));
         saveToRecents(res, debut, fin, label);
       }
@@ -370,7 +390,7 @@ export default function RapportCoranPage() {
       const filename = periode === 'journalier'
         ? `rapport-journalier-${selectedDate}.pdf`
         : periode === 'hebdomadaire'
-        ? `rapport-hebdomadaire-${selectedDate}.pdf`
+        ? `rapport-hebdomadaire-${weekDebut}-${weekFin}.pdf`
         : `rapport-mensuel-${selectedMonth}.pdf`;
 
       pdf.save(filename);
@@ -385,7 +405,7 @@ export default function RapportCoranPage() {
 
   const periodLabel =
     periode === 'journalier' ? frDate(selectedDate)
-    : periode === 'hebdomadaire' ? frWeek(selectedDate)
+    : periode === 'hebdomadaire' ? `${frDate(weekDebut)} – ${frDate(weekFin)}`
     : frMonth(selectedMonth);
 
   const selectedClasseObj = classes.find(c => c.id === selectedClasse);
@@ -477,14 +497,40 @@ export default function RapportCoranPage() {
             </select>
           </div>
 
-          {periode !== 'mensuel' ? (
+          {periode === 'journalier' ? (
             <div className="col-12 col-md-4">
-              <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>
-                {periode === 'journalier' ? 'Date' : 'Semaine (sélectionner une date)'}
-              </label>
+              <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Date</label>
               <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
                 className="form-control" style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }} />
             </div>
+          ) : periode === 'hebdomadaire' ? (
+            <>
+              <div className="col-12 col-md-3">
+                <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>📅 Date début</label>
+                <input
+                  type="date"
+                  value={weekDebut}
+                  onChange={e => handleWeekDebutChange(e.target.value)}
+                  className="form-control"
+                  style={{ borderRadius: 8, border: `1px solid ${weekRangeError ? '#dc2626' : '#e5e7eb'}`, backgroundColor: '#f9fafb', fontSize: 14 }}
+                />
+              </div>
+              <div className="col-12 col-md-3">
+                <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>📅 Date fin</label>
+                <input
+                  type="date"
+                  value={weekFin}
+                  min={weekDebut}
+                  max={(() => { const d = new Date(weekDebut); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0]; })()}
+                  onChange={e => handleWeekFinChange(e.target.value)}
+                  className="form-control"
+                  style={{ borderRadius: 8, border: `1px solid ${weekRangeError ? '#dc2626' : '#e5e7eb'}`, backgroundColor: '#f9fafb', fontSize: 14 }}
+                />
+                {weekRangeError && (
+                  <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>⚠️ {weekRangeError}</div>
+                )}
+              </div>
+            </>
           ) : (
             <div className="col-12 col-md-4">
               <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Mois</label>
@@ -493,10 +539,14 @@ export default function RapportCoranPage() {
             </div>
           )}
 
-          <div className="col-12 col-md-4 d-flex align-items-end">
-            <button onClick={fetchData} disabled={!selectedClasse || loading} className="btn fw-semibold w-100"
-              style={{ backgroundColor: '#4338ca', color: '#fff', borderRadius: 8, fontSize: 14, padding: '0.75rem', border: 'none', opacity: (!selectedClasse || loading) ? 0.6 : 1 }}>
-              {loading ? <><span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14, borderWidth: 2 }} />Chargement...</> : '🔍 Générer le rapport'}
+          <div className={`col-12 ${periode === 'hebdomadaire' ? 'col-md-2' : 'col-md-4'} d-flex align-items-end`}>
+            <button
+              onClick={fetchData}
+              disabled={!selectedClasse || loading || !!weekRangeError}
+              className="btn fw-semibold w-100"
+              style={{ backgroundColor: '#4338ca', color: '#fff', borderRadius: 8, fontSize: 14, padding: '0.75rem', border: 'none', opacity: (!selectedClasse || loading || !!weekRangeError) ? 0.6 : 1 }}
+            >
+              {loading ? <><span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14, borderWidth: 2 }} />Chargement...</> : '🔍 Générer'}
             </button>
           </div>
         </div>
@@ -602,8 +652,38 @@ export default function RapportCoranPage() {
         </div>
       )}
 
+      {/* Toggle vue agrégée / détaillée */}
+      {hasData && rapport && (periode === 'hebdomadaire' || periode === 'mensuel') && (
+        <div className="d-flex gap-2">
+          <button
+            onClick={() => setVue('agrege')}
+            className="btn btn-sm fw-semibold"
+            style={{
+              backgroundColor: vue === 'agrege' ? '#4338ca' : '#f9fafb',
+              color: vue === 'agrege' ? '#fff' : '#374151',
+              border: vue === 'agrege' ? 'none' : '1px solid #e5e7eb',
+              borderRadius: 8,
+            }}
+          >
+            📊 Vue synthèse
+          </button>
+          <button
+            onClick={() => setVue('detail')}
+            className="btn btn-sm fw-semibold"
+            style={{
+              backgroundColor: vue === 'detail' ? '#4338ca' : '#f9fafb',
+              color: vue === 'detail' ? '#fff' : '#374151',
+              border: vue === 'detail' ? 'none' : '1px solid #e5e7eb',
+              borderRadius: 8,
+            }}
+          >
+            📋 Vue détaillée (séance par séance)
+          </button>
+        </div>
+      )}
+
       {/* Printable Table */}
-      {hasData && rapport && (
+      {hasData && rapport && (vue === 'agrege' || periode === 'journalier') && (
         <div className="rounded-4 overflow-hidden" style={{ boxShadow: '0 2px 16px rgba(67,56,202,0.08)', border: '1px solid #e0e7ff' }}>
           <div className="p-4 d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(90deg, #eef2ff 0%, #ffffff 100%)', borderBottom: '1px solid #e0e7ff' }}>
             <div className="d-flex align-items-center gap-2">
@@ -628,6 +708,73 @@ export default function RapportCoranPage() {
               periodLabel={periodLabel}
               logoDataUrl={logoDataUrl}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Tableau détaillé séance par séance */}
+      {vue === 'detail' && rapportDetail && rapportDetail.lignes.length > 0 && (
+        <div className="rounded-4 overflow-hidden" style={{ boxShadow: '0 2px 16px rgba(67,56,202,0.08)', border: '1px solid #e0e7ff' }}>
+          <div className="p-4 d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(90deg, #eef2ff 0%, #ffffff 100%)', borderBottom: '1px solid #e0e7ff' }}>
+            <div className="d-flex align-items-center gap-2">
+              <div style={{ width: 4, height: 20, backgroundColor: '#4338ca', borderRadius: 2 }} />
+              <h5 className="fw-bold mb-0" style={{ fontSize: 15, color: '#3730a3' }}>
+                Vue détaillée — {classeNom} — {periodLabel}
+              </h5>
+            </div>
+            <span className="badge rounded-pill" style={{ backgroundColor: '#e0e7ff', color: '#4338ca', fontSize: 12 }}>
+              {rapportDetail.lignes.length} ligne(s)
+            </span>
+          </div>
+          <div style={{ overflowX: 'auto', padding: 16 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, direction: 'rtl' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#0A6E3F', color: '#fff' }}>
+                  <th style={th}>التاريخ</th>
+                  <th style={th}>الجلسة</th>
+                  <th style={{ ...th, minWidth: 120 }}>اسم الطالب</th>
+                  <th style={{ ...th, minWidth: 90 }}>رقم التعريف</th>
+                  <th style={th}>الحضور</th>
+                  <th style={th}>السورة</th>
+                  <th style={th}>تلاوة من</th>
+                  <th style={th}>تلاوة إلى</th>
+                  <th style={th}>المستوى</th>
+                  <th style={{ ...th, minWidth: 110 }}>المسمع</th>
+                  <th style={{ ...th, minWidth: 110 }}>المعلم</th>
+                  <th style={{ ...th, minWidth: 90 }}>ملاحظات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rapportDetail.lignes.map((l, i) => {
+                  const niveauLabel = l.niveauMemorisation === 'MEMORISE' ? 'محفوظ'
+                    : l.niveauMemorisation === 'PARTIEL' ? 'جزئي'
+                    : l.niveauMemorisation === 'NON_MEMORISE' ? 'غير محفوظ' : '—';
+                  const niveauColor = l.niveauMemorisation === 'MEMORISE' ? '#0A6E3F'
+                    : l.niveauMemorisation === 'PARTIEL' ? '#d97706' : '#dc2626';
+                  const bg = i % 2 === 0 ? '#fff' : '#f9fafb';
+                  return (
+                    <tr key={`${l.seanceId}-${l.eleveId}`} style={{ backgroundColor: bg }}>
+                      <td style={{ ...td, whiteSpace: 'nowrap' }}>{new Date(l.date).toLocaleDateString('fr-FR')}</td>
+                      <td style={td}>{l.numeroSeance}</td>
+                      <td style={{ ...td, fontWeight: 600, textAlign: 'right' }}>{l.prenom} {l.nom}</td>
+                      <td style={{ ...td, fontFamily: 'monospace', fontSize: 10, color: '#6b7280' }}>{l.matricule || '—'}</td>
+                      <td style={{ ...td, fontWeight: 700, color: l.present ? '#0A6E3F' : '#dc2626' }}>
+                        {l.present ? '✓' : '✗'}
+                      </td>
+                      <td style={td}>{l.sourateNomArabe || l.sourateNom || '—'}</td>
+                      <td style={td}>{l.present ? (l.versetDebut ?? '—') : '—'}</td>
+                      <td style={td}>{l.present ? (l.versetFin ?? '—') : '—'}</td>
+                      <td style={{ ...td, fontWeight: 600, color: l.present ? niveauColor : '#9ca3af' }}>
+                        {l.present ? niveauLabel : '—'}
+                      </td>
+                      <td style={{ ...td, fontSize: 10, color: '#0A6E3F' }}>{l.enseignantNom || '—'}</td>
+                      <td style={{ ...td, fontSize: 10, color: '#1d4ed8', fontWeight: 600 }}>{enseignantClasse || '—'}</td>
+                      <td style={{ ...td, fontSize: 9, color: '#6b7280' }}>{l.commentaire || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
