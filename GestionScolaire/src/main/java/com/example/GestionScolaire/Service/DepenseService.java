@@ -1,6 +1,7 @@
 package com.example.GestionScolaire.Service;
 
 import com.example.GestionScolaire.Enum.TypeDepense;
+import com.example.GestionScolaire.Exception.AppException;
 import com.example.GestionScolaire.Model.Annee;
 import com.example.GestionScolaire.Model.Depense;
 import com.example.GestionScolaire.Model.Mois;
@@ -27,7 +28,7 @@ public class DepenseService {
 
     public Depense findById(Long id) {
         return depenseRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Depense introuvable : " + id));
+                .orElseThrow(() -> AppException.notFound("Dépense introuvable : " + id));
     }
 
     public List<Depense> findByAnnee(Long anneeId) {
@@ -37,14 +38,14 @@ public class DepenseService {
 
     public List<Depense> findByMois(Long moisId) {
         Mois mois = moisRepository.findById(moisId)
-                .orElseThrow(() -> new RuntimeException("Mois introuvable : " + moisId));
+                .orElseThrow(() -> AppException.notFound("Mois introuvable : " + moisId));
         return depenseRepository.findByMois(mois);
     }
 
     public List<Depense> findByAnneeAndMois(Long anneeId, Long moisId) {
         Annee annee = anneeService.findById(anneeId);
         Mois mois = moisRepository.findById(moisId)
-                .orElseThrow(() -> new RuntimeException("Mois introuvable : " + moisId));
+                .orElseThrow(() -> AppException.notFound("Mois introuvable : " + moisId));
         return depenseRepository.findByAnneeAndMois(annee, mois);
     }
 
@@ -63,13 +64,13 @@ public class DepenseService {
 
     public Double totalParMois(Long moisId) {
         Mois mois = moisRepository.findById(moisId)
-                .orElseThrow(() -> new RuntimeException("Mois introuvable : " + moisId));
+                .orElseThrow(() -> AppException.notFound("Mois introuvable : " + moisId));
         return depenseRepository.sumMontantByMois(mois);
     }
 
     public Double totalParMoisEtAnnee(Long moisId, Long anneeId) {
         Mois mois = moisRepository.findById(moisId)
-                .orElseThrow(() -> new RuntimeException("Mois introuvable : " + moisId));
+                .orElseThrow(() -> AppException.notFound("Mois introuvable : " + moisId));
         Annee annee = anneeService.findById(anneeId);
         return depenseRepository.sumMontantByMoisAndAnnee(mois, annee);
     }
@@ -85,7 +86,7 @@ public class DepenseService {
 
     public List<Object[]> statsParTypeEtMois(Long moisId) {
         Mois mois = moisRepository.findById(moisId)
-                .orElseThrow(() -> new RuntimeException("Mois introuvable : " + moisId));
+                .orElseThrow(() -> AppException.notFound("Mois introuvable : " + moisId));
         return depenseRepository.statsParTypeEtMois(mois);
     }
 

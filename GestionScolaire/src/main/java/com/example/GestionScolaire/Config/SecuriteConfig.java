@@ -53,7 +53,7 @@ public class SecuriteConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/me").authenticated()
-                        .requestMatchers("/api/coran/**").hasAnyRole("ADMIN", "ENSEIGNANT", "RECITATEUR")
+                        .requestMatchers("/api/coran/**").hasAnyRole("ADMIN", "RECITATEUR")
                         .requestMatchers("/api/inscriptions/**").hasAnyRole("ADMIN", "COMPTABLE")
                         .requestMatchers("/api/rapports/**").hasAnyRole("ADMIN", "COMPTABLE")
                         .requestMatchers("/api/eleves/**").hasAnyRole("ADMIN", "COMPTABLE", "ENSEIGNANT", "RECITATEUR")

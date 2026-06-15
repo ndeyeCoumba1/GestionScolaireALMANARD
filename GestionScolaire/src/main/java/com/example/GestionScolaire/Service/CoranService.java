@@ -167,9 +167,7 @@ public class CoranService {
         } catch (CoranException e) {
             throw e;
         } catch (Exception e) {
-            System.err.println("ERREUR dans upsertSeanceComplete: " + e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException("Erreur lors de l'enregistrement: " + e.getMessage(), e);
+            throw CoranException.internalError("Erreur lors de l'enregistrement: " + e.getMessage());
         }
     }
 

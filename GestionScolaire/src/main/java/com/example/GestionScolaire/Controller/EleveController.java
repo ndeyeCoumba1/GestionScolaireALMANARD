@@ -16,7 +16,6 @@ import java.util.stream.Collectors;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/eleves")
-@CrossOrigin(origins = "*")
 public class EleveController {
 
     private final EleveService eleveService;

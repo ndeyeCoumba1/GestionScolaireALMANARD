@@ -1,8 +1,11 @@
 package com.example.GestionScolaire.Service;
 
 import com.example.GestionScolaire.Enum.StatutEleve;
+import com.example.GestionScolaire.Exception.AppException;
 import com.example.GestionScolaire.Model.Eleve;
+import com.example.GestionScolaire.Repository.ClasseRepository;
 import com.example.GestionScolaire.Repository.EleveRepository;
+import com.example.GestionScolaire.Repository.ParentRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -14,44 +17,43 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EleveService {
 
-    private final EleveRepository eleveRepository;
+    private final EleveRepository  eleveRepository;
+    private final ClasseRepository classeRepository;
+    private final ParentRepository parentRepository;
 
     public List<Eleve> findAll() {
         return eleveRepository.findAll();
     }
+
     public List<Eleve> findByClasseId(Long classeId) {
         return eleveRepository.findByClasseId(classeId);
     }
 
     public Eleve findById(Long id) {
         return eleveRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Eleve introuvable : " + id));
+                .orElseThrow(() -> AppException.notFound("Eleve introuvable : " + id));
     }
 
-    // ✅ Trouver par matricule
     public Eleve findByMatricule(String matricule) {
         return eleveRepository.findByMatricule(matricule)
-                .orElseThrow(() -> new RuntimeException("Eleve introuvable avec matricule : " + matricule));
+                .orElseThrow(() -> AppException.notFound("Eleve introuvable avec matricule : " + matricule));
     }
 
-    // ✅ Toutes les informations de l'élève avec ses relations
     public Eleve findByIdWithDetails(Long id) {
         return eleveRepository.findByIdWithDetails(id)
-                .orElseThrow(() -> new RuntimeException("Eleve introuvable : " + id));
+                .orElseThrow(() -> AppException.notFound("Eleve introuvable : " + id));
     }
 
-    // ✅ Génération automatique du matricule
     private String genererMatricule() {
         String annee = String.valueOf(Year.now().getValue());
         long count = eleveRepository.count() + 1;
         return "MAT-" + annee + "-" + String.format("%05d", count);
     }
-    // ✅ Vérifier si un matricule est unique
+
     private boolean isMatriculeUnique(String matricule) {
         return !eleveRepository.existsByMatricule(matricule);
     }
 
-    // ✅ Méthode pour réinitialiser le statut par matricule
     @Transactional
     public void changerStatutByMatricule(String matricule, StatutEleve statut) {
         Eleve eleve = findByMatricule(matricule);
@@ -64,10 +66,7 @@ public class EleveService {
     }
 
     public List<Eleve> findByClasse(Long classeId) {
-        return eleveRepository.findAll().stream()
-                .filter(e -> e.getClasse() != null &&
-                        e.getClasse().getId().equals(classeId))
-                .toList();
+        return eleveRepository.findByClasseId(classeId);
     }
 
     public long countByStatut(StatutEleve statut) {
@@ -82,19 +81,44 @@ public class EleveService {
             matricule = genererMatricule();
         }
         eleve.setMatricule(matricule);
+
+        // Recharger Classe et Parent depuis la BDD pour éviter les entités détachées
+        if (eleve.getClasse() != null && eleve.getClasse().getId() != null) {
+            eleve.setClasse(classeRepository.findById(eleve.getClasse().getId()).orElse(null));
+        }
+        if (eleve.getParent() != null && eleve.getParent().getId() != null) {
+            eleve.setParent(parentRepository.findById(eleve.getParent().getId()).orElse(null));
+        }
+
         return eleveRepository.save(eleve);
     }
 
     @Transactional
     public Eleve update(Long id, Eleve updated) {
         Eleve eleve = findById(id);
+
         eleve.setNom(updated.getNom());
         eleve.setPrenom(updated.getPrenom());
+        eleve.setNomArabe(updated.getNomArabe());
+        eleve.setPrenomArabe(updated.getPrenomArabe());
         eleve.setDateNaissance(updated.getDateNaissance());
         eleve.setSexe(updated.getSexe());
         eleve.setAdresse(updated.getAdresse());
-        eleve.setClasse(updated.getClasse());
-        eleve.setParent(updated.getParent());
+        eleve.setPhotoUrl(updated.getPhotoUrl());
+
+        // Recharger Classe et Parent depuis la BDD pour éviter les entités détachées
+        if (updated.getClasse() != null && updated.getClasse().getId() != null) {
+            eleve.setClasse(classeRepository.findById(updated.getClasse().getId()).orElse(null));
+        } else {
+            eleve.setClasse(null);
+        }
+
+        if (updated.getParent() != null && updated.getParent().getId() != null) {
+            eleve.setParent(parentRepository.findById(updated.getParent().getId()).orElse(null));
+        } else {
+            eleve.setParent(null);
+        }
+
         return eleveRepository.save(eleve);
     }
 
@@ -105,6 +129,7 @@ public class EleveService {
         eleve.setPrenomArabe(prenomArabe);
         return eleveRepository.save(eleve);
     }
+
     @Transactional
     public void changerStatut(Long id, StatutEleve statut) {
         Eleve eleve = findById(id);

@@ -23,7 +23,6 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/paiements")
-@CrossOrigin(origins = "*")
 public class PaiementController {
 
     private final PaiementService paiementService;

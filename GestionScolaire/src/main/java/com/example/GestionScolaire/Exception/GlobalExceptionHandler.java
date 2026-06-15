@@ -6,6 +6,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import com.example.GestionScolaire.Exception.AppException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -28,6 +29,18 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(PaiementException.class)
     public ResponseEntity<ErrorResponse> handlePaiementException(PaiementException ex) {
+        return ResponseEntity
+                .status(ex.getStatus())
+                .body(new ErrorResponse(
+                        ex.getStatus().value(),
+                        ex.getStatus().getReasonPhrase(),
+                        ex.getMessage(),
+                        ex.getTimestamp()
+                ));
+    }
+
+    @ExceptionHandler(AppException.class)
+    public ResponseEntity<ErrorResponse> handleAppException(AppException ex) {
         return ResponseEntity
                 .status(ex.getStatus())
                 .body(new ErrorResponse(

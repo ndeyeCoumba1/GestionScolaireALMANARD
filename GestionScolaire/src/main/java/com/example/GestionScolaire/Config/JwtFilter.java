@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -16,6 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Collections;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class JwtFilter extends OncePerRequestFilter {
@@ -29,29 +31,19 @@ public class JwtFilter extends OncePerRequestFilter {
 
         String authHeader = request.getHeader("Authorization");
 
-        System.out.println("=== JWT FILTER ===");
-        System.out.println("URI: " + request.getRequestURI());
-        System.out.println("Auth Header: " + (authHeader != null ? "présent" : "absent"));
-
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            System.out.println("Pas de token Bearer, passage au filtre suivant");
             filterChain.doFilter(request, response);
             return;
         }
 
         String token = authHeader.substring(7);
-        System.out.println("Token extrait: " + token.substring(0, Math.min(20, token.length())) + "...");
 
         try {
             if (jwtService.isTokenValid(token)) {
                 String email = jwtService.extractEmail(token);
                 String role = jwtService.extractRole(token);
 
-                System.out.println("Email extrait: " + email);
-                System.out.println("Role extrait: " + role);
-
                 if (email != null && role != null) {
-                    // ✅ Créer l'autorité avec le rôle
                     SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
                     UserDetails userDetails = new User(email, "", Collections.singletonList(authority));
 
@@ -59,16 +51,10 @@ public class JwtFilter extends OncePerRequestFilter {
                             new UsernamePasswordAuthenticationToken(userDetails, token, userDetails.getAuthorities());
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
-                    System.out.println("✅ Authentification établie avec rôle: ROLE_" + role);
-                } else {
-                    System.out.println("❌ Email ou rôle null");
                 }
-            } else {
-                System.out.println("❌ Token invalide ou expiré");
             }
         } catch (Exception e) {
-            System.out.println("❌ Erreur JWT: " + e.getMessage());
-            e.printStackTrace();
+            log.warn("Erreur de traitement du token JWT : {}", e.getMessage());
         }
 
         filterChain.doFilter(request, response);

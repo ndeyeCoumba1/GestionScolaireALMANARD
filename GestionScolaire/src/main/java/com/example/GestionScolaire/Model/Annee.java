@@ -26,7 +26,7 @@ public class Annee {
     @Column(nullable = false)
     private LocalDate dateFin;
 
-    private Boolean actif =true;
+    private Boolean actif = false;
 
 
 }

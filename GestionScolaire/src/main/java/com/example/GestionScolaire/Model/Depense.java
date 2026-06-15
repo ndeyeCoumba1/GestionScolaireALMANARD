@@ -5,7 +5,7 @@ import com.example.GestionScolaire.Enum.TypeDepense;
 import jakarta.persistence.*;
 
 import lombok.*;
-;import java.time.LocalDate;
+import java.time.LocalDate;
 
 @Entity
 @Table(name="depenses")

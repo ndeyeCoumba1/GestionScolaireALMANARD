@@ -103,8 +103,8 @@ public class PaiementService {
         // Tous les paiements mensualité de cet élève pour l'année
         List<Paiement> paiements = paiementRepository.findByEleveIdAndAnneeId(eleveId, anneeId);
 
-        // Tous les mois connus (indépendants de l'année)
-        List<Mois> tousLesMois = moisRepository.findAll();
+        // Les mois configurés pour cette année spécifiquement
+        List<Mois> tousLesMois = moisRepository.findByAnnee(annee);
 
         List<PaiementSearchDTO.SituationMensuelleDTO> situationsMois = tousLesMois.stream()
                 .map(mois -> {

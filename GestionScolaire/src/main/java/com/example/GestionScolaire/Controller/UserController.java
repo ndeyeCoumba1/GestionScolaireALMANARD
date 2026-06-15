@@ -17,7 +17,6 @@ import java.util.Map;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "*")
 public class UserController {
     private final UserService userService;
     private final DtoMapper mapper;

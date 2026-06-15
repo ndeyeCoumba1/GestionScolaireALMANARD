@@ -1,6 +1,7 @@
 package com.example.GestionScolaire.Service;
 
 import com.example.GestionScolaire.Enum.StatutEleve;
+import com.example.GestionScolaire.Exception.AppException;
 import com.example.GestionScolaire.Model.Annee;
 import com.example.GestionScolaire.Model.Classe;
 import com.example.GestionScolaire.Model.Eleve;
@@ -24,7 +25,6 @@ public class InscriptionService {
     private final EleveService eleveService;
     private final ClasseRepository classeRepository;
 
-
     public List<Inscription> findAll() {
         return inscriptionRepository.findAll();
     }
@@ -37,33 +37,31 @@ public class InscriptionService {
         Eleve eleve = eleveService.findById(eleveId);
         return inscriptionRepository.findByEleve(eleve);
     }
+
     public long countByAnnee(Annee annee) {
         return inscriptionRepository.countByAnnee(annee);
     }
-
 
     @Transactional
     public Inscription inscrire(Long eleveId, Long classeId, double fraisInscription) {
         Annee anneeActive = anneeService.findAnneeActive();
         Eleve eleve = eleveService.findById(eleveId);
         Classe classe = classeRepository.findById(classeId)
-                .orElseThrow(() -> new RuntimeException("Classe non trouvée avec ID: " + classeId));
+                .orElseThrow(() -> AppException.notFound("Classe non trouvée avec ID: " + classeId));
 
-        // Vérifier doublon
         if (inscriptionRepository.existsByEleveAndAnnee(eleve, anneeActive)) {
-            throw new RuntimeException(
+            throw AppException.conflict(
                     eleve.getNom() + " est déjà inscrit pour l'année " + anneeActive.getLibelle()
             );
         }
 
         Inscription inscription = new Inscription();
         inscription.setEleve(eleve);
-        inscription.setClasse(classe); // Ajouter cette ligne
+        inscription.setClasse(classe);
         inscription.setAnnee(anneeActive);
         inscription.setDateInscription(LocalDate.now());
         inscription.setFraisInscription(fraisInscription);
 
-        // Mettre à jour le statut de l'élève
         eleve.setStatut(StatutEleve.INSCRIT);
         eleveRepository.save(eleve);
 
@@ -72,7 +70,7 @@ public class InscriptionService {
 
     public Inscription findById(Long id) {
         return inscriptionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Inscription introuvable : " + id));
+                .orElseThrow(() -> AppException.notFound("Inscription introuvable : " + id));
     }
 
     public Inscription updateFrais(Long id, double fraisInscription) {
@@ -84,6 +82,4 @@ public class InscriptionService {
     public void delete(Long id) {
         inscriptionRepository.deleteById(id);
     }
-
-
 }

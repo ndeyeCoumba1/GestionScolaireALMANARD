@@ -1,13 +1,13 @@
 package com.example.GestionScolaire.Service;
 
+import com.example.GestionScolaire.Exception.AppException;
 import com.example.GestionScolaire.Model.Parent;
 import com.example.GestionScolaire.Repository.ParentRepository;
 import jakarta.transaction.Transactional;
-import lombok.*;
-import org.jspecify.annotations.NonNull;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -20,7 +20,7 @@ public class ParentService {
 
     public Parent findById(Long id) {
         return parentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Parent introuvable : " + id));
+                .orElseThrow(() -> AppException.notFound("Parent introuvable : " + id));
     }
 
     public List<Parent> search(String query) {
@@ -28,15 +28,16 @@ public class ParentService {
     }
 
     @Transactional
-    public Parent create(@NonNull Parent parent) {
+    public Parent create(Parent parent) {
         if (parentRepository.existsByEmail(parent.getEmail())) {
-            throw new RuntimeException("Email déjà utilisé : " + parent.getEmail());
+            throw AppException.conflict("Email déjà utilisé : " + parent.getEmail());
         }
         if (parentRepository.existsByTelephone(parent.getTelephone())) {
-            throw new RuntimeException("Téléphone déjà utilisé : " + parent.getTelephone());
+            throw AppException.conflict("Téléphone déjà utilisé : " + parent.getTelephone());
         }
         return parentRepository.save(parent);
     }
+
     @Transactional
     public Parent update(Long id, Parent updated) {
         Parent parent = findById(id);
@@ -48,13 +49,12 @@ public class ParentService {
         parent.setProfession(updated.getProfession());
         return parentRepository.save(parent);
     }
+
     public void delete(Long id) {
         Parent parent = findById(id);
         if (!parent.getEleves().isEmpty()) {
-            throw new RuntimeException("Impossible de supprimer : ce parent a des élèves liés");
+            throw AppException.badRequest("Impossible de supprimer : ce parent a des élèves liés");
         }
         parentRepository.deleteById(id);
     }
-
-
 }

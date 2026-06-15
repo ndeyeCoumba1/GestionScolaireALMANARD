@@ -1,5 +1,6 @@
 package com.example.GestionScolaire.Service;
 
+import com.example.GestionScolaire.Exception.AppException;
 import com.example.GestionScolaire.Model.Annee;
 import com.example.GestionScolaire.Repository.AnneeRepository;
 import jakarta.transaction.Transactional;
@@ -20,19 +21,21 @@ public class AnneeService {
 
     public Annee findById(Long id) {
         return anneeRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Année introuvable avec l'id : " + id));
+                .orElseThrow(() -> AppException.notFound("Année introuvable avec l'id : " + id));
     }
 
     public Annee findAnneeActive() {
         return anneeRepository.findAnneeActive()
-                .orElseThrow(() -> new RuntimeException("Aucune année scolaire active"));
+                .orElseThrow(() -> AppException.notFound("Aucune année scolaire active"));
     }
 
     @Transactional
     public Annee create(Annee annee) {
         if (anneeRepository.existsByLibelle(annee.getLibelle())) {
-            throw new RuntimeException("L'année " + annee.getLibelle() + " existe déjà");
+            throw AppException.conflict("L'année " + annee.getLibelle() + " existe déjà");
         }
+        // Toute nouvelle année est inactive par défaut — utiliser /activer pour l'activer
+        annee.setActif(false);
         return anneeRepository.save(annee);
     }
 
@@ -45,7 +48,6 @@ public class AnneeService {
         return anneeRepository.save(annee);
     }
 
-    // Désactiver toutes les années puis activer celle choisie
     @Transactional
     public Annee activerAnnee(Long id) {
         anneeRepository.findAll().forEach(a -> {
@@ -60,5 +62,4 @@ public class AnneeService {
     public void delete(Long id) {
         anneeRepository.deleteById(id);
     }
-
 }

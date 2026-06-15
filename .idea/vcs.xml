@@ -2,5 +2,6 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/GestionScolaire/src/main/java/com/example/GestionScolaire/Model/telcomflow_backend_db_compatible/telcomflow_backend_db_compatible" vcs="Git" />
   </component>
 </project>

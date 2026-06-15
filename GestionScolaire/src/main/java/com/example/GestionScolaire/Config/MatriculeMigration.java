@@ -3,11 +3,13 @@ package com.example.GestionScolaire.Config;
 import com.example.GestionScolaire.Model.Eleve;
 import com.example.GestionScolaire.Repository.EleveRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import java.time.Year;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class MatriculeMigration implements CommandLineRunner {
@@ -27,7 +29,7 @@ public class MatriculeMigration implements CommandLineRunner {
             }
         }
         if (count > 0) {
-            System.out.println("✅ " + count + " matricules générés pour les élèves existants");
+            log.info("{} matricules générés pour les élèves existants", count);
         }
     }
 

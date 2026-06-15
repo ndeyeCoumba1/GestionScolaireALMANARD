@@ -18,7 +18,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/coran")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class CoranController {
     private final CoranService coranService;
 
@@ -31,7 +30,7 @@ public class CoranController {
      * Récupère les versets du jour pour une classe
      */
     @GetMapping("/versets-jour")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<List<CoranDTO.VersetJourResponse>> getVersetsDuJour(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam Long classeId) {
@@ -43,7 +42,7 @@ public class CoranController {
      * Historique de tous les versets assignés à une classe
      */
     @GetMapping("/versets-jour/historique")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<List<CoranDTO.VersetJourResponse>> getHistoriqueVersets(
             @RequestParam Long classeId) {
         return ResponseEntity.ok(coranService.getHistoriqueVersets(classeId));
@@ -54,7 +53,7 @@ public class CoranController {
      * Définit (ou met à jour) les versets du jour pour chaque groupe
      */
     @PostMapping("/versets-jour")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECITATEUR')")
     public ResponseEntity<List<CoranDTO.VersetJourResponse>> upsertVersets(
             @RequestBody @Valid List<CoranDTO.VersetJourRequest> requests) {
         return ResponseEntity.ok(coranService.upsertVersets(requests));
@@ -69,7 +68,7 @@ public class CoranController {
      * Crée ou met à jour une séance complète (versets + présences + mémorisation)
      */
     @PostMapping("/seances")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECITATEUR')")
     public ResponseEntity<CoranDTO.SeanceResponse> upsertSeance(
             @RequestBody @Valid CoranDTO.SeanceRequest request) {
         return ResponseEntity.ok(coranService.upsertSeanceComplete(request));
@@ -80,7 +79,7 @@ public class CoranController {
      * Récupère toutes les séances d'un jour donné pour une classe (ordonnées par numéro)
      */
     @GetMapping("/seances/date")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<List<CoranDTO.SeanceResponse>> getSeancesByDate(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam Long classeId) {
@@ -92,7 +91,7 @@ public class CoranController {
      * Historique des séances d'une classe avec filtres optionnels de dates
      */
     @GetMapping("/seances/historique")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<List<CoranDTO.SeanceResponse>> getHistoriqueSeances(
             @RequestParam Long classeId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
@@ -109,7 +108,7 @@ public class CoranController {
      * Historique de récitation d'un élève spécifique
      */
     @GetMapping("/recitations/eleve/{eleveId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<List<CoranDTO.EleveRecitationResponse>> getRecitationsByEleve(
             @PathVariable Long eleveId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
@@ -127,7 +126,7 @@ public class CoranController {
      * Statistiques de présence et mémorisation pour toute la classe
      */
     @GetMapping("/stats/classe/{classeId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<CoranDTO.StatistiquesClasseResponse> getStatistiquesClasse(
             @PathVariable Long classeId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
@@ -141,7 +140,7 @@ public class CoranController {
      * Statistiques globales d'un élève (toutes séances confondues)
      */
     @GetMapping("/stats/eleve/{eleveId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<CoranDTO.StatistiquesEleveResponse> getStatistiquesEleve(
             @PathVariable Long eleveId) {
         return ResponseEntity.ok(coranService.getStatistiquesEleve(eleveId));
@@ -156,7 +155,7 @@ public class CoranController {
      * Enregistre une séance de révision pour un élève
      */
     @PostMapping("/revisions")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECITATEUR')")
     public ResponseEntity<CoranDTO.SeanceRevisionResponse> enregistrerRevision(
             @RequestBody @Valid CoranDTO.SeanceRevisionRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -168,7 +167,7 @@ public class CoranController {
      * Historique des révisions d'un élève
      */
     @GetMapping("/revisions/eleve/{eleveId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<List<CoranDTO.SeanceRevisionResponse>> getRevisionsByEleve(
             @PathVariable Long eleveId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
@@ -181,7 +180,7 @@ public class CoranController {
      * Toutes les révisions d'une classe
      */
     @GetMapping("/revisions/classe/{classeId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<List<CoranDTO.SeanceRevisionResponse>> getRevisionsByClasse(
             @PathVariable Long classeId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
@@ -199,7 +198,7 @@ public class CoranController {
      * avec présences, mémorisation, versets tlatwa, versets révision et المسمع.
      */
     @GetMapping("/rapport")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<RapportCoranDTO.RapportResponse> getRapport(
             @RequestParam Long classeId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
@@ -212,7 +211,7 @@ public class CoranController {
      * Rapport détaillé : une ligne par (élève × séance), toutes les séances de la période.
      */
     @GetMapping("/rapport/detail")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'COMPTABLE', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPTABLE', 'RECITATEUR')")
     public ResponseEntity<RapportDetailDTO.RapportDetailResponse> getRapportDetail(
             @RequestParam Long classeId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
@@ -225,7 +224,7 @@ public class CoranController {
      * Supprime une séance de révision
      */
     @DeleteMapping("/revisions/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ENSEIGNANT', 'RECITATEUR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECITATEUR')")
     public ResponseEntity<Void> supprimerRevision(@PathVariable Long id) {
         coranService.supprimerRevision(id);
         return ResponseEntity.noContent().build();

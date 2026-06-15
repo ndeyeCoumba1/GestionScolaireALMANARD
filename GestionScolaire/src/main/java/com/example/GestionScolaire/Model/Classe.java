@@ -28,7 +28,7 @@ public class Classe {
     private StatutEleve statut;
 
     @JsonIgnore
-    @OneToMany(mappedBy = "classe" , cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "classe")
     private List<Eleve> eleves;
 
     @ManyToOne

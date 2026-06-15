@@ -35,6 +35,9 @@ public interface InscriptionRepository extends JpaRepository<Inscription, Long> 
     // Compter les inscriptions par classe et année
     long countByClasseAndAnnee(Classe classe, Annee annee);
 
+    // Vérifier si une classe a des inscriptions (toutes années confondues)
+    boolean existsByClasse(Classe classe);
+
     // Revenus d'inscription par année
     @Query("SELECT SUM(i.fraisInscription) FROM Inscription i WHERE i.annee = :annee")
     Double sumFraisInscriptionByAnnee(@Param("annee") Annee annee);

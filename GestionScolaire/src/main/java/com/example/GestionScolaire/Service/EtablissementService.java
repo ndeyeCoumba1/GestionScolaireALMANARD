@@ -1,5 +1,6 @@
 package com.example.GestionScolaire.Service;
 
+import com.example.GestionScolaire.Exception.AppException;
 import com.example.GestionScolaire.Model.Etablissement;
 import com.example.GestionScolaire.Repository.EtablissementRepository;
 import jakarta.transaction.Transactional;
@@ -11,22 +12,17 @@ import org.springframework.stereotype.Service;
 public class EtablissementService {
     private final EtablissementRepository etablissementRepository;
 
-    // Créer un établissement
     public Etablissement create(Etablissement etablissement) {
         return etablissementRepository.save(etablissement);
     }
 
-
-
-    // Récupérer l'unique établissement
     public Etablissement findEtablissement() {
         return etablissementRepository.findAll()
                 .stream()
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("Aucun etablissement configure"));
+                .orElseThrow(() -> AppException.notFound("Aucun établissement configuré"));
     }
 
-    // Modifier les infos de l'école
     @Transactional
     public Etablissement update(Long id, Etablissement updated) {
         Etablissement etablissement = findEtablissement();
@@ -38,4 +34,3 @@ public class EtablissementService {
         return etablissementRepository.save(etablissement);
     }
 }
-

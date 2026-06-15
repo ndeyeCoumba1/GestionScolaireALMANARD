@@ -1,7 +1,7 @@
 package com.example.GestionScolaire.Service;
 
-
 import com.example.GestionScolaire.Enum.Role;
+import com.example.GestionScolaire.Exception.AppException;
 import com.example.GestionScolaire.Model.User;
 import com.example.GestionScolaire.Repository.UserRepository;
 import jakarta.transaction.Transactional;
@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -32,20 +32,19 @@ public class UserService {
 
     public User findById(Long id) {
         return userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable : " + id));
+                .orElseThrow(() -> AppException.notFound("Utilisateur introuvable : " + id));
     }
 
     public User findByEmail(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable : " + email));
+                .orElseThrow(() -> AppException.notFound("Utilisateur introuvable : " + email));
     }
 
     @Transactional
     public User create(User user) {
         if (userRepository.existsByEmail(user.getEmail())) {
-            throw new RuntimeException("Email déjà utilisé : " + user.getEmail());
+            throw AppException.conflict("Email déjà utilisé : " + user.getEmail());
         }
-        // Hasher le mot de passe avant sauvegarde
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         return userRepository.save(user);
     }
@@ -61,7 +60,7 @@ public class UserService {
         user.setRole(updated.getRole());
         return userRepository.save(user);
     }
-    // ── Mettre à jour uniquement les noms arabes
+
     @Transactional
     public User updateNomArabe(Long id, String nomArabe, String prenomArabe) {
         User user = findById(id);
@@ -77,7 +76,6 @@ public class UserService {
         userRepository.save(user);
     }
 
-    // Désactivation au lieu de suppression (soft delete)
     @Transactional
     public void desactiver(Long id) {
         User user = findById(id);
@@ -91,6 +89,4 @@ public class UserService {
         user.setActif(true);
         userRepository.save(user);
     }
-
-
 }

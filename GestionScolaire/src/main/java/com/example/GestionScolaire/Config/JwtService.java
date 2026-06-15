@@ -23,35 +23,23 @@ public class JwtService {
     }
 
     public String generateToken(String email, String role) {
-        System.out.println("=== GÉNÉRATION TOKEN ===");
-        System.out.println("Email: " + email);
-        System.out.println("Role: " + role);
-
-        String token = Jwts.builder()
+        return Jwts.builder()
                 .subject(email)
                 .claim("role", role)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getKey())
                 .compact();
-
-        System.out.println("Token généré avec succès");
-        return token;
     }
 
-    // Extraire l'email du token
     public String extractEmail(String token) {
         return getClaims(token).getSubject();
     }
 
-    // Extraire le rôle
     public String extractRole(String token) {
-        String role = getClaims(token).get("role", String.class);
-        System.out.println("Rôle extrait du token: " + role);
-        return role;
+        return getClaims(token).get("role", String.class);
     }
 
-    // Vérifier si le token est valide
     public boolean isTokenValid(String token) {
         try {
             return getClaims(token).getExpiration().after(new Date());
