@@ -1,4 +1,3 @@
-// AuthContext.tsx - VERSION CORRIGÉE
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { Role } from '../Types';
@@ -20,87 +19,44 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  // Initialisation depuis localStorage
-  const [token, setToken] = useState<string | null>(() => {
-    const t = localStorage.getItem('token');
-    console.log('Init token:', !!t);
-    return t;
-  });
-  
-  const [role, setRole] = useState<Role | null>(() => {
-    const r = localStorage.getItem('role') as Role | null;
-    console.log('Init role:', r);
-    return r;
-  });
-  
-  const [nom, setNom] = useState<string | null>(() => {
-    const n = localStorage.getItem('nom');
-    console.log('Init nom:', n);
-    return n;
-  });
-
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
+  const [role, setRole] = useState<Role | null>(() => localStorage.getItem('role') as Role | null);
+  const [nom, setNom] = useState<string | null>(() => localStorage.getItem('nom'));
   const [prenom, setPrenom] = useState<string | null>(() => localStorage.getItem('prenom'));
   const [userId, setUserId] = useState<number | null>(() => {
     const uid = localStorage.getItem('userId');
     return uid ? Number(uid) : null;
   });
+  const [portail, setPortail] = useState<Portail | null>(() => localStorage.getItem('portail') as Portail | null);
 
-  const [portail, setPortail] = useState<Portail | null>(() => {
-    const p = localStorage.getItem('portail') as Portail | null;
-    console.log('Init portail:', p);
-    return p;
-  });
-
-  // Écouter les changements de localStorage
   useEffect(() => {
     const handleStorageChange = () => {
-      console.log('Storage event detected');
       setToken(localStorage.getItem('token'));
       setRole(localStorage.getItem('role') as Role | null);
       setNom(localStorage.getItem('nom'));
       setPortail(localStorage.getItem('portail') as Portail | null);
     };
-    
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const login = (token: string, role: Role, nom: string, portail: Portail, prenom?: string, userId?: number) => {
-    console.log('=== LOGIN CONTEXT ===');
-    console.log('Paramètres reçus:');
-    console.log('  - token:', token.substring(0, 20) + '...');
-    console.log('  - role:', role);
-    console.log('  - nom:', nom);
-    console.log('  - portail:', portail);
-    
-    // Sauvegarde dans localStorage
     localStorage.setItem('token', token);
     localStorage.setItem('role', role);
     localStorage.setItem('nom', nom);
     localStorage.setItem('portail', portail);
     if (prenom) localStorage.setItem('prenom', prenom);
     if (userId) localStorage.setItem('userId', String(userId));
-    
-    // Vérification immédiate
-    console.log('Vérification après stockage localStorage:');
-    console.log('  - token:', !!localStorage.getItem('token'));
-    console.log('  - role:', localStorage.getItem('role'));
-    console.log('  - portail:', localStorage.getItem('portail'));
-    
-    // Mise à jour du state
+
     setToken(token);
     setRole(role);
     setNom(nom);
     setPortail(portail);
     if (prenom !== undefined) setPrenom(prenom);
     if (userId !== undefined) setUserId(userId);
-    
-    console.log('État après mise à jour state:');
-    console.log('  - portail state:', portail);
   };
 
   const logout = () => {
-    console.log('=== LOGOUT ===');
     localStorage.clear();
     document.documentElement.dir = 'ltr';
     setToken(null);
@@ -113,19 +69,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isAuthenticated = !!token;
 
   return (
-    <AuthContext.Provider
-      value={{
-        token,
-        role,
-        nom,
-        prenom,
-        userId,
-        portail,
-        login,
-        logout,
-        isAuthenticated
-      }}
-    >
+    <AuthContext.Provider value={{ token, role, nom, prenom, userId, portail, login, logout, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );

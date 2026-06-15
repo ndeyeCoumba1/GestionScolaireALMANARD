@@ -80,7 +80,7 @@ export default function EleveRecitationRow({
   return (
     <tr style={{ backgroundColor: errorBg, opacity: isAbsent ? 0.65 : 1 }}>
 
-      {/* 1. Présence */}
+      {/* 1. الحضور */}
       <td className="py-2 px-2 text-center" style={{ verticalAlign: 'middle' }}>
         <input
           type="checkbox"
@@ -90,17 +90,21 @@ export default function EleveRecitationRow({
         />
       </td>
 
-      {/* 2. Prénom */}
-      <td className="py-2 px-2" style={{ verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-        <span style={{ fontSize: 13, color: '#111827' }}>{eleve.prenom}</span>
+      {/* 2. الاسم */}
+      <td className="py-2 px-2" style={{ verticalAlign: 'middle', whiteSpace: 'nowrap', textAlign: 'right', direction: 'rtl' }}>
+        <span style={{ fontSize: 13, color: '#111827', fontFamily: 'serif' }}>
+          {eleve.prenomArabe || eleve.prenom}
+        </span>
       </td>
 
-      {/* 3. Nom */}
-      <td className="py-2 px-2" style={{ verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-        <span className="fw-semibold" style={{ fontSize: 13, color: '#111827' }}>{eleve.nom}</span>
+      {/* 3. اللقب */}
+      <td className="py-2 px-2" style={{ verticalAlign: 'middle', whiteSpace: 'nowrap', textAlign: 'right', direction: 'rtl' }}>
+        <span className="fw-semibold" style={{ fontSize: 13, color: '#111827', fontFamily: 'serif' }}>
+          {eleve.nomArabe || eleve.nom}
+        </span>
       </td>
 
-      {/* 4. Matricule */}
+      {/* 4. رقم التعريف */}
       <td className="py-2 px-2 text-center" style={{ verticalAlign: 'middle' }}>
         {eleve.matricule ? (
           <span className="badge rounded-pill fw-medium" style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontSize: 10, fontFamily: 'monospace' }}>
@@ -109,28 +113,14 @@ export default function EleveRecitationRow({
         ) : <span className="text-muted" style={{ fontSize: 11 }}>—</span>}
       </td>
 
-      {/* 5. الاسم (Prénom arabe) */}
-      <td className="py-2 px-2" style={{ verticalAlign: 'middle', textAlign: 'right', direction: 'rtl' }}>
-        <span style={{ fontSize: 13, color: '#374151', fontFamily: 'serif' }}>
-          {eleve.prenomArabe || '—'}
-        </span>
-      </td>
-
-      {/* 6. اللقب (Nom arabe) */}
-      <td className="py-2 px-2" style={{ verticalAlign: 'middle', textAlign: 'right', direction: 'rtl' }}>
-        <span className="fw-semibold" style={{ fontSize: 13, color: '#374151', fontFamily: 'serif' }}>
-          {eleve.nomArabe || '—'}
-        </span>
-      </td>
-
-      {/* 7. Classe */}
+      {/* 5. الفصل */}
       <td className="py-2 px-2 text-center" style={{ verticalAlign: 'middle' }}>
         <span className="badge" style={{ backgroundColor: '#e0f2fe', color: '#0369a1', fontSize: 11, fontWeight: 600, padding: '4px 8px', borderRadius: 6 }}>
           {classeName || '—'}
         </span>
       </td>
 
-      {/* 8. Sourate */}
+      {/* 6. السورة */}
       <td className="py-2 px-2" style={{ verticalAlign: 'middle', minWidth: 170 }}>
         <select
           value={sourateNumero}
@@ -147,7 +137,7 @@ export default function EleveRecitationRow({
         </select>
       </td>
 
-      {/* 9. Verset début */}
+      {/* 7. آية البداية */}
       <td className="py-2 px-2 text-center" style={{ verticalAlign: 'middle' }}>
         <input
           type="number"
@@ -158,14 +148,13 @@ export default function EleveRecitationRow({
           disabled={isAbsent}
           className="form-control text-center"
           style={versetInputStyle(versetDebut)}
-          title="Verset début (obligatoire)"
         />
         {hasError && !isAbsent && (!versetDebut || versetDebut <= 0) && (
-          <span style={{ fontSize: 9, color: '#dc2626', display: 'block' }}>Obligatoire</span>
+          <span style={{ fontSize: 9, color: '#dc2626', display: 'block' }}>إلزامي</span>
         )}
       </td>
 
-      {/* 10. Verset fin */}
+      {/* 8. آية النهاية */}
       <td className="py-2 px-2 text-center" style={{ verticalAlign: 'middle' }}>
         <input
           type="number"
@@ -176,38 +165,37 @@ export default function EleveRecitationRow({
           disabled={isAbsent}
           className="form-control text-center"
           style={versetInputStyle(versetFin)}
-          title="Verset fin (obligatoire)"
         />
         <span style={{ fontSize: 10, color: '#9ca3af', display: 'block' }}>/{maxVersets}</span>
         {hasError && !isAbsent && (!versetFin || versetFin <= 0) && (
-          <span style={{ fontSize: 9, color: '#dc2626', display: 'block' }}>Obligatoire</span>
+          <span style={{ fontSize: 9, color: '#dc2626', display: 'block' }}>إلزامي</span>
         )}
       </td>
 
-      {/* 11. Mémorisation */}
+      {/* 9. الحفظ */}
       <td className="py-2 px-2" style={{ verticalAlign: 'middle' }}>
         <div className="d-flex flex-column gap-1">
           <label className="d-flex align-items-center gap-1" style={{ cursor: 'pointer', margin: 0 }}>
             <input type="radio" name={`niveau-${eleve.id}`} checked={niveauMemorisation === NiveauMemorisationConst.MEMORISE} onChange={() => onNiveauChange(eleve.id, NiveauMemorisationConst.MEMORISE)} disabled={isAbsent} style={radioStyle} />
-            <span style={{ fontSize: 11 }}>Mémorisé</span>
+            <span style={{ fontSize: 11 }}>محفوظ</span>
           </label>
           <label className="d-flex align-items-center gap-1" style={{ cursor: 'pointer', margin: 0 }}>
             <input type="radio" name={`niveau-${eleve.id}`} checked={niveauMemorisation === NiveauMemorisationConst.PARTIEL} onChange={() => onNiveauChange(eleve.id, NiveauMemorisationConst.PARTIEL)} disabled={isAbsent} style={radioStyle} />
-            <span style={{ fontSize: 11 }}>Partiel</span>
+            <span style={{ fontSize: 11 }}>جزئي</span>
           </label>
           <label className="d-flex align-items-center gap-1" style={{ cursor: 'pointer', margin: 0 }}>
             <input type="radio" name={`niveau-${eleve.id}`} checked={niveauMemorisation === NiveauMemorisationConst.NON_MEMORISE} onChange={() => onNiveauChange(eleve.id, NiveauMemorisationConst.NON_MEMORISE)} disabled={isAbsent} style={radioStyle} />
-            <span style={{ fontSize: 11 }}>Non mémorisé</span>
+            <span style={{ fontSize: 11 }}>غير محفوظ</span>
           </label>
         </div>
       </td>
 
-      {/* 12. Statut */}
-      <td className="py-2 px-2" style={{ verticalAlign: 'middle' }}>
+      {/* 10. الحالة */}
+      <td className="py-2 px-2 text-center" style={{ verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
         <NiveauBadge niveau={niveauMemorisation} />
       </td>
 
-      {/* 13. Récitateur */}
+      {/* 11. المسمع */}
       <td className="py-2 px-2" style={{ verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
         <div className="d-flex align-items-center gap-1">
           <span style={{ fontSize: 14 }}>🎧</span>
@@ -217,13 +205,13 @@ export default function EleveRecitationRow({
         </div>
       </td>
 
-      {/* 14. Remarques */}
+      {/* 12. ملاحظات */}
       <td className="py-2 px-2" style={{ verticalAlign: 'middle' }}>
         <input
           type="text"
           value={commentaire}
           onChange={(e) => onCommentaireChange(eleve.id, e.target.value)}
-          placeholder="Remarques..."
+          placeholder="ملاحظات..."
           disabled={isAbsent}
           className="form-control"
           style={{ ...inputStyle, minWidth: 120, opacity: isAbsent ? 0.5 : 1 }}

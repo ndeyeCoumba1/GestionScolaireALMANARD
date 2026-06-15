@@ -18,7 +18,7 @@ const AVATAR_COLORS = ['#0A6E3F','#1d4ed8','#7c3aed','#d97706','#dc2626','#0f766
 
 export default function EleveForm({ onClose, eleveId }: EleveFormProps) {
   const isEdit = !!eleveId;
-  const [form, setForm] = useState({ nom: '', prenom: '', dateNaissance: '', sexe: 'M', adresse: '', classeId: '', parentId: '', matricule: '' });
+  const [form, setForm] = useState({ nom: '', prenom: '', nomArabe: '', prenomArabe: '', dateNaissance: '', sexe: 'M', adresse: '', classeId: '', parentId: '', matricule: '' });
   const [classes, setClasses] = useState<Classe[]>([]);
   const [parents, setParents] = useState<Parent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -39,7 +39,7 @@ export default function EleveForm({ onClose, eleveId }: EleveFormProps) {
       api.get(`/eleves/${eleveId}`)
         .then(r => {
           const e = r.data;
-          setForm({ nom: e.nom, prenom: e.prenom, dateNaissance: e.dateNaissance, sexe: e.sexe, adresse: e.adresse, classeId: e.classeId, parentId: e.parentId, matricule: e.matricule || '' });
+          setForm({ nom: e.nom, prenom: e.prenom, nomArabe: e.nomArabe || '', prenomArabe: e.prenomArabe || '', dateNaissance: e.dateNaissance, sexe: e.sexe, adresse: e.adresse, classeId: e.classeId, parentId: e.parentId, matricule: e.matricule || '' });
           if (e.photoUrl) setPhotoExisting(e.photoUrl);
         })
         .catch(() => setError('Impossible de charger cet élève.'))
@@ -100,8 +100,8 @@ export default function EleveForm({ onClose, eleveId }: EleveFormProps) {
       const photoUrl = photoPreview || photoExisting || null;
 
       const payload = {
-        nom: form.nom, prenom: form.prenom, dateNaissance: form.dateNaissance,
-        sexe: form.sexe, adresse: form.adresse,
+        nom: form.nom, prenom: form.prenom, nomArabe: form.nomArabe || null, prenomArabe: form.prenomArabe || null,
+        dateNaissance: form.dateNaissance, sexe: form.sexe, adresse: form.adresse,
         classe: { id: Number(form.classeId) },
         parent: { id: Number(form.parentId) },
         photoUrl,
@@ -216,6 +216,20 @@ export default function EleveForm({ onClose, eleveId }: EleveFormProps) {
           <label className="form-label" style={LABEL}>Nom <span className="text-danger">*</span></label>
           <FieldIcon icon={<IcPerson />}>
             <input name="nom" value={form.nom} onChange={handleChange} required placeholder="Ex : Ndiaye" className="form-control" style={INPUT_ICON} />
+          </FieldIcon>
+        </div>
+
+        <div className="col-12 col-md-6">
+          <label className="form-label" style={LABEL}>الاسم الأول <span style={{ fontSize: 11, color: '#9ca3af' }}>(Prénom arabe)</span></label>
+          <FieldIcon icon={<IcPerson />}>
+            <input name="prenomArabe" value={form.prenomArabe} onChange={handleChange} placeholder="مثال : آمينة" className="form-control" style={{ ...INPUT_ICON, direction: 'rtl', fontFamily: 'serif' }} />
+          </FieldIcon>
+        </div>
+
+        <div className="col-12 col-md-6">
+          <label className="form-label" style={LABEL}>اللقب <span style={{ fontSize: 11, color: '#9ca3af' }}>(Nom arabe)</span></label>
+          <FieldIcon icon={<IcPerson />}>
+            <input name="nomArabe" value={form.nomArabe} onChange={handleChange} placeholder="مثال : نديا" className="form-control" style={{ ...INPUT_ICON, direction: 'rtl', fontFamily: 'serif' }} />
           </FieldIcon>
         </div>
 

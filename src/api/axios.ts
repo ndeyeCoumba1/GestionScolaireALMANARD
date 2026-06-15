@@ -1,10 +1,10 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api',
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// Ajouter le token JWT automatiquement
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -13,19 +13,20 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Rediriger vers login si 401
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      const portail = localStorage.getItem('portail');
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      localStorage.removeItem('portail');
+      localStorage.removeItem('role');
+      window.location.href = portail === 'AR' ? '/ar/login' : '/login';
     }
     return Promise.reject(error);
   }
 );
 
-// Fonction pour rechercher un élève par matricule
 export const searchEleveByMatricule = async (matricule: string) => {
   const response = await api.get(`/eleves/matricule/${matricule}`);
   return response.data;

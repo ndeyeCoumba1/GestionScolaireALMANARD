@@ -32,6 +32,7 @@ const TYPE_LABELS: Record<string, string> = {
   ESPECES: 'Espèces', WAVE: 'Wave', CHEQUE: 'Chèque', ORANGE_MONEY: 'Orange Money',
 };
 
+
 /* ─── Initiales avatar ─── */
 const AVATAR_COLORS = ['#0A6E3F','#1d4ed8','#7c3aed','#d97706','#dc2626','#0f766e'];
 function initials(nom: string, prenom: string) {
@@ -147,6 +148,40 @@ export default function PaiementList() {
   })).filter(d => d.value > 0);
 
   const activeFilters = [filterAnneeId, filterMoisId, filterStatut, filterClasseId].filter(Boolean).length;
+
+  /* ─── Rapport périodique ─── */
+  const [rapportPeriode, setRapportPeriode] = useState<RapportPeriode>('journalier');
+  const [rapportDate, setRapportDate]       = useState(new Date().toISOString().split('T')[0]);
+  const [rapportDebut, setRapportDebut]     = useState(new Date().toISOString().split('T')[0]);
+  const [rapportFin, setRapportFin]         = useState(new Date().toISOString().split('T')[0]);
+  const [rapportMonth, setRapportMonth]     = useState(new Date().toISOString().slice(0, 7));
+
+  const rapportDateRange = (() => {
+    if (rapportPeriode === 'journalier') return { debut: rapportDate, fin: rapportDate };
+    if (rapportPeriode === 'hebdomadaire') return { debut: rapportDebut, fin: rapportFin };
+    const [y, m] = rapportMonth.split('-').map(Number);
+    return {
+      debut: `${y}-${String(m).padStart(2, '0')}-01`,
+      fin:   `${y}-${String(m).padStart(2, '0')}-${new Date(y, m, 0).getDate()}`,
+    };
+  })();
+
+  const rapportPaiements = paiements.filter(p => {
+    if (!p.datePaiement) return false;
+    const d = p.datePaiement.slice(0, 10);
+    return d >= rapportDateRange.debut && d <= rapportDateRange.fin;
+  });
+
+  const rapportLabel = rapportPeriode === 'journalier'
+    ? new Date(rapportDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
+    : rapportPeriode === 'hebdomadaire'
+    ? `${new Date(rapportDebut).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} – ${new Date(rapportFin).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+    : new Date(rapportMonth + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+  const rapportEncaisse = rapportPaiements.filter(p => p.statut === 'PAYE').reduce((s, p) => s + p.montant, 0);
+  const rapportPartiel  = rapportPaiements.filter(p => p.statut === 'PARTIEL').reduce((s, p) => s + p.montant, 0);
+  const rapportImpayé   = rapportPaiements.filter(p => p.statut === 'IMPAYE').length;
+  const rapportAttente  = rapportPaiements.filter(p => p.statut === 'EN_ATTENTE').length;
 
   return (
     <div className="d-flex flex-column gap-4" style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
@@ -275,6 +310,177 @@ export default function PaiementList() {
         </div>
       </div>
 
+      {/* ═══ RAPPORT PÉRIODIQUE ═══ */}
+      <div className="bg-white rounded-4 shadow-sm" style={{ border: '1px solid #f0f0f0', overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(90deg, #f0fdf4 0%, #fff 100%)', padding: '16px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 4, height: 22, backgroundColor: '#0A6E3F', borderRadius: 2 }} />
+          <span style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>📊 Rapport Périodique</span>
+          <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 4 }}>— Générez un rapport journalier, hebdomadaire ou mensuel</span>
+        </div>
+
+        <div style={{ padding: '20px 24px' }}>
+          {/* Tabs période */}
+          <div className="d-flex gap-2 mb-4" style={{ backgroundColor: '#f1f5f9', padding: 4, borderRadius: 12, width: 'fit-content' }}>
+            {(['journalier', 'hebdomadaire', 'mensuel'] as RapportPeriode[]).map(p => (
+              <button key={p} onClick={() => setRapportPeriode(p)}
+                style={{
+                  border: 'none', borderRadius: 8, padding: '8px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  backgroundColor: rapportPeriode === p ? '#fff' : 'transparent',
+                  color: rapportPeriode === p ? '#0A6E3F' : '#6b7280',
+                  boxShadow: rapportPeriode === p ? '0 1px 6px rgba(0,0,0,0.08)' : 'none',
+                  transition: 'all 0.15s',
+                }}>
+                {p === 'journalier' ? '📅 Journalier' : p === 'hebdomadaire' ? '📆 Hebdomadaire' : '🗓️ Mensuel'}
+              </button>
+            ))}
+          </div>
+
+          {/* Sélecteurs de dates */}
+          <div className="d-flex align-items-end gap-3 flex-wrap mb-4">
+            {rapportPeriode === 'journalier' && (
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Date</label>
+                <input type="date" value={rapportDate} onChange={e => setRapportDate(e.target.value)}
+                  style={{ borderRadius: 8, border: '1.5px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 13, padding: '8px 12px', outline: 'none' }} />
+              </div>
+            )}
+            {rapportPeriode === 'hebdomadaire' && (
+              <>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>📅 Date début</label>
+                  <input type="date" value={rapportDebut} onChange={e => { setRapportDebut(e.target.value); if (e.target.value > rapportFin) setRapportFin(e.target.value); }}
+                    style={{ borderRadius: 8, border: '1.5px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 13, padding: '8px 12px', outline: 'none' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>📅 Date fin</label>
+                  <input type="date" value={rapportFin} min={rapportDebut} onChange={e => setRapportFin(e.target.value)}
+                    style={{ borderRadius: 8, border: '1.5px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 13, padding: '8px 12px', outline: 'none' }} />
+                </div>
+              </>
+            )}
+            {rapportPeriode === 'mensuel' && (
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Mois</label>
+                <input type="month" value={rapportMonth} onChange={e => setRapportMonth(e.target.value)}
+                  style={{ borderRadius: 8, border: '1.5px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 13, padding: '8px 12px', outline: 'none' }} />
+              </div>
+            )}
+
+            {/* Export buttons */}
+            <div className="d-flex gap-2 ms-auto">
+              <button onClick={() => generatePaymentListReport(rapportPaiements)}
+                disabled={rapportPaiements.length === 0}
+                style={{ borderRadius: 9, border: '1.5px solid #bfdbfe', backgroundColor: '#eff6ff', padding: '9px 18px', fontSize: 13, fontWeight: 600, color: '#1d4ed8', cursor: rapportPaiements.length === 0 ? 'not-allowed' : 'pointer', opacity: rapportPaiements.length === 0 ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                📄 Exporter PDF
+              </button>
+              <button onClick={() => exportPaymentsToExcel(rapportPaiements)}
+                disabled={rapportPaiements.length === 0}
+                style={{ borderRadius: 9, border: '1.5px solid #bbf7d0', backgroundColor: '#f0fdf4', padding: '9px 18px', fontSize: 13, fontWeight: 600, color: '#0A6E3F', cursor: rapportPaiements.length === 0 ? 'not-allowed' : 'pointer', opacity: rapportPaiements.length === 0 ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                📊 Exporter Excel
+              </button>
+            </div>
+          </div>
+
+          {/* Label période + nb résultats */}
+          <div className="d-flex align-items-center gap-3 mb-4 flex-wrap">
+            <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '6px 14px', fontSize: 12, color: '#0A6E3F', fontWeight: 600 }}>
+              {rapportPeriode === 'journalier' ? '📅' : rapportPeriode === 'hebdomadaire' ? '📆' : '🗓️'} {rapportLabel}
+            </div>
+            <span style={{ fontSize: 12, color: '#6b7280' }}>
+              <span style={{ fontWeight: 700, color: '#111827' }}>{rapportPaiements.length}</span> paiement{rapportPaiements.length !== 1 ? 's' : ''} trouvé{rapportPaiements.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {/* KPI cards période */}
+          <div className="row g-3 mb-4">
+            {[
+              { icon: '💰', label: 'Total encaissé',  value: `${rapportEncaisse.toLocaleString('fr-FR')} FCFA`, color: '#0A6E3F', bg: '#f0fdf4', border: '#22c55e' },
+              { icon: '📋', label: 'Nb paiements',    value: rapportPaiements.length,                            color: '#1d4ed8', bg: '#eff6ff', border: '#3b82f6' },
+              { icon: '🔶', label: 'Paiements partiels', value: `${rapportPartiel.toLocaleString('fr-FR')} FCFA`, color: '#d97706', bg: '#fffbeb', border: '#f59e0b' },
+              { icon: '⚠️', label: 'Impayés / Attente', value: `${rapportImpayé + rapportAttente}`,              color: '#dc2626', bg: '#fef2f2', border: '#ef4444' },
+            ].map((c, i) => (
+              <div key={i} className="col-6 col-lg-3">
+                <div style={{ background: c.bg, borderRadius: 12, padding: '14px 16px', borderLeft: `3px solid ${c.border}`, border: `1px solid ${c.border}44` }}>
+                  <div style={{ fontSize: 18, marginBottom: 6 }}>{c.icon}</div>
+                  <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{c.label}</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: c.color }}>{c.value}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Mini-table rapport */}
+          {rapportPaiements.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 24px', color: '#9ca3af', fontSize: 13 }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>📭</div>
+              Aucun paiement enregistré pour cette période
+            </div>
+          ) : (
+            <div className="table-responsive rounded-3" style={{ border: '1px solid #e5e7eb' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e5e7eb' }}>
+                    {['N° Reçu', 'Élève', 'Classe', 'Motif', 'Montant', 'Type', 'Statut', 'Date'].map((h, i) => (
+                      <th key={i} style={{ padding: '10px 14px', textAlign: i >= 4 && i <= 5 ? 'right' : 'left', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rapportPaiements.map((p, i) => {
+                    const statut = STATUT_CONFIG[p.statut] ?? { label: p.statut, dot: '#9ca3af', bg: '#f9fafb', color: '#6b7280', border: '#e5e7eb' };
+                    const motif  = MOTIF_CONFIG[p.motif]  ?? { label: p.motif, bg: '#f9fafb', color: '#6b7280' };
+                    return (
+                      <tr key={p.id} style={{ borderBottom: '1px solid #f3f4f6', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#9ca3af', backgroundColor: '#f3f4f6', borderRadius: 5, padding: '2px 6px' }}>{p.numeroRecu}</span>
+                        </td>
+                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontWeight: 600, color: '#111827' }}>{p.eleveNom} {p.elevePrenom}</div>
+                          {p.matricule && <div style={{ fontSize: 10, color: '#9ca3af' }}>{p.matricule}</div>}
+                        </td>
+                        <td style={{ padding: '10px 14px', color: '#374151' }}>{p.classeNom || '—'}</td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <span style={{ backgroundColor: motif.bg, color: motif.color, borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 600 }}>{motif.label}</span>
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: '#0A6E3F', whiteSpace: 'nowrap' }}>
+                          {p.montant.toLocaleString('fr-FR')} FCFA
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', whiteSpace: 'nowrap', color: '#374151', fontSize: 11 }}>
+                          {TYPE_ICONS[p.typePaiement] ?? ''} {TYPE_LABELS[p.typePaiement] ?? p.typePaiement}
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: statut.bg, color: statut.color, border: `1px solid ${statut.border}`, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 600 }}>
+                            <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: statut.dot, flexShrink: 0 }} />
+                            {statut.label}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#9ca3af', fontSize: 11 }}>
+                          {p.datePaiement ? new Date(p.datePaiement).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ backgroundColor: '#f0fdf4', borderTop: '2px solid #0A6E3F' }}>
+                    <td colSpan={4} style={{ padding: '10px 14px', fontWeight: 700, fontSize: 12, color: '#0A6E3F' }}>TOTAL</td>
+                    <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, fontSize: 13, color: '#0A6E3F', whiteSpace: 'nowrap' }}>
+                      {rapportPaiements.reduce((s, p) => s + p.montant, 0).toLocaleString('fr-FR')} FCFA
+                    </td>
+                    <td colSpan={3} style={{ padding: '10px 14px', fontSize: 11, color: '#0A6E3F' }}>
+                      {rapportPaiements.filter(p => p.statut === 'PAYE').length} payé{rapportPaiements.filter(p => p.statut === 'PAYE').length > 1 ? 's' : ''},&nbsp;
+                      {rapportPaiements.filter(p => p.statut === 'PARTIEL').length} partiel{rapportPaiements.filter(p => p.statut === 'PARTIEL').length > 1 ? 's' : ''},&nbsp;
+                      {rapportImpayé} impayé{rapportImpayé > 1 ? 's' : ''}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* ═══ TABLEAU ═══ */}
       <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>
 
@@ -298,22 +504,26 @@ export default function PaiementList() {
             </div>
             <div className="row g-2">
               {[
-                { val: filterAnneeId, setter: setFilterAnneeId, label: 'Année', opts: annees.map(a => ({ v: String(a.id), l: a.libelle })) },
-                { val: filterMoisId,  setter: setFilterMoisId,  label: 'Mois',  opts: moisList.map(m => ({ v: String(m.id), l: m.libelle })) },
-                { val: filterStatut,  setter: setFilterStatut,  label: 'Statut', opts: Object.entries(STATUT_CONFIG).map(([k, v]) => ({ v: k, l: v.label })) },
-                { val: filterClasseId, setter: setFilterClasseId, label: 'Classe', opts: classes.map(c => ({ v: String(c.id), l: c.niveau })) },
-              ].map(({ val, setter, label, opts }) => (
+                { val: filterAnneeId, setter: (v: string) => { setFilterAnneeId(v); setFilterMoisId(''); }, label: 'Année', disabled: false, opts: annees.map(a => ({ v: String(a.id), l: a.libelle })) },
+                { val: filterMoisId,  setter: (v: string) => { setFilterMoisId(v); }, label: 'Mois', disabled: !filterAnneeId, opts: moisList.map(m => ({ v: String(m.id), l: m.libelle })) },
+                { val: filterStatut,  setter: setFilterStatut,  label: 'Statut',  disabled: false, opts: Object.entries(STATUT_CONFIG).map(([k, v]) => ({ v: k, l: v.label })) },
+                { val: filterClasseId, setter: setFilterClasseId, label: 'Classe', disabled: false, opts: classes.map(c => ({ v: String(c.id), l: c.niveau })) },
+              ].map(({ val, setter, label, disabled, opts }) => (
                 <div key={label} className="col-6 col-md-3">
-                  <div style={{ position: 'relative' }}>
-                    <select value={val} onChange={e => setter(e.target.value)}
+                  <div style={{ position: 'relative' }} title={disabled ? 'Sélectionnez d\'abord une année' : undefined}>
+                    <select
+                      value={val}
+                      disabled={disabled}
+                      onChange={e => setter(e.target.value)}
                       style={{
                         width: '100%', borderRadius: 8, padding: '8px 32px 8px 12px',
-                        border: `1.5px solid ${val ? '#0A6E3F' : '#e5e7eb'}`,
-                        backgroundColor: val ? '#f0fdf4' : '#fff',
-                        fontSize: 13, color: val ? '#0A6E3F' : '#374151',
-                        fontWeight: val ? 600 : 400, outline: 'none', appearance: 'none', cursor: 'pointer',
+                        border: `1.5px solid ${disabled ? '#e5e7eb' : val ? '#0A6E3F' : '#e5e7eb'}`,
+                        backgroundColor: disabled ? '#f3f4f6' : val ? '#f0fdf4' : '#fff',
+                        fontSize: 13, color: disabled ? '#9ca3af' : val ? '#0A6E3F' : '#374151',
+                        fontWeight: val ? 600 : 400, outline: 'none', appearance: 'none',
+                        cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.6 : 1,
                       }}>
-                      <option value="">Tous — {label}</option>
+                      <option value="">{disabled ? 'Choisir une année d\'abord' : `Tous — ${label}`}</option>
                       {opts.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
                     </select>
                     <svg style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}

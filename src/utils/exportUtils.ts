@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx-js-style';
 import { saveAs } from 'file-saver';
 import QRCode from 'qrcode';
-import type { Paiement } from '../Types/index';
+import type { Paiement, Depense, Inscription } from '../Types/index';
 import almanardLogo from '../assets/almanard.jpeg';
 import api from '../api/axios';
 
@@ -455,20 +455,144 @@ export async function generateReceipt(data: ReceiptData) {
   doc.save(`recu_${data.numeroRecu}.pdf`);
 }
 
+function drawReportHeader(
+  doc: jsPDF,
+  W: number,
+  M: number,
+  title: string,
+  subtitle: string,
+  accentColor: [number,number,number],
+  accentLight: [number,number,number],
+  stats: { label: string; value: string }[],
+) {
+  const WHITE: [number,number,number] = [255, 255, 255];
+  const GRAY:  [number,number,number] = [55, 65, 81];
+  const GRAY_L:[number,number,number] = [107, 114, 128];
+  const BLACK: [number,number,number] = [17, 24, 39];
+  const BORDER:[number,number,number] = [209, 213, 219];
+  const GREEN: [number,number,number] = [10, 110, 63];
+
+  // ── Bandeau header ──
+  doc.setFillColor(...accentColor);
+  doc.rect(0, 0, W, 38, 'F');
+
+  // Logo
+  try { doc.addImage(almanardLogo, 'JPEG', M, 6, 22, 22); } catch {}
+
+  // Nom école
+  doc.setTextColor(...WHITE);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text('AL-MANARD3S', M + 27, 14);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.text('Fondation Daroul Manar D3S — Tivaouane, Sénégal', M + 27, 20);
+  doc.text('+221 78 120 89 78 | info@almanard3s.com', M + 27, 25.5);
+
+  // Date generé (coin droit du bandeau)
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(255, 255, 255);
+  const dateStr = `Généré le ${new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+  doc.text(dateStr, W - M, 32, { align: 'right' });
+
+  // ── Titre du rapport (fond blanc en dessous du bandeau) ──
+  doc.setFillColor(...WHITE);
+  doc.rect(0, 38, W, 22, 'F');
+
+  doc.setTextColor(...BLACK);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.text(title.toUpperCase(), W / 2, 48, { align: 'center' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...GRAY_L);
+  doc.text(subtitle, W / 2, 55, { align: 'center' });
+
+  // ── Ligne séparatrice ──
+  doc.setDrawColor(...accentColor);
+  doc.setLineWidth(1);
+  doc.line(M, 60, W - M, 60);
+
+  // ── KPI boxes ──
+  const boxW = (W - 2 * M - (stats.length - 1) * 4) / stats.length;
+  const boxY = 64;
+  const boxH = 20;
+  stats.forEach((s, i) => {
+    const bx = M + i * (boxW + 4);
+    doc.setFillColor(...accentLight);
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(bx, boxY, boxW, boxH, 3, 3, 'FD');
+
+    doc.setTextColor(...GRAY_L);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.text(s.label.toUpperCase(), bx + boxW / 2, boxY + 6.5, { align: 'center' });
+
+    doc.setTextColor(...accentColor);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text(s.value, bx + boxW / 2, boxY + 14, { align: 'center' });
+  });
+
+  // ── Ligne séparatrice finale ──
+  doc.setDrawColor(...BORDER);
+  doc.setLineWidth(0.3);
+  doc.line(M, boxY + boxH + 3, W - M, boxY + boxH + 3);
+
+  // Couleurs unused suppression
+  void GREEN; void GRAY; void WHITE;
+
+  return boxY + boxH + 8; // startY pour la table
+}
+
+function drawReportFooter(doc: jsPDF, W: number, accentColor: [number,number,number]) {
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    const pH = doc.internal.pageSize.height;
+
+    doc.setFillColor(...accentColor);
+    doc.rect(0, pH - 12, W, 12, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.text(`Page ${i} / ${pageCount}`, W / 2, pH - 5, { align: 'center' });
+    doc.text('© 2026 Al-Manard3s — Fondation Daroul Manar D3S', 15, pH - 5);
+    doc.text(new Date().toLocaleDateString('fr-FR'), W - 15, pH - 5, { align: 'right' });
+  }
+}
+
 export function generatePaymentListReport(paiements: Paiement[], title: string = 'Rapport des Paiements') {
-  const doc = new jsPDF();
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const W = 297; const M = 14;
+  const GREEN:  [number,number,number] = [10, 110, 63];
+  const GREEN_L:[number,number,number] = [240, 253, 244];
 
-  doc.setFontSize(18);
-  doc.setTextColor(26, 92, 56);
-  doc.text(title, 105, 20, { align: 'center' });
+  const totalMontant  = paiements.reduce((s, p) => s + (p.montant || 0), 0);
+  const totalPayes    = paiements.filter(p => p.statut === 'PAYE').length;
+  const totalImpayes  = paiements.filter(p => p.statut === 'IMPAYE' || p.statut === 'PARTIEL').length;
 
-  doc.setFontSize(10);
-  doc.setTextColor(107, 114, 128);
-  doc.text(`Genere le ${new Date().toLocaleDateString('fr-FR')}`, 105, 28, { align: 'center' });
-  doc.text(`Total: ${paiements.length} paiement(s)`, 105, 34, { align: 'center' });
+  const dateRange = (() => {
+    if (paiements.length === 0) return '';
+    const dates = paiements.map(p => p.datePaiement).filter(Boolean).sort();
+    if (dates[0] === dates[dates.length - 1]) return `du ${new Date(dates[0]!).toLocaleDateString('fr-FR')}`;
+    return `du ${new Date(dates[0]!).toLocaleDateString('fr-FR')} au ${new Date(dates[dates.length - 1]!).toLocaleDateString('fr-FR')}`;
+  })();
 
-  doc.setDrawColor(229, 231, 235);
-  doc.line(20, 40, 190, 40);
+  const startY = drawReportHeader(doc, W, M, title,
+    `${paiements.length} paiement(s) ${dateRange}`,
+    GREEN, GREEN_L,
+    [
+      { label: 'Total encaissé',  value: formatMontant(totalMontant) },
+      { label: 'Nb paiements',    value: String(paiements.length) },
+      { label: 'Payés',           value: String(totalPayes) },
+      { label: 'Impayés / Partiels', value: String(totalImpayes) },
+    ]
+  );
 
   const tableData = paiements.map(p => [
     p.numeroRecu || '—',
@@ -476,66 +600,37 @@ export function generatePaymentListReport(paiements: Paiement[], title: string =
     p.motif || '—',
     p.moisLibelle || '—',
     formatMontant(p.montant || 0),
+    p.statut || '—',
+    p.typePaiement || '—',
     p.datePaiement ? new Date(p.datePaiement).toLocaleDateString('fr-FR') : '—',
-    `${p.enregistreParNom || '—'}${p.enregistreParRole ? ` (${p.enregistreParRole})` : ''}`,
+    `${p.enregistreParNom || '—'}`,
   ]);
 
-  const totalMontant = paiements.reduce((sum, p) => sum + p.montant, 0);
-
   autoTable(doc, {
-    startY: 50,
-    head: [['N° Recu', 'Eleve', 'Motif', 'Mois', 'Montant', 'Date', 'Enregistré par']],
+    startY,
+    head: [['N° Reçu', 'Élève', 'Motif', 'Mois', 'Montant', 'Statut', 'Moyen', 'Date', 'Enregistré par']],
     body: tableData,
     theme: 'striped',
-    headStyles: {
-      fillColor: [26, 92, 56],
-      textColor: 255,
-      fontStyle: 'bold',
-      halign: 'center',
-      fontSize: 9,
-    },
-    bodyStyles: {
-      textColor: [55, 65, 81],
-      halign: 'center',
-      fontSize: 8,
-    },
+    headStyles: { fillColor: GREEN, textColor: 255, fontStyle: 'bold', halign: 'center', fontSize: 8.5, cellPadding: 4 },
+    bodyStyles: { textColor: [55, 65, 81], halign: 'center', fontSize: 8, cellPadding: 3 },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
-      0: { cellWidth: 22 },
-      1: { cellWidth: 35 },
-      2: { cellWidth: 25 },
+      0: { cellWidth: 28, fontStyle: 'bold', textColor: [107,114,128] },
+      1: { cellWidth: 38, halign: 'left' },
+      2: { cellWidth: 26 },
       3: { cellWidth: 22 },
-      4: { cellWidth: 30 },
+      4: { cellWidth: 30, fontStyle: 'bold', textColor: GREEN },
       5: { cellWidth: 22 },
-      6: { cellWidth: 32 },
+      6: { cellWidth: 24 },
+      7: { cellWidth: 22 },
+      8: { cellWidth: 30 },
     },
-    styles: { overflow: 'linebreak' },
-    didDrawPage: (data) => {
-      const finalY = data.cursor?.y ?? data.table.finalY ?? 0;
-      doc.setFontSize(10);
-      doc.setTextColor(26, 92, 56);
-      doc.setFont('helvetica', 'bold');
-      doc.text(
-        `Total: ${formatMontant(totalMontant)}`,
-        190,
-        finalY + 10,
-        { align: 'right' }
-      );
-    },
+    styles: { overflow: 'linebreak', lineColor: [229,231,235], lineWidth: 0.2 },
+    foot: [['', '', '', 'TOTAL', formatMontant(totalMontant), '', '', '', '']],
+    footStyles: { fillColor: GREEN_L, textColor: GREEN, fontStyle: 'bold', fontSize: 9, halign: 'center' },
   });
 
-  const pageCount = (doc as any).internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(9);
-    doc.setTextColor(156, 163, 175);
-    doc.text(
-      `Page ${i} / ${pageCount} — © 2026 Al-Manard3s`,
-      105,
-      doc.internal.pageSize.height - 10,
-      { align: 'center' }
-    );
-  }
-
+  drawReportFooter(doc, W, GREEN);
   doc.save(`rapport_paiements_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
@@ -1254,4 +1349,195 @@ export function generateDailyReportPDF(data: DailyReportData, reportType: 'daily
                  : `rapport_mensuel_${data.dateRapport}.pdf`;
 
   doc.save(filename);
+}
+
+// ── Depenses Export ──
+
+export function generateDepenseListReport(depenses: Depense[], title: string = 'Rapport des Dépenses') {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210; const M = 14;
+  const RED:   [number,number,number] = [220, 38, 38];
+  const RED_L: [number,number,number] = [254, 242, 242];
+
+  const totalMontant = depenses.reduce((s, d) => s + (d.montant || 0), 0);
+  const types = [...new Set(depenses.map(d => d.typeDepense).filter(Boolean))];
+
+  const dateRange = (() => {
+    if (depenses.length === 0) return '';
+    const dates = depenses.map(d => d.dateDepense).filter(Boolean).sort();
+    if (dates[0] === dates[dates.length - 1]) return `du ${new Date(dates[0]!).toLocaleDateString('fr-FR')}`;
+    return `du ${new Date(dates[0]!).toLocaleDateString('fr-FR')} au ${new Date(dates[dates.length - 1]!).toLocaleDateString('fr-FR')}`;
+  })();
+
+  const startY = drawReportHeader(doc, W, M, title,
+    `${depenses.length} dépense(s) ${dateRange}`,
+    RED, RED_L,
+    [
+      { label: 'Total dépensé', value: formatMontant(totalMontant) },
+      { label: 'Nb dépenses',   value: String(depenses.length) },
+      { label: 'Catégories',    value: String(types.length) },
+      { label: 'Moyenne',       value: depenses.length ? formatMontant(Math.round(totalMontant / depenses.length)) : '—' },
+    ]
+  );
+
+  const tableData = depenses.map(d => [
+    d.typeDepense?.replace(/_/g, ' ') || '—',
+    d.description || '—',
+    d.moisLibelle || '—',
+    formatMontant(d.montant || 0),
+    d.dateDepense ? new Date(d.dateDepense).toLocaleDateString('fr-FR') : '—',
+  ]);
+
+  autoTable(doc, {
+    startY,
+    head: [['Type', 'Description', 'Mois', 'Montant', 'Date']],
+    body: tableData,
+    theme: 'striped',
+    headStyles: { fillColor: RED, textColor: 255, fontStyle: 'bold', halign: 'center', fontSize: 9, cellPadding: 4 },
+    bodyStyles: { textColor: [55, 65, 81], halign: 'center', fontSize: 8, cellPadding: 3 },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      0: { cellWidth: 38 },
+      1: { cellWidth: 55, halign: 'left' },
+      2: { cellWidth: 26 },
+      3: { cellWidth: 36, fontStyle: 'bold', textColor: RED },
+      4: { cellWidth: 27 },
+    },
+    styles: { overflow: 'linebreak', lineColor: [229,231,235], lineWidth: 0.2 },
+    foot: [['', 'TOTAL', '', formatMontant(totalMontant), '']],
+    footStyles: { fillColor: RED_L, textColor: RED, fontStyle: 'bold', fontSize: 9, halign: 'center' },
+  });
+
+  drawReportFooter(doc, W, RED);
+  doc.save(`rapport_depenses_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+export function exportDepensesToExcel(depenses: Depense[], filename: string = 'depenses') {
+  const excelData = depenses.map(d => ({
+    'Type': d.typeDepense?.replace(/_/g, ' ') || '—',
+    'Description': d.description || '—',
+    'Mois': d.moisLibelle || '—',
+    'Montant (FCFA)': d.montant || 0,
+    'Date': d.dateDepense ? new Date(d.dateDepense).toLocaleDateString('fr-FR') : '—',
+  }));
+
+  const totalMontant = depenses.reduce((s, d) => s + (d.montant || 0), 0);
+  excelData.push({ 'Type': 'TOTAL', 'Description': '', 'Mois': '', 'Montant (FCFA)': totalMontant, 'Date': '' });
+
+  const ws = XLSX.utils.json_to_sheet(excelData);
+  ws['!cols'] = [{ wch: 25 }, { wch: 40 }, { wch: 18 }, { wch: 18 }, { wch: 18 }];
+
+  const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
+    const addr = XLSX.utils.encode_col(C) + '1';
+    if (!ws[addr]) continue;
+    ws[addr].s = { fill: { fgColor: { rgb: 'DC2626' } }, font: { bold: true, color: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'center' } };
+  }
+  const totalRow = excelData.length;
+  for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
+    const addr = XLSX.utils.encode_col(C) + totalRow;
+    if (!ws[addr]) continue;
+    ws[addr].s = { fill: { fgColor: { rgb: 'FEE2E2' } }, font: { bold: true, color: { rgb: 'DC2626' } } };
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Dépenses');
+  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  saveAs(new Blob([buf], { type: 'application/octet-stream' }), `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+// ── Inscriptions Export ──
+
+export function generateInscriptionListReport(inscriptions: Inscription[], title: string = 'Rapport des Inscriptions') {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210; const M = 14;
+  const BLUE:   [number,number,number] = [29, 78, 216];
+  const BLUE_L: [number,number,number] = [219, 234, 254];
+
+  const totalFrais = inscriptions.reduce((s, i) => s + (i.fraisInscription || 0), 0);
+  const classes    = [...new Set(inscriptions.map(i => i.classeNiveau).filter(Boolean))];
+  const annees     = [...new Set(inscriptions.map(i => i.anneeLibelle).filter(Boolean))];
+
+  const dateRange = (() => {
+    if (inscriptions.length === 0) return '';
+    const dates = inscriptions.map(i => i.dateInscription).filter(Boolean).sort();
+    if (dates[0] === dates[dates.length - 1]) return `du ${new Date(dates[0]!).toLocaleDateString('fr-FR')}`;
+    return `du ${new Date(dates[0]!).toLocaleDateString('fr-FR')} au ${new Date(dates[dates.length - 1]!).toLocaleDateString('fr-FR')}`;
+  })();
+
+  const startY = drawReportHeader(doc, W, M, title,
+    `${inscriptions.length} inscription(s) ${dateRange}`,
+    BLUE, BLUE_L,
+    [
+      { label: 'Total frais',   value: formatMontant(totalFrais) },
+      { label: 'Inscrits',      value: String(inscriptions.length) },
+      { label: 'Classes',       value: String(classes.length) },
+      { label: 'Années',        value: annees.length === 1 ? (annees[0] || '—') : String(annees.length) },
+    ]
+  );
+
+  const tableData = inscriptions.map(i => [
+    `${i.elevePrenom || ''} ${i.eleveNom || ''}`.trim() || '—',
+    i.classeNiveau || '—',
+    i.anneeLibelle || '—',
+    i.dateInscription ? new Date(i.dateInscription).toLocaleDateString('fr-FR') : '—',
+    formatMontant(i.fraisInscription || 0),
+  ]);
+
+  autoTable(doc, {
+    startY,
+    head: [['Élève', 'Classe', 'Année', 'Date', 'Frais']],
+    body: tableData,
+    theme: 'striped',
+    headStyles: { fillColor: BLUE, textColor: 255, fontStyle: 'bold', halign: 'center', fontSize: 9, cellPadding: 4 },
+    bodyStyles: { textColor: [55, 65, 81], halign: 'center', fontSize: 8, cellPadding: 3 },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      0: { cellWidth: 52, halign: 'left' },
+      1: { cellWidth: 30 },
+      2: { cellWidth: 32 },
+      3: { cellWidth: 30 },
+      4: { cellWidth: 38, fontStyle: 'bold', textColor: BLUE },
+    },
+    styles: { overflow: 'linebreak', lineColor: [229,231,235], lineWidth: 0.2 },
+    foot: [['TOTAL', '', '', '', formatMontant(totalFrais)]],
+    footStyles: { fillColor: BLUE_L, textColor: BLUE, fontStyle: 'bold', fontSize: 9, halign: 'center' },
+  });
+
+  drawReportFooter(doc, W, BLUE);
+  doc.save(`rapport_inscriptions_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+export function exportInscriptionsToExcel(inscriptions: Inscription[], filename: string = 'inscriptions') {
+  const excelData = inscriptions.map(i => ({
+    'Élève': `${i.elevePrenom || ''} ${i.eleveNom || ''}`.trim() || '—',
+    'Classe': i.classeNiveau || '—',
+    'Année': i.anneeLibelle || '—',
+    'Date Inscription': i.dateInscription ? new Date(i.dateInscription).toLocaleDateString('fr-FR') : '—',
+    'Frais (FCFA)': i.fraisInscription || 0,
+  }));
+
+  const totalFrais = inscriptions.reduce((s, i) => s + (i.fraisInscription || 0), 0);
+  excelData.push({ 'Élève': 'TOTAL', 'Classe': '', 'Année': '', 'Date Inscription': '', 'Frais (FCFA)': totalFrais });
+
+  const ws = XLSX.utils.json_to_sheet(excelData);
+  ws['!cols'] = [{ wch: 30 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 18 }];
+
+  const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
+    const addr = XLSX.utils.encode_col(C) + '1';
+    if (!ws[addr]) continue;
+    ws[addr].s = { fill: { fgColor: { rgb: '1D4ED8' } }, font: { bold: true, color: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'center' } };
+  }
+  const totalRow = excelData.length;
+  for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
+    const addr = XLSX.utils.encode_col(C) + totalRow;
+    if (!ws[addr]) continue;
+    ws[addr].s = { fill: { fgColor: { rgb: 'DBEAFE' } }, font: { bold: true, color: { rgb: '1D4ED8' } } };
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Inscriptions');
+  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  saveAs(new Blob([buf], { type: 'application/octet-stream' }), `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
 }

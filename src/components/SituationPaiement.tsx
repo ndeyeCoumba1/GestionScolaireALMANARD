@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { paiementService } from '../services/paiementService';
-import type { SituationPaiementDTO, StatutPaiement } from '../Types/paiement';
+import type { SituationPaiementDTO } from '../Types/paiement';
+import type { StatutPaiement } from '../Types';
 
 interface SituationPaiementProps {
   inscriptionId: number;

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import type { Classe } from '../../Types/index';
 import { SkeletonCard } from '../../components/Common/SkeletonLoader';
+import { ConfirmModal } from '../../components/Common/ConfirmModal';
 import Drawer from '../../components/Common/Drawer';
 import ClasseForm from './ClasseForm';
 import { useAuth } from '../../Context/AuthContext';
@@ -19,6 +20,8 @@ export default function ClasseList() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [classeToDelete, setClasseToDelete] = useState<number | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingClasseId, setEditingClasseId] = useState<number | undefined>();
 
@@ -30,11 +33,12 @@ export default function ClasseList() {
     finally { setLoading(false); }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Supprimer cette classe ?')) return;
-    setDeletingId(id);
-    try { await api.delete(`/classes/${id}`); await fetchClasses(); }
-    finally { setDeletingId(null); }
+  const handleDelete = (id: number) => { setClasseToDelete(id); setShowDeleteModal(true); };
+  const confirmDelete = async () => {
+    if (!classeToDelete) return;
+    setDeletingId(classeToDelete);
+    try { await api.delete(`/classes/${classeToDelete}`); await fetchClasses(); }
+    finally { setDeletingId(null); setShowDeleteModal(false); setClasseToDelete(null); }
   };
   const handleOpenDrawer  = (id?: number) => { setEditingClasseId(id); setIsDrawerOpen(true); };
   const handleCloseDrawer = () => { setIsDrawerOpen(false); setEditingClasseId(undefined); fetchClasses(); };
@@ -129,8 +133,9 @@ export default function ClasseList() {
         <TableFooter right={`${filtered.length} / ${classes.length} classes`} />
       </div>
 
+      <ConfirmModal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setClasseToDelete(null); }} onConfirm={confirmDelete} title="Supprimer la classe" message="Êtes-vous sûr de vouloir supprimer cette classe ? Cette action est irréversible." confirmText="Supprimer" cancelText="Annuler" variant="danger" />
       <Drawer isOpen={isDrawerOpen} onClose={handleCloseDrawer} title={editingClasseId ? 'Modifier la classe' : 'Nouvelle classe'}>
-        <ClasseForm onClose={handleCloseDrawer} classeId={editingClasseId} />
+        <ClasseForm key={editingClasseId ?? 'new'} onClose={handleCloseDrawer} classeId={editingClasseId} />
       </Drawer>
     </div>
   );

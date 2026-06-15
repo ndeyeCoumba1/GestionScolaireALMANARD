@@ -50,7 +50,7 @@ export default function MoisList() {
         <KpiCard icon="📆" label="Total mois"       value={mois.length}    sub="mois scolaires" accent="#0f766e" bg="#f0fdfa" borderLeft="#14b8a6" />
         <KpiCard icon="💰" label="Total scolarité"  value={`${totalScol.toLocaleString('fr-FR')} FCFA`} sub="montants cumulés" accent="#0A6E3F" bg="#f0fdf4" borderLeft="#22c55e" />
         <KpiCard icon="📊" label="Moyenne / mois"   value={`${montantMoyen.toLocaleString('fr-FR')} FCFA`} sub="montant mensuel moyen" accent="#d97706" bg="#fffbeb" borderLeft="#f59e0b" />
-        <KpiCard icon="🔍" label="Résultats"         value={filtered.length} sub="dans la sélection" accent="#1d4ed8" bg="#eff6ff" borderLeft="#3b82f6" />
+        <KpiCard icon="🔍" label="Résultats"         value={filtered.length} sub="mois filtrés" accent="#1d4ed8" bg="#eff6ff" borderLeft="#3b82f6" />
       </div>
 
       <div className="bg-white rounded-4 shadow-sm overflow-hidden" style={{ border: '1px solid #f0f0f0' }}>

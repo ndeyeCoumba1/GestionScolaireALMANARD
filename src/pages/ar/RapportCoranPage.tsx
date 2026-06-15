@@ -25,7 +25,6 @@ interface RecentReport {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-
 function getMonthBounds(ym: string) {
   const [y, m] = ym.split('-').map(Number);
   const debut = `${y}-${String(m).padStart(2, '0')}-01`;
@@ -33,15 +32,23 @@ function getMonthBounds(ym: string) {
   return { debut, fin };
 }
 
-function frDate(d: string) {
-  return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+function arDate(d: string) {
+  return new Date(d).toLocaleDateString('ar-SA', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function frMonth(ym: string) {
+function arMonth(ym: string) {
   const [y, m] = ym.split('-').map(Number);
-  return new Date(y, m - 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  return new Date(y, m - 1).toLocaleDateString('ar-SA', { month: 'long', year: 'numeric' });
 }
 
+const translateNiveau = (niveau: string) => {
+  const map: Record<string, string> = {
+    INTERNAT: 'داخلي',
+    EXTERNAT: 'خارجي',
+    DEMI_PENSION: 'نصف داخلي',
+  };
+  return map[niveau] ?? niveau;
+};
 
 // ─── PrintableTable ──────────────────────────────────────────────────────────
 
@@ -70,10 +77,10 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
           backgroundColor: '#fff',
           fontFamily: 'Arial, sans-serif',
           padding: '16px 20px',
-          width: '297mm',
-          minWidth: '297mm',
           fontSize: 12,
           color: '#000',
+          display: 'inline-block',
+          minWidth: '100%',
         }}
       >
         {/* Header */}
@@ -103,7 +110,6 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
             <tr style={{ backgroundColor: '#0A6E3F', color: '#fff' }}>
               <th style={{ ...th, minWidth: 90 }}>رقم التعريف</th>
               <th style={{ ...th, minWidth: 120 }}>اسم الطالب</th>
-              <th style={{ ...th, minWidth: 90 }}>التاريخ</th>
               <th style={th}>السورة</th>
               <th style={th}>تلاوة من</th>
               <th style={th}>تلاوة إلى</th>
@@ -132,8 +138,7 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
               return (
                 <tr key={e.eleveId} style={{ backgroundColor: bg }}>
                   <td style={{ ...td, fontFamily: 'monospace', fontSize: 10, color: '#6b7280' }}>{e.matricule || '—'}</td>
-                  <td style={{ ...td, fontWeight: 600, textAlign: 'right' }}>{e.prenom} {e.nom}</td>
-                  <td style={{ ...td, fontSize: 10, color: '#374151', whiteSpace: 'nowrap' }}>{periodLabel}</td>
+                  <td style={{ ...td, fontWeight: 600, textAlign: 'right' }}>{e.prenomArabe || e.prenom} {e.nomArabe || e.nom}</td>
                   <td style={td}>{e.sourateNomArabe || e.sourateNom || '—'}</td>
                   <td style={td}>{e.versetTlatwaDebut ?? '—'}</td>
                   <td style={td}>{e.versetTlatwaFin ?? '—'}</td>
@@ -188,7 +193,7 @@ const PrintableTable = React.forwardRef<HTMLDivElement, PrintableTableProps>(
 
         {/* Footer */}
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#6b7280', borderTop: '1px solid #e5e7eb', paddingTop: 8 }}>
-          <div>تاريخ الطباعة: {new Date().toLocaleDateString('fr-FR')}</div>
+          <div>تاريخ الطباعة: {new Date().toLocaleDateString('ar-SA')}</div>
           <div>المنارد الثالثة — نظام إدارة المدرسة</div>
           <div>توقيع المعلم: _______________</div>
         </div>
@@ -232,9 +237,14 @@ export default function RapportCoranPage() {
   const [enseignantNomRevision, setEnseignantNomRevision] = useState('');
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [generatingDetail, setGeneratingDetail] = useState(false);
   const [logoDataUrl, setLogoDataUrl] = useState<string>('');
   const [recentReports, setRecentReports] = useState<RecentReport[]>([]);
   const printRef = useRef<HTMLDivElement>(null);
+  const printDetailRef = useRef<HTMLDivElement>(null);
+
+  // suppress unused warning
+  void vue;
 
   useEffect(() => {
     api.get('/classes').then(r => setClasses(r.data)).catch(console.error);
@@ -268,7 +278,7 @@ export default function RapportCoranPage() {
     if (weekFin && val) {
       const diff = (new Date(weekFin).getTime() - new Date(val).getTime()) / 86400000;
       if (diff < 0) { setWeekFin(val); }
-      else if (diff > 7) { setWeekRangeError('La période ne peut pas dépasser 7 jours.'); }
+      else if (diff > 7) { setWeekRangeError('لا يمكن أن تتجاوز الفترة 7 أيام.'); }
     }
   };
 
@@ -277,8 +287,8 @@ export default function RapportCoranPage() {
     setWeekRangeError('');
     if (weekDebut && val) {
       const diff = (new Date(val).getTime() - new Date(weekDebut).getTime()) / 86400000;
-      if (diff < 0) { setWeekRangeError('La date de fin doit être après la date de début.'); }
-      else if (diff > 7) { setWeekRangeError('La période ne peut pas dépasser 7 jours.'); }
+      if (diff < 0) { setWeekRangeError('يجب أن يكون تاريخ النهاية بعد تاريخ البداية.'); }
+      else if (diff > 7) { setWeekRangeError('لا يمكن أن تتجاوز الفترة 7 أيام.'); }
     }
   };
 
@@ -329,19 +339,18 @@ export default function RapportCoranPage() {
       ]);
       setRapport(res);
       setRapportDetail(detail);
-      // Extraire l'enseignant depuis les révisions de la période
       const ensFromRevision = (revisions as any[]).find((r: any) => r.enseignantNom)?.enseignantNom || '';
       setEnseignantNomRevision(ensFromRevision);
       if (res.totalSeances === 0) {
-        toast('Aucune séance pour cette période', { icon: '📭' });
+        toast('لا توجد جلسات لهذه الفترة', { icon: '📭' });
       } else {
-        const label = periode === 'journalier' ? frDate(debut)
-          : periode === 'hebdomadaire' ? `${frDate(debut)} – ${frDate(fin)}`
-          : frMonth(debut.slice(0, 7));
+        const label = periode === 'journalier' ? arDate(debut)
+          : periode === 'hebdomadaire' ? `${arDate(debut)} – ${arDate(fin)}`
+          : arMonth(debut.slice(0, 7));
         saveToRecents(res, debut, fin, label);
       }
     } catch {
-      toast.error('Erreur lors du chargement');
+      toast.error('خطأ في تحميل البيانات');
     } finally {
       setLoading(false);
     }
@@ -352,73 +361,121 @@ export default function RapportCoranPage() {
     else setRapport(null);
   }, [fetchData, selectedClasse]);
 
+  const captureElement = async (el: HTMLElement): Promise<HTMLCanvasElement> => {
+    type Saved = { el: HTMLElement; overflow: string; overflowX: string };
+    const saved: Saved[] = [];
+    let ancestor: HTMLElement | null = el.parentElement;
+    while (ancestor && ancestor !== document.body) {
+      const cs = getComputedStyle(ancestor);
+      if (cs.overflow !== 'visible' || cs.overflowX !== 'visible') {
+        saved.push({ el: ancestor, overflow: ancestor.style.overflow, overflowX: ancestor.style.overflowX });
+        ancestor.style.setProperty('overflow', 'visible', 'important');
+        ancestor.style.setProperty('overflow-x', 'visible', 'important');
+      }
+      ancestor = ancestor.parentElement;
+    }
+
+    try {
+      return await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        width: el.scrollWidth,
+        height: el.scrollHeight,
+      });
+    } finally {
+      saved.forEach(({ el: e, overflow, overflowX }) => {
+        e.style.overflow = overflow;
+        e.style.overflowX = overflowX;
+      });
+    }
+  };
+
+  const canvasToPdf = (canvas: HTMLCanvasElement): jsPDF => {
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pw = pdf.internal.pageSize.getWidth();
+    const ph = pdf.internal.pageSize.getHeight();
+    const pageHpx = Math.floor((ph * canvas.width) / pw);
+
+    let yPos = 0;
+    let page = 0;
+    while (yPos < canvas.height) {
+      const sliceH = Math.min(pageHpx, canvas.height - yPos);
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = sliceH;
+      const ctx = pageCanvas.getContext('2d')!;
+      ctx.drawImage(canvas, 0, -yPos);
+      if (page > 0) pdf.addPage();
+      const imgH = (sliceH * pw) / canvas.width;
+      pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', 0, 0, pw, imgH);
+      yPos += pageHpx;
+      page++;
+    }
+    return pdf;
+  };
+
   const generatePDF = async () => {
     const el = printRef.current;
     if (!el || !rapport || rapport.eleves.length === 0) return;
     setGenerating(true);
     try {
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-      });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-      const pw = pdf.internal.pageSize.getWidth();
-      const ph = pdf.internal.pageSize.getHeight();
-      const ratio = canvas.width / canvas.height;
-      const pdfH = pw / ratio;
-
-      if (pdfH <= ph) {
-        pdf.addImage(imgData, 'PNG', 0, 0, pw, pdfH);
-      } else {
-        let yPos = 0;
-        const pageH = (ph * canvas.width) / pw;
-        while (yPos < canvas.height) {
-          const pageCanvas = document.createElement('canvas');
-          pageCanvas.width = canvas.width;
-          pageCanvas.height = Math.min(pageH, canvas.height - yPos);
-          const ctx = pageCanvas.getContext('2d')!;
-          ctx.drawImage(canvas, 0, -yPos);
-          if (yPos > 0) pdf.addPage();
-          pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', 0, 0, pw, (pageCanvas.height * pw) / canvas.width);
-          yPos += pageH;
-        }
-      }
-
+      const canvas = await captureElement(el);
+      const pdf = canvasToPdf(canvas);
       const filename = periode === 'journalier'
         ? `rapport-journalier-${selectedDate}.pdf`
         : periode === 'hebdomadaire'
         ? `rapport-hebdomadaire-${weekDebut}-${weekFin}.pdf`
         : `rapport-mensuel-${selectedMonth}.pdf`;
-
       pdf.save(filename);
-      toast.success('PDF généré avec succès !');
+      toast.success('تم إنشاء PDF بنجاح!');
     } catch (err) {
       console.error(err);
-      toast.error('Erreur lors de la génération du PDF');
+      toast.error('خطأ في إنشاء PDF');
     } finally {
       setGenerating(false);
     }
   };
 
+  const generateDetailPDF = async () => {
+    const el = printDetailRef.current;
+    if (!el || !rapportDetail || rapportDetail.lignes.length === 0) return;
+    setGeneratingDetail(true);
+    try {
+      const canvas = await captureElement(el);
+      const pdf = canvasToPdf(canvas);
+      const filename = periode === 'hebdomadaire'
+        ? `detail-hebdomadaire-${weekDebut}-${weekFin}.pdf`
+        : `detail-mensuel-${selectedMonth}.pdf`;
+      pdf.save(filename);
+      toast.success('تم إنشاء PDF التفصيلي بنجاح!');
+    } catch (err) {
+      console.error(err);
+      toast.error('خطأ في إنشاء PDF');
+    } finally {
+      setGeneratingDetail(false);
+    }
+  };
+
   const periodLabel =
-    periode === 'journalier' ? frDate(selectedDate)
-    : periode === 'hebdomadaire' ? `${frDate(weekDebut)} – ${frDate(weekFin)}`
-    : frMonth(selectedMonth);
+    periode === 'journalier' ? arDate(selectedDate)
+    : periode === 'hebdomadaire' ? `${arDate(weekDebut)} – ${arDate(weekFin)}`
+    : arMonth(selectedMonth);
 
   const selectedClasseObj = classes.find(c => c.id === selectedClasse);
-  const classeNom = rapport?.classeNom || selectedClasseObj?.niveau || '';
+  const classeNom = rapport?.classeNom || (selectedClasseObj ? translateNiveau(selectedClasseObj.niveau) : '');
 
-  // Priorité : backend → révisions → enseignantId de la classe
   const enseignantClasse = (() => {
     if (rapport?.enseignantClasse) return rapport.enseignantClasse;
     if (enseignantNomRevision) return enseignantNomRevision;
     const eid = selectedClasseObj?.enseignantId;
     if (eid) {
       const e = enseignants.find((en: any) => en.id === eid);
-      if (e) return `${e.prenom} ${e.nom}`.trim();
+      if (e) return `${e.prenomArabe || e.prenom} ${e.nomArabe || e.nom}`.trim();
     }
     return '';
   })();
@@ -427,7 +484,7 @@ export default function RapportCoranPage() {
   const hasData = eleves.length > 0;
 
   if (role === 'COMPTABLE') {
-    return <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}><div className="text-muted">Accès non autorisé</div></div>;
+    return <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}><div className="text-muted">غير مصرح بالوصول</div></div>;
   }
 
   return (
@@ -443,20 +500,19 @@ export default function RapportCoranPage() {
               📋
             </div>
             <div>
-              <h1 className="fw-bold mb-1" style={{ fontSize: 26, color: '#ffffff' }}>Rapports des séances de récitation</h1>
-              <p className="mb-1" style={{ fontSize: 17, color: 'rgba(255,255,255,0.9)', fontFamily: 'serif' }}>تقارير جلسات التلاوة</p>
-              <p className="mb-0" style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>Générez et téléchargez les rapports journaliers, hebdomadaires et mensuels</p>
+              <h1 className="fw-bold mb-1" style={{ fontSize: 26, color: '#ffffff' }}>تقارير جلسات التلاوة</h1>
+              <p className="mb-0" style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>أنشئ وحمّل التقارير اليومية والأسبوعية والشهرية</p>
             </div>
           </div>
-          {hasData && (
+          {hasData && periode === 'journalier' && (
             <div className="d-flex gap-2 flex-wrap">
               <button onClick={() => window.print()} className="btn fw-semibold" style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff', borderRadius: 8, fontSize: 13, border: '1px solid rgba(255,255,255,0.3)' }}>
-                🖨️ Imprimer
+                🖨️ طباعة
               </button>
               <button onClick={generatePDF} disabled={generating} className="btn fw-semibold" style={{ backgroundColor: '#ffffff', color: '#4338ca', borderRadius: 8, fontSize: 13, border: 'none', minWidth: 160, fontWeight: 700 }}>
                 {generating
-                  ? <><span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14, borderWidth: 2 }} />Génération...</>
-                  : '⬇️ Télécharger PDF'}
+                  ? <><span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14, borderWidth: 2 }} />جاري الإنشاء...</>
+                  : '⬇️ تنزيل PDF'}
               </button>
             </div>
           )}
@@ -467,7 +523,7 @@ export default function RapportCoranPage() {
       <div className="rounded-4 p-4" style={{ backgroundColor: '#ffffff', boxShadow: '0 2px 16px rgba(67,56,202,0.08)', border: '1px solid #e0e7ff' }}>
         <div className="d-flex align-items-center gap-2 mb-4">
           <div style={{ width: 4, height: 20, backgroundColor: '#4338ca', borderRadius: 2 }} />
-          <span className="fw-semibold" style={{ fontSize: 13, color: '#374151' }}>Période du rapport — فترة التقرير</span>
+          <span className="fw-semibold" style={{ fontSize: 13, color: '#374151' }}>فترة التقرير</span>
         </div>
         <div className="d-flex gap-2 mb-4">
           {(['journalier', 'hebdomadaire', 'mensuel'] as PeriodeType[]).map((p) => (
@@ -482,31 +538,31 @@ export default function RapportCoranPage() {
                 border: periode === p ? 'none' : '1px solid #e5e7eb',
               }}
             >
-              {p === 'journalier' ? '📅 Journalier' : p === 'hebdomadaire' ? '📆 Hebdomadaire' : '🗓️ Mensuel'}
+              {p === 'journalier' ? '📅 يومي' : p === 'hebdomadaire' ? '📆 أسبوعي' : '🗓️ شهري'}
             </button>
           ))}
         </div>
 
         <div className="row g-3">
           <div className="col-12 col-md-4">
-            <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Classe</label>
+            <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>الفصل</label>
             <select value={selectedClasse} onChange={e => setSelectedClasse(e.target.value ? Number(e.target.value) : '')}
               className="form-select" style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}>
-              <option value="">Choisir une classe</option>
-              {classes.map(c => <option key={c.id} value={c.id}>{c.niveau}</option>)}
+              <option value="">اختر الفصل</option>
+              {classes.map(c => <option key={c.id} value={c.id}>{translateNiveau(c.niveau)}</option>)}
             </select>
           </div>
 
           {periode === 'journalier' ? (
             <div className="col-12 col-md-4">
-              <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Date</label>
+              <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>التاريخ</label>
               <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
                 className="form-control" style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }} />
             </div>
           ) : periode === 'hebdomadaire' ? (
             <>
               <div className="col-12 col-md-3">
-                <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>📅 Date début</label>
+                <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>📅 تاريخ البداية</label>
                 <input
                   type="date"
                   value={weekDebut}
@@ -516,7 +572,7 @@ export default function RapportCoranPage() {
                 />
               </div>
               <div className="col-12 col-md-3">
-                <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>📅 Date fin</label>
+                <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>📅 تاريخ النهاية</label>
                 <input
                   type="date"
                   value={weekFin}
@@ -533,7 +589,7 @@ export default function RapportCoranPage() {
             </>
           ) : (
             <div className="col-12 col-md-4">
-              <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Mois</label>
+              <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>الشهر</label>
               <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
                 className="form-control" style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }} />
             </div>
@@ -546,7 +602,7 @@ export default function RapportCoranPage() {
               className="btn fw-semibold w-100"
               style={{ backgroundColor: '#4338ca', color: '#fff', borderRadius: 8, fontSize: 14, padding: '0.75rem', border: 'none', opacity: (!selectedClasse || loading || !!weekRangeError) ? 0.6 : 1 }}
             >
-              {loading ? <><span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14, borderWidth: 2 }} />Chargement...</> : '🔍 Générer'}
+              {loading ? <><span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14, borderWidth: 2 }} />جاري التحميل...</> : '🔍 إنشاء التقرير'}
             </button>
           </div>
         </div>
@@ -559,19 +615,19 @@ export default function RapportCoranPage() {
             </div>
             {enseignantClasse && (
               <div className="p-2 rounded-3 d-inline-block" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 12, color: '#1d4ed8' }}>
-                👨‍🏫 المعلم : <strong>{enseignantClasse}</strong>
+                👨‍🏫 المعلم: <strong>{enseignantClasse}</strong>
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* Derniers rapports générés */}
+      {/* آخر التقارير */}
       {recentReports.length > 0 && (
         <div className="rounded-4 p-4" style={{ backgroundColor: '#ffffff', boxShadow: '0 2px 16px rgba(67,56,202,0.08)', border: '1px solid #e0e7ff' }}>
           <div className="d-flex align-items-center gap-2 mb-3">
             <div style={{ width: 4, height: 20, backgroundColor: '#4338ca', borderRadius: 2 }} />
-            <span className="fw-semibold" style={{ fontSize: 13, color: '#374151' }}>Derniers rapports générés — آخر التقارير</span>
+            <span className="fw-semibold" style={{ fontSize: 13, color: '#374151' }}>آخر التقارير المُنشأة</span>
           </div>
           <div className="d-flex flex-wrap gap-3">
             {recentReports.map((r) => (
@@ -601,14 +657,14 @@ export default function RapportCoranPage() {
                 <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>{r.periodLabel}</div>
                 <div className="d-flex gap-2 flex-wrap">
                   <span className="badge rounded-pill" style={{ backgroundColor: '#e0e7ff', color: '#4338ca', fontSize: 10 }}>
-                    📖 {r.totalSeances} séance{r.totalSeances > 1 ? 's' : ''}
+                    📖 {r.totalSeances} جلسة
                   </span>
                   <span className="badge rounded-pill" style={{ backgroundColor: '#e8f5e9', color: '#0A6E3F', fontSize: 10 }}>
-                    👥 {r.totalEleves} élève{r.totalEleves > 1 ? 's' : ''}
+                    👥 {r.totalEleves} طالب
                   </span>
                 </div>
                 <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 6 }}>
-                  {new Date(r.generatedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {new Date(r.generatedAt).toLocaleDateString('ar-SA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             ))}
@@ -620,15 +676,15 @@ export default function RapportCoranPage() {
       {!selectedClasse && (
         <div className="bg-white rounded-4 shadow-sm p-5 text-center" style={{ border: '1px solid #f0f0f0' }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
-          <p className="fw-semibold mb-1" style={{ fontSize: 15, color: '#111827' }}>Aucun rapport sélectionné</p>
-          <p className="text-muted mb-0" style={{ fontSize: 13 }}>Choisissez une classe et une période, puis cliquez sur "Générer le rapport"</p>
+          <p className="fw-semibold mb-1" style={{ fontSize: 15, color: '#111827' }}>لم يتم اختيار تقرير</p>
+          <p className="text-muted mb-0" style={{ fontSize: 13 }}>اختر فصلاً وفترة زمنية، ثم انقر على "إنشاء التقرير"</p>
         </div>
       )}
 
       {selectedClasse && !loading && rapport !== null && eleves.length === 0 && (
         <div className="bg-white rounded-4 shadow-sm p-5 text-center" style={{ border: '1px solid #f0f0f0' }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
-          <p className="text-muted mb-0" style={{ fontSize: 13 }}>Aucune séance enregistrée pour cette période</p>
+          <p className="text-muted mb-0" style={{ fontSize: 13 }}>لا توجد جلسات مسجلة لهذه الفترة</p>
         </div>
       )}
 
@@ -636,10 +692,10 @@ export default function RapportCoranPage() {
       {hasData && rapport && (
         <div className="row g-3">
           {[
-            { label: 'Séances', value: rapport.totalSeances, color: '#0A6E3F', bg: '#e8f5e9', icon: '📖' },
-            { label: 'Élèves', value: eleves.length, color: '#7c3aed', bg: '#f5f3ff', icon: '👥' },
-            { label: 'Taux de présence', value: `${rapport.tauxPresenceMoyen}%`, color: '#1d4ed8', bg: '#dbeafe', icon: '✅' },
-            { label: 'Taux de mémorisation', value: `${rapport.tauxMemorisationMoyen}%`, color: '#d97706', bg: '#fef3c7', icon: '⭐' },
+            { label: 'عدد الجلسات', value: rapport.totalSeances, color: '#0A6E3F', bg: '#e8f5e9', icon: '📖' },
+            { label: 'الطلاب', value: eleves.length, color: '#7c3aed', bg: '#f5f3ff', icon: '👥' },
+            { label: 'نسبة الحضور', value: `${rapport.tauxPresenceMoyen}%`, color: '#1d4ed8', bg: '#dbeafe', icon: '✅' },
+            { label: 'نسبة الحفظ', value: `${rapport.tauxMemorisationMoyen}%`, color: '#d97706', bg: '#fef3c7', icon: '⭐' },
           ].map((card) => (
             <div key={card.label} className="col-6 col-md-3">
               <div className="bg-white rounded-4 shadow-sm p-4" style={{ border: `1px solid ${card.color}22` }}>
@@ -652,52 +708,22 @@ export default function RapportCoranPage() {
         </div>
       )}
 
-      {/* Toggle vue agrégée / détaillée */}
-      {hasData && rapport && (periode === 'hebdomadaire' || periode === 'mensuel') && (
-        <div className="d-flex gap-2">
-          <button
-            onClick={() => setVue('agrege')}
-            className="btn btn-sm fw-semibold"
-            style={{
-              backgroundColor: vue === 'agrege' ? '#4338ca' : '#f9fafb',
-              color: vue === 'agrege' ? '#fff' : '#374151',
-              border: vue === 'agrege' ? 'none' : '1px solid #e5e7eb',
-              borderRadius: 8,
-            }}
-          >
-            📊 Vue synthèse
-          </button>
-          <button
-            onClick={() => setVue('detail')}
-            className="btn btn-sm fw-semibold"
-            style={{
-              backgroundColor: vue === 'detail' ? '#4338ca' : '#f9fafb',
-              color: vue === 'detail' ? '#fff' : '#374151',
-              border: vue === 'detail' ? 'none' : '1px solid #e5e7eb',
-              borderRadius: 8,
-            }}
-          >
-            📋 Vue détaillée (séance par séance)
-          </button>
-        </div>
-      )}
-
-      {/* Printable Table */}
-      {hasData && rapport && (vue === 'agrege' || periode === 'journalier') && (
-        <div className="rounded-4 overflow-hidden" style={{ boxShadow: '0 2px 16px rgba(67,56,202,0.08)', border: '1px solid #e0e7ff' }}>
-          <div className="p-4 d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(90deg, #eef2ff 0%, #ffffff 100%)', borderBottom: '1px solid #e0e7ff' }}>
+      {/* Printable Table — journalier */}
+      {hasData && rapport && periode === 'journalier' && (
+        <div className="rounded-4" style={{ boxShadow: '0 2px 16px rgba(67,56,202,0.08)', border: '1px solid #e0e7ff', overflow: 'visible' }}>
+          <div className="p-4 d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(90deg, #eef2ff 0%, #ffffff 100%)', borderBottom: '1px solid #e0e7ff', borderRadius: '12px 12px 0 0' }}>
             <div className="d-flex align-items-center gap-2">
               <div style={{ width: 4, height: 20, backgroundColor: '#4338ca', borderRadius: 2 }} />
               <h5 className="fw-bold mb-0" style={{ fontSize: 15, color: '#3730a3' }}>
-                Tableau de récitation — {classeNom} — {periodLabel}
+                قائمة التلاوة — {classeNom} — {periodLabel}
               </h5>
             </div>
             <span className="badge rounded-pill" style={{ backgroundColor: '#e0e7ff', color: '#4338ca', fontSize: 12 }}>
-              {eleves.length} élève(s)
+              {eleves.length} طالب
             </span>
           </div>
 
-          <div style={{ overflowX: 'auto', padding: 16 }}>
+          <div className="rapport-print-zone" style={{ overflowX: 'auto', padding: 16 }}>
             <PrintableTable
               ref={printRef}
               titre="قائمة التلاوة"
@@ -712,21 +738,53 @@ export default function RapportCoranPage() {
         </div>
       )}
 
-      {/* Tableau détaillé séance par séance */}
-      {vue === 'detail' && rapportDetail && rapportDetail.lignes.length > 0 && (
+      {/* Tableau détaillé — hebdomadaire et mensuel */}
+      {(periode === 'hebdomadaire' || periode === 'mensuel') && rapportDetail && rapportDetail.lignes.length > 0 && (
         <div className="rounded-4 overflow-hidden" style={{ boxShadow: '0 2px 16px rgba(67,56,202,0.08)', border: '1px solid #e0e7ff' }}>
-          <div className="p-4 d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(90deg, #eef2ff 0%, #ffffff 100%)', borderBottom: '1px solid #e0e7ff' }}>
+          <div className="p-4 d-flex justify-content-between align-items-center flex-wrap gap-2" style={{ background: 'linear-gradient(90deg, #eef2ff 0%, #ffffff 100%)', borderBottom: '1px solid #e0e7ff' }}>
             <div className="d-flex align-items-center gap-2">
               <div style={{ width: 4, height: 20, backgroundColor: '#4338ca', borderRadius: 2 }} />
               <h5 className="fw-bold mb-0" style={{ fontSize: 15, color: '#3730a3' }}>
-                Vue détaillée — {classeNom} — {periodLabel}
+                العرض التفصيلي — {classeNom} — {periodLabel}
               </h5>
             </div>
-            <span className="badge rounded-pill" style={{ backgroundColor: '#e0e7ff', color: '#4338ca', fontSize: 12 }}>
-              {rapportDetail.lignes.length} ligne(s)
-            </span>
+            <div className="d-flex align-items-center gap-2">
+              <span className="badge rounded-pill" style={{ backgroundColor: '#e0e7ff', color: '#4338ca', fontSize: 12 }}>
+                {rapportDetail.lignes.length} سطر
+              </span>
+              <button
+                onClick={generateDetailPDF}
+                disabled={generatingDetail}
+                className="btn btn-sm fw-semibold"
+                style={{ backgroundColor: '#4338ca', color: '#fff', borderRadius: 8, fontSize: 12, border: 'none', minWidth: 150 }}
+              >
+                {generatingDetail
+                  ? <><span className="spinner-border spinner-border-sm me-1" style={{ width: 12, height: 12, borderWidth: 2 }} />جاري الإنشاء...</>
+                  : '⬇️ تنزيل PDF'}
+              </button>
+            </div>
           </div>
-          <div style={{ overflowX: 'auto', padding: 16 }}>
+          <div ref={printDetailRef} dir="rtl" style={{ overflow: 'visible', padding: 16, backgroundColor: '#fff', color: '#000', fontFamily: 'Arial, sans-serif' }}>
+            {/* Header with logo */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12, borderBottom: '2px solid #0A6E3F', paddingBottom: 10 }}>
+              {logoDataUrl && (
+                <img src={logoDataUrl} alt="Logo" style={{ width: 64, height: 64, objectFit: 'contain', flexShrink: 0, borderRadius: 8 }} />
+              )}
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 'bold', color: '#0A6E3F' }}>مدرسة المنارد الثالثة الإسلامية</div>
+                <div style={{ fontSize: 14, fontWeight: 'bold', marginTop: 4 }}>العرض التفصيلي للتلاوة</div>
+                <div style={{ fontSize: 12, marginTop: 4, color: '#374151' }}>
+                  الفصل: <strong>{classeNom}</strong>
+                  &nbsp;&nbsp;|&nbsp;&nbsp;
+                  الفترة: <strong>{periodLabel}</strong>
+                  &nbsp;&nbsp;|&nbsp;&nbsp;
+                  عدد الأسطر: <strong>{rapportDetail?.lignes.length ?? 0}</strong>
+                </div>
+              </div>
+              {logoDataUrl && (
+                <img src={logoDataUrl} alt="Logo" style={{ width: 64, height: 64, objectFit: 'contain', flexShrink: 0, borderRadius: 8, opacity: 0.3 }} />
+              )}
+            </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, direction: 'rtl' }}>
               <thead>
                 <tr style={{ backgroundColor: '#0A6E3F', color: '#fff' }}>
@@ -754,9 +812,9 @@ export default function RapportCoranPage() {
                   const bg = i % 2 === 0 ? '#fff' : '#f9fafb';
                   return (
                     <tr key={`${l.seanceId}-${l.eleveId}`} style={{ backgroundColor: bg }}>
-                      <td style={{ ...td, whiteSpace: 'nowrap' }}>{new Date(l.date).toLocaleDateString('fr-FR')}</td>
+                      <td style={{ ...td, whiteSpace: 'nowrap' }}>{new Date(l.date).toLocaleDateString('ar-SA')}</td>
                       <td style={td}>{l.numeroSeance}</td>
-                      <td style={{ ...td, fontWeight: 600, textAlign: 'right' }}>{l.prenom} {l.nom}</td>
+                      <td style={{ ...td, fontWeight: 600, textAlign: 'right' }}>{l.prenomArabe || l.prenom} {l.nomArabe || l.nom}</td>
                       <td style={{ ...td, fontFamily: 'monospace', fontSize: 10, color: '#6b7280' }}>{l.matricule || '—'}</td>
                       <td style={{ ...td, fontWeight: 700, color: l.present ? '#0A6E3F' : '#dc2626' }}>
                         {l.present ? '✓' : '✗'}
@@ -782,8 +840,8 @@ export default function RapportCoranPage() {
       <style>{`
         @media print {
           body * { visibility: hidden; }
-          #rapport-print-zone, #rapport-print-zone * { visibility: visible; }
-          #rapport-print-zone { position: absolute; left: 0; top: 0; width: 100%; }
+          .rapport-print-zone, .rapport-print-zone * { visibility: visible; }
+          .rapport-print-zone { position: absolute; left: 0; top: 0; width: 100%; }
         }
       `}</style>
     </div>

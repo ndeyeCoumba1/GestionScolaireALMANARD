@@ -1,6 +1,5 @@
-export type StatutPaiement = 'PAYE' | 'EN_ATTENTE' | 'PARTIEL' | 'IMPAYE' | 'ANNULE';
-export type TypePaiement = 'ESPECES' | 'CHEQUE' | 'WAVE' | 'ORANGE_MONEY';
-export type MotifPaiement = 'INSCRIPTION' | 'MENSUALITE' | 'REMBOURSEMENT';
+import type { StatutPaiement, TypePaiement, MotifPaiement } from './index';
+export type { StatutPaiement, TypePaiement, MotifPaiement };
 
 export interface PaiementDTO {
   id: number;

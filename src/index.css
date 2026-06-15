@@ -9,3 +9,72 @@ html, body, #root {
 .ar-portal {
   font-family: 'Amiri', serif;
 }
+
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* ── Print / PDF ─────────────────────────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 15mm;
+  }
+
+  /* Masquer tout ce qui n'est pas le contenu imprimable */
+  .sidebar,
+  nav,
+  .navbar,
+  .ar-sidebar,
+  [class*="sidebar"],
+  [class*="topbar"],
+  [class*="hamburger"],
+  form.rounded-4,
+  .no-print,
+  button,
+  .btn {
+    display: none !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  /* Zone imprimable pleine largeur */
+  .rapport-print-zone,
+  .print-zone {
+    width: 100% !important;
+    min-width: unset !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+
+  /* Tableaux larges */
+  table {
+    width: 100% !important;
+    table-layout: auto !important;
+    font-size: 10pt !important;
+  }
+
+  /* Éviter les coupures dans les lignes */
+  tr {
+    page-break-inside: avoid !important;
+  }
+
+  /* Éviter les coupures dans les conteneurs de graphiques */
+  .chart-container,
+  [class*="chart"] {
+    page-break-inside: avoid !important;
+  }
+
+  /* Assurer que les en-têtes restent avec leur contenu */
+  thead {
+    display: table-header-group;
+  }
+}

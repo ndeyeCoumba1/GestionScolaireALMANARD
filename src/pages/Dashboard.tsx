@@ -61,20 +61,21 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [elevesRes, parentsRes, classesRes, paiementsRes, depensesRes] = await Promise.all([
+        const [elevesRes, parentsRes, classesRes, paiementsRes, depensesRes] = await Promise.allSettled([
           api.get('/eleves'), api.get('/parents'), api.get('/classes'),
           api.get('/paiements'), api.get('/depenses'),
         ]);
-        const eleves = elevesRes.data || [];
-        const paiements = paiementsRes.data || [];
-        const depenses = depensesRes.data || [];
-        const classes = classesRes.data || [];
+        const eleves   = elevesRes.status   === 'fulfilled' ? elevesRes.value.data   || [] : [];
+        const paiements= paiementsRes.status=== 'fulfilled' ? paiementsRes.value.data|| [] : [];
+        const depenses = depensesRes.status === 'fulfilled' ? depensesRes.value.data || [] : [];
+        const classes  = classesRes.status  === 'fulfilled' ? classesRes.value.data  || [] : [];
+        const parentsData = parentsRes.status === 'fulfilled' ? parentsRes.value.data || [] : [];
 
         const totalPaiements = paiements.filter((p: any) => p.statut === 'PAYE').reduce((s: number, p: any) => s + (p.montant || 0), 0);
         const totalImpayes   = paiements.filter((p: any) => p.statut === 'PARTIEL' || p.statut === 'IMPAYE').reduce((s: number, p: any) => s + (p.montant || 0), 0);
         const totalDepenses  = depenses.reduce((s: number, d: any) => s + (d.montant || 0), 0);
 
-        setStats({ totalEleves: eleves.length, totalParents: (parentsRes.data || []).length, totalClasses: classes.length, totalPaiements, totalDepenses, totalImpayes });
+        setStats({ totalEleves: eleves.length, totalParents: parentsData.length, totalClasses: classes.length, totalPaiements, totalDepenses, totalImpayes });
 
         const months = ['Oct', 'Nov', 'Dec', 'Jan', 'Fev', 'Mar', 'Avr', 'Mai'];
         setChartData(months.map((mois, idx) => ({

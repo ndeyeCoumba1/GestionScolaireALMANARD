@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+
 interface ConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -19,119 +21,82 @@ export function ConfirmModal({
   cancelText = 'Annuler',
   variant = 'danger',
 }: ConfirmModalProps) {
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const variantStyles = {
-    danger: {
-      bg: '#fef2f2',
-      border: '#fecaca',
-      icon: '⚠️',
-      confirmBg: '#dc2626',
-      confirmHover: '#b91c1c',
-    },
-    warning: {
-      bg: '#fffbeb',
-      border: '#fde68a',
-      icon: '⚡',
-      confirmBg: '#f59e0b',
-      confirmHover: '#d97706',
-    },
-    info: {
-      bg: '#eff6ff',
-      border: '#bfdbfe',
-      icon: 'ℹ️',
-      confirmBg: '#3b82f6',
-      confirmHover: '#2563eb',
-    },
+    danger:  { bg: '#fef2f2', icon: '⚠️', confirmBg: '#dc2626', confirmHover: '#b91c1c' },
+    warning: { bg: '#fffbeb', icon: '⚡', confirmBg: '#f59e0b', confirmHover: '#d97706' },
+    info:    { bg: '#eff6ff', icon: 'ℹ️', confirmBg: '#3b82f6', confirmHover: '#2563eb' },
   };
 
-  const style = variantStyles[variant];
+  const s = variantStyles[variant];
 
   return (
     <div
-      className="modal fade show"
+      onClick={onClose}
       style={{
-        display: 'block',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        position: 'fixed', inset: 0, zIndex: 2000,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '1rem',
       }}
-      tabIndex={-1}
     >
       <div
-        className="modal-dialog modal-dialog-centered"
-        style={{ maxWidth: 400 }}
+        onClick={e => e.stopPropagation()}
+        style={{
+          backgroundColor: '#fff', borderRadius: 16, width: '100%', maxWidth: 400,
+          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+          overflow: 'hidden',
+        }}
       >
-        <div
-          className="modal-content rounded-4 overflow-hidden"
-          style={{ border: 'none', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}
-        >
-          {/* Header */}
-          <div
-            className="modal-header border-0 pb-0"
-            style={{ backgroundColor: style.bg }}
-          >
-            <div className="d-flex align-items-center gap-3">
-              <div
-                className="rounded-circle d-flex align-items-center justify-content-center"
-                style={{ width: 40, height: 40, backgroundColor: 'rgba(255, 255, 255, 0.8)', fontSize: 20 }}
-              >
-                {style.icon}
-              </div>
-              <h5 className="modal-title fw-bold mb-0" style={{ fontSize: 16, color: '#111827' }}>
-                {title}
-              </h5>
+        {/* Header */}
+        <div style={{ backgroundColor: s.bg, padding: '20px 24px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+              {s.icon}
             </div>
-            <button
-              type="button"
-              className="btn-close"
-              onClick={onClose}
-              style={{ fontSize: 18, opacity: 0.5 }}
-            />
+            <h5 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827' }}>{title}</h5>
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', fontSize: 18, flexShrink: 0 }}
+          >
+            ×
+          </button>
+        </div>
 
-          {/* Body */}
-          <div className="modal-body py-4">
-            <p className="mb-0" style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.6 }}>
-              {message}
-            </p>
-          </div>
+        {/* Body */}
+        <div style={{ padding: '16px 24px 20px' }}>
+          <p style={{ margin: 0, fontSize: 14, color: '#6b7280', lineHeight: 1.6 }}>{message}</p>
+        </div>
 
-          {/* Footer */}
-          <div className="modal-footer border-0 pt-0 gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn flex-fill fw-medium"
-              style={{
-                border: '1px solid #e5e7eb',
-                color: '#6b7280',
-                borderRadius: 10,
-                padding: '10px 0',
-                fontSize: 14,
-              }}
-            >
-              {cancelText}
-            </button>
-            <button
-              type="button"
-              onClick={onConfirm}
-              className="btn flex-fill fw-semibold text-white"
-              style={{
-                backgroundColor: style.confirmBg,
-                border: 'none',
-                borderRadius: 10,
-                padding: '10px 0',
-                fontSize: 14,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = style.confirmHover;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = style.confirmBg;
-              }}
-            >
-              {confirmText}
-            </button>
-          </div>
+        {/* Footer */}
+        <div style={{ padding: '0 24px 24px', display: 'flex', gap: 10 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ flex: 1, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#374151', borderRadius: 10, padding: '10px 0', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}
+          >
+            {cancelText}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            style={{ flex: 1, backgroundColor: s.confirmBg, border: 'none', color: '#fff', borderRadius: 10, padding: '10px 0', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = s.confirmHover)}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = s.confirmBg)}
+          >
+            {confirmText}
+          </button>
         </div>
       </div>
     </div>

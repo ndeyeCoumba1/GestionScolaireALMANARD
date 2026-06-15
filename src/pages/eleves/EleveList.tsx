@@ -39,6 +39,8 @@ export default function EleveList() {
         parentId: item.parentId, parentNom: item.parentNom || item.parent?.nom || '',
         parentPrenom: item.parentPrenom || item.parent?.prenom || '',
         photoUrl: item.photoUrl || '',
+        nomArabe: item.nomArabe || '',
+        prenomArabe: item.prenomArabe || '',
       })));
     } catch {} finally { setLoading(false); }
   };
@@ -121,10 +123,10 @@ export default function EleveList() {
 
         <div className="table-responsive">
           {loading ? (
-            <div style={{ padding: '0 24px 24px' }}><SkeletonTable rows={6} columns={6} /></div>
+            <div style={{ padding: '0 24px 24px' }}><SkeletonTable rows={6} columns={7} /></div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <TableHead cols={[{ label: 'Élève' }, { label: 'Classe' }, { label: 'Parent' }, { label: 'Sexe' }, { label: 'Statut' }, { label: 'Actions' }]} />
+              <TableHead cols={[{ label: 'Élève' }, { label: 'الاسم بالعربية' }, { label: 'Classe' }, { label: 'Parent' }, { label: 'Sexe' }, { label: 'Statut' }, { label: 'Actions' }]} />
               <tbody>
                 {filtered.length === 0 ? (
                   <EmptyState icon="🔍" title={search ? 'Aucun résultat trouvé' : 'Aucun élève enregistré'} sub={search ? `Aucun élève ne correspond à « ${search} »` : 'Les élèves apparaîtront ici une fois ajoutés.'} />
@@ -147,6 +149,11 @@ export default function EleveList() {
                           {e.parentNom && <div style={{ fontSize: 10, color: '#9ca3af' }}>Parent : {e.parentPrenom} {e.parentNom}</div>}
                         </div>
                       </div>
+                    </td>
+                    <td style={{ ...TD, textAlign: 'right', direction: 'rtl' }}>
+                      {(e.prenomArabe || e.nomArabe)
+                        ? <span style={{ fontFamily: 'serif', fontSize: 13, color: '#111827', fontWeight: 500 }}>{e.prenomArabe} {e.nomArabe}</span>
+                        : <span style={{ color: '#9ca3af' }}>—</span>}
                     </td>
                     <td style={TD}>
                       {e.classeNiveau
@@ -190,7 +197,7 @@ export default function EleveList() {
       </div>
 
       <ConfirmModal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setEleveToDelete(null); }} onConfirm={confirmDelete} title="Supprimer l'élève" message="Êtes-vous sûr de vouloir supprimer cet élève ? Cette action est irréversible." confirmText="Supprimer" cancelText="Annuler" variant="danger" />
-      <Drawer isOpen={isDrawerOpen} onClose={handleCloseDrawer} title={editingEleveId ? "Modifier l'élève" : 'Nouvel élève'}><EleveForm onClose={handleCloseDrawer} eleveId={editingEleveId} /></Drawer>
+      <Drawer isOpen={isDrawerOpen} onClose={handleCloseDrawer} title={editingEleveId ? "Modifier l'élève" : 'Nouvel élève'}><EleveForm key={editingEleveId ?? 'new'} onClose={handleCloseDrawer} eleveId={editingEleveId} /></Drawer>
     </div>
   );
 }

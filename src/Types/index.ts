@@ -5,16 +5,14 @@ export type StatutPaiement = 'PAYE' | 'EN_ATTENTE' | 'PARTIEL' | 'IMPAYE' | 'ANN
 export type MotifPaiement = 'INSCRIPTION' | 'MENSUALITE' | 'REMBOURSEMENT';
 export type TypePaiement = 'ESPECES' | 'WAVE' | 'CHEQUE' | 'ORANGE_MONEY';
 export type NiveauClasse = 'INTERNAT' | 'DEMI_PENSION' | 'EXTERNAT';
-export type TypeDepense = 
+export type TypeDepense =
   | 'Facture_Eau' | 'Salaire' | 'Fourniture_Scolaire'
   | 'Carburant' | 'Medical' | 'Social' | 'PRET'
-  | 'Denrees' | 'Charbon' | 'Cartouche_Imprimante' 
-  |'Vidange' | 'Nate de Bintou Kandji' |'Transport' 
-  | 'Nate mere de Mouhamed Nazir GUEYE'
-  | 'Depense par Maguette BA'| 'Dettes'
-  | 'Restitution Frais Scolaires'
-  | 'depense Gestion Interne'|'Traveaux Daradji'
-  |'Achats Woyofal' |'Recharge Gaz' |'Achats Machine à laver'  | string;
+  | 'Denrees' | 'Charbon' | 'Cartouche_Imprimante'
+  | 'Vidange' | 'Transport' | 'Dettes'
+  | 'Restitution_Frais_Scolaires' | 'Gestion_Interne'
+  | 'Travaux' | 'Achats_Woyofal' | 'Recharge_Gaz'
+  | 'Achats_Equipement' | 'AUTRE_DEPENSE' | string;
 
 export interface User {
   id: number;

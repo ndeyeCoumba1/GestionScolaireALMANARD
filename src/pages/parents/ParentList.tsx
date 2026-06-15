@@ -108,7 +108,7 @@ export default function ParentList() {
       </div>
 
       <ConfirmModal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setParentToDelete(null); }} onConfirm={confirmDelete} title="Supprimer le parent" message="Êtes-vous sûr de vouloir supprimer ce parent ? Cette action est irréversible." confirmText="Supprimer" cancelText="Annuler" variant="danger" />
-      <Drawer isOpen={isDrawerOpen} onClose={handleCloseDrawer} title={editingParentId ? 'Modifier le parent' : 'Nouveau parent'}><ParentForm onClose={handleCloseDrawer} parentId={editingParentId} /></Drawer>
+      <Drawer isOpen={isDrawerOpen} onClose={handleCloseDrawer} title={editingParentId ? 'Modifier le parent' : 'Nouveau parent'}><ParentForm key={editingParentId ?? 'new'} onClose={handleCloseDrawer} parentId={editingParentId} /></Drawer>
     </div>
   );
 }

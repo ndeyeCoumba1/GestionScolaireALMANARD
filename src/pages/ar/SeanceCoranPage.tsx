@@ -8,16 +8,30 @@ import { SkeletonTable } from '../../components/Common/SkeletonLoader';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../Context/AuthContext';
 
+const translateNiveau = (niveau: string) => {
+  const map: Record<string, string> = {
+    INTERNAT: 'داخلي',
+    EXTERNAT: 'خارجي',
+    DEMI_PENSION: 'نصف داخلي',
+  };
+  return map[niveau] ?? niveau;
+};
+
+const niveauColors: Record<string, { bg: string; color: string; label: string }> = {
+  MEMORISE:     { bg: '#d1fae5', color: '#065f46', label: 'محفوظ' },
+  PARTIEL:      { bg: '#fef9c3', color: '#854d0e', label: 'جزئي' },
+  NON_MEMORISE: { bg: '#fee2e2', color: '#991b1b', label: 'غير محفوظ' },
+  ABSENT:       { bg: '#f3f4f6', color: '#6b7280', label: 'غائب' },
+};
+
 export default function SeanceCoranPage() {
   const { role, nom, prenom, userId } = useAuth();
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClasse, setSelectedClasse] = useState<number | ''>('');
   const [selectedEnseignant, setSelectedEnseignant] = useState<number | ''>('');
-  const [selectedTeacher, setSelectedTeacher] = useState<number | ''>('');
   const [classes, setClasses] = useState<Classe[]>([]);
   const [eleves, setEleves] = useState<Eleve[]>([]);
   const [enseignants, setEnseignants] = useState<any[]>([]);
-  const [teachers, setTeachers] = useState<any[]>([]);
   const [numeroSeance, setNumeroSeance] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -31,7 +45,6 @@ export default function SeanceCoranPage() {
   const [dernieresSeances, setDernieresSeances] = useState<any[]>([]);
   const [loadingDernieres, setLoadingDernieres] = useState(false);
 
-  // Historique
   const [showHistory, setShowHistory] = useState(false);
   const [histDebut, setHistDebut] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0];
@@ -61,10 +74,8 @@ export default function SeanceCoranPage() {
   useEffect(() => {
     fetchClasses();
     fetchEnseignants();
-    fetchTeachers();
   }, []);
 
-  // Charger les 5 dernières séances dès que les classes sont disponibles
   useEffect(() => {
     if (classes.length > 0) fetchDernieresSeances();
   }, [classes]); // eslint-disable-line
@@ -110,7 +121,7 @@ export default function SeanceCoranPage() {
       all.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setHistSeances(all);
     } catch {
-      toast.error('Erreur lors du chargement de l\'historique');
+      toast.error('خطأ في تحميل السجل');
     } finally {
       setHistLoading(false);
     }
@@ -119,13 +130,6 @@ export default function SeanceCoranPage() {
   useEffect(() => {
     if (selectedClasse) {
       fetchEleves(selectedClasse);
-      // Auto-select the class teacher when class changes
-      const classe = classes.find(c => c.id === selectedClasse) as any;
-      if (classe?.enseignant?.id) {
-        setSelectedTeacher(classe.enseignant.id);
-      } else if (classe?.enseignantId) {
-        setSelectedTeacher(classe.enseignantId);
-      }
     }
   }, [selectedClasse]);
 
@@ -133,13 +137,10 @@ export default function SeanceCoranPage() {
     try {
       const res = await api.get('/classes');
       setClasses(res.data);
-    } catch (err) {
-      console.error(err);
-    }
+    } catch {}
   };
 
   const fetchEnseignants = async () => {
-    // Résoudre l'ID du récitateur connecté si nécessaire
     let effectiveUserId = userId;
     if (role === 'RECITATEUR' && !effectiveUserId) {
       try {
@@ -151,27 +152,12 @@ export default function SeanceCoranPage() {
         }
       } catch {}
     }
-
-    // Toujours charger la liste complète des enseignants
     try {
       const res = await api.get('/users/enseignants');
       setEnseignants(res.data);
-    } catch (err) {
-      console.error(err);
-    }
-
-    // Pré-sélectionner le récitateur connecté dans le champ récitateur
+    } catch {}
     if (role === 'RECITATEUR' && effectiveUserId) {
       setSelectedEnseignant(effectiveUserId);
-    }
-  };
-
-  const fetchTeachers = async () => {
-    try {
-      const res = await api.get('/users/enseignants');
-      setTeachers(res.data);
-    } catch (err) {
-      console.error(err);
     }
   };
 
@@ -179,16 +165,14 @@ export default function SeanceCoranPage() {
     setLoading(true);
     try {
       const res = await api.get(`/eleves/classe/${classeId}`);
-      console.log('Élèves récupérés:', res.data);
       setEleves(res.data);
       if (res.data.length === 0) {
-        toast('Aucun élève dans cette classe', { icon: '⚠️' });
+        toast('لا يوجد طلاب في هذا الفصل', { icon: '⚠️' });
       } else {
-        toast.success(`${res.data.length} élève(s)`);
+        toast.success(`${res.data.length} طالب`);
       }
-    } catch (err) {
-      console.error('Erreur lors de la récupération des élèves:', err);
-      toast.error('Erreur lors du chargement des élèves');
+    } catch {
+      toast.error('خطأ في تحميل الطلاب');
       setEleves([]);
     } finally {
       setLoading(false);
@@ -196,35 +180,23 @@ export default function SeanceCoranPage() {
   };
 
   const handleEnregistrerSeance = async () => {
-    console.log('=== handleEnregistrerSeance appelé ===');
-    console.log('selectedClasse:', selectedClasse);
-    console.log('selectedEnseignant:', selectedEnseignant);
-    console.log('date:', date);
-    console.log('eleves.length:', eleves.length);
-    console.log('recitations:', recitations);
-
     if (!selectedClasse) {
-      toast.error('Veuillez choisir une classe');
+      toast.error('يرجى اختيار فصل');
       return;
     }
     if (role !== 'RECITATEUR' && !selectedEnseignant) {
-      toast.error('Veuillez choisir un récitateur');
+      toast.error('يرجى اختيار مسمع');
       return;
     }
-
     if (!date) {
-      console.error('Validation échouée: date manquante');
-      toast.error('Veuillez sélectionner une date');
+      toast.error('يرجى اختيار تاريخ');
       return;
     }
-
     if (eleves.length === 0) {
-      console.error('Validation échouée: aucun élève');
-      toast.error('Aucun élève dans cette classe');
+      toast.error('لا يوجد طلاب في هذا الفصل');
       return;
     }
 
-    // Vérifier que tous les élèves présents ont verset début ET fin > 0
     const elevesSansVerset = eleves.filter(e => {
       const rec = recitations[e.id];
       if (!rec?.present) return false;
@@ -238,10 +210,10 @@ export default function SeanceCoranPage() {
         const rec = recitations[e.id];
         const debutOk = (rec?.versetDebut ?? 0) > 0;
         const finOk = (rec?.versetFin ?? 0) > 0;
-        const champ = !debutOk && !finOk ? 'début et fin' : !debutOk ? 'début' : 'fin';
-        return `${e.prenom} ${e.nom} (verset ${champ} manquant)`;
+        const champ = !debutOk && !finOk ? 'البداية والنهاية' : !debutOk ? 'البداية' : 'النهاية';
+        return `${e.prenomArabe || e.prenom} ${e.nomArabe || e.nom} (آية ${champ} مفقودة)`;
       }).join(' • ');
-      setSaveResult({ type: 'error', message: `Versets obligatoires manquants — ${details}` });
+      setSaveResult({ type: 'error', message: `آيات إلزامية مفقودة — ${details}` });
       return;
     }
     setMissingVersetIds([]);
@@ -250,13 +222,11 @@ export default function SeanceCoranPage() {
     setDernieresRecitations([]);
     setSaving(true);
     try {
-      // Le récitateur (selectedEnseignant) est stocké comme "enseignant" de la séance.
-      // L'enseignant de la classe (selectedTeacher) vient de l'entité Classe, pas de la séance.
       const enseignantId = selectedEnseignant !== ''
         ? Number(selectedEnseignant)
         : (userId ?? 0);
       const seanceResponse = await sauvegarderSeance(date, Number(selectedClasse), enseignantId, numeroSeance, verifierRevision);
-      setSaveResult({ type: 'success', message: 'Séance enregistrée avec succès !' });
+      setSaveResult({ type: 'success', message: 'تم حفظ الجلسة بنجاح!' });
       fetchDernieresSeances();
       if (seanceResponse?.recitations) {
         setDernieresRecitations(seanceResponse.recitations);
@@ -268,7 +238,6 @@ export default function SeanceCoranPage() {
       setEleves([]);
     } catch (err: any) {
       const rawMessage: string = err?.response?.data?.message || err?.response?.data?.error || '';
-      // Retirer le préfixe générique du backend
       const backendMessage = rawMessage.replace(/^Erreur lors de l['']enregistrement\s*:\s*/i, '');
       const status = err?.response?.status;
 
@@ -278,22 +247,21 @@ export default function SeanceCoranPage() {
           : backendMessage.split('\n').filter(Boolean);
         setRevisionErrors(messages);
       } else if (status === 500 && backendMessage.includes('uk_verset_jour_date_classe_groupe')) {
-        setSaveResult({ type: 'error', message: 'Un verset du jour existe déjà pour cette séance.' });
+        setSaveResult({ type: 'error', message: 'توجد آية اليوم بالفعل لهذه الجلسة.' });
       } else if (status === 401 || status === 403) {
-        setSaveResult({ type: 'error', message: 'Non autorisé. Veuillez vous reconnecter.' });
+        setSaveResult({ type: 'error', message: 'غير مصرح. يرجى إعادة تسجيل الدخول.' });
       } else {
-        setSaveResult({ type: 'error', message: backendMessage || "Erreur lors de l'enregistrement." });
+        setSaveResult({ type: 'error', message: backendMessage || 'خطأ في الحفظ.' });
       }
     } finally {
       setSaving(false);
     }
   };
 
-
   if (role === 'COMPTABLE') {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
-        <div className="text-muted">Accès non autorisé</div>
+        <div className="text-muted">غير مصرح بالوصول</div>
       </div>
     );
   }
@@ -311,9 +279,8 @@ export default function SeanceCoranPage() {
               📖
             </div>
             <div>
-              <h1 className="fw-bold mb-1" style={{ fontSize: 26, color: '#ffffff' }}>Séance de récitation du Coran</h1>
-              <p className="mb-1" style={{ fontSize: 17, color: 'rgba(255,255,255,0.9)', fontFamily: 'serif' }}>جلسة تلاوة القرآن الكريم</p>
-              <p className="mb-0" style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>Enregistrez les versets du jour et évaluez la mémorisation des élèves</p>
+              <h1 className="fw-bold mb-1" style={{ fontSize: 26, color: '#ffffff' }}>جلسة تلاوة القرآن الكريم</h1>
+              <p className="mb-0" style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>سجّل الآيات اليومية وقيّم حفظ الطلاب</p>
             </div>
           </div>
           <button
@@ -321,7 +288,7 @@ export default function SeanceCoranPage() {
             className="btn fw-semibold"
             style={{ backgroundColor: showHistory ? '#ffffff' : 'rgba(255,255,255,0.15)', color: showHistory ? '#0A6E3F' : '#ffffff', borderRadius: 10, fontSize: 13, border: '1px solid rgba(255,255,255,0.3)', padding: '10px 20px' }}
           >
-            📚 {showHistory ? 'Fermer l\'historique' : 'Historique'}
+            📚 {showHistory ? 'إغلاق السجل' : 'السجل'}
           </button>
         </div>
       </div>
@@ -331,80 +298,53 @@ export default function SeanceCoranPage() {
         <div className="rounded-4 p-4" style={{ backgroundColor: '#ffffff', boxShadow: '0 2px 16px rgba(10,110,63,0.10)', border: '1px solid #d1fae5' }}>
           <div className="d-flex align-items-center gap-2 mb-4">
             <div style={{ width: 4, height: 20, backgroundColor: '#0A6E3F', borderRadius: 2 }} />
-            <span className="fw-semibold" style={{ fontSize: 13, color: '#374151' }}>Historique des séances — سجل الجلسات</span>
+            <span className="fw-semibold" style={{ fontSize: 13, color: '#374151' }}>سجل الجلسات</span>
           </div>
           <div className="row g-3 mb-4">
             <div className="col-12 col-md-3">
-              <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>📅 Date début</label>
-              <input
-                type="date"
-                value={histDebut}
-                onChange={e => setHistDebut(e.target.value)}
-                className="form-control"
-                style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}
-              />
+              <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>📅 تاريخ البداية</label>
+              <input type="date" value={histDebut} onChange={e => setHistDebut(e.target.value)} className="form-control" style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }} />
             </div>
             <div className="col-12 col-md-3">
-              <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>📅 Date fin</label>
-              <input
-                type="date"
-                value={histFin}
-                min={histDebut}
-                onChange={e => setHistFin(e.target.value)}
-                className="form-control"
-                style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}
-              />
+              <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>📅 تاريخ النهاية</label>
+              <input type="date" value={histFin} min={histDebut} onChange={e => setHistFin(e.target.value)} className="form-control" style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }} />
             </div>
             <div className="col-12 col-md-3">
-              <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>🏫 Classe (optionnel)</label>
-              <select
-                value={histClasse}
-                onChange={e => setHistClasse(e.target.value ? Number(e.target.value) : '')}
-                className="form-select"
-                style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}
-              >
-                <option value="">Toutes les classes</option>
-                {classes.map(c => <option key={c.id} value={c.id}>{c.niveau}</option>)}
+              <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>🏫 الفصل (اختياري)</label>
+              <select value={histClasse} onChange={e => setHistClasse(e.target.value ? Number(e.target.value) : '')} className="form-select" style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}>
+                <option value="">كل الفصول</option>
+                {classes.map(c => <option key={c.id} value={c.id}>{translateNiveau(c.niveau)}</option>)}
               </select>
             </div>
             <div className="col-12 col-md-3 d-flex align-items-end">
-              <button
-                onClick={fetchHistory}
-                disabled={histLoading || !histDebut || !histFin}
-                className="btn fw-semibold w-100"
-                style={{ backgroundColor: '#0A6E3F', color: '#fff', borderRadius: 8, fontSize: 14, padding: '0.75rem', border: 'none', opacity: histLoading ? 0.7 : 1 }}
-              >
-                {histLoading
-                  ? <><span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14, borderWidth: 2 }} />Chargement...</>
-                  : '🔍 Rechercher'}
+              <button onClick={fetchHistory} disabled={histLoading || !histDebut || !histFin} className="btn fw-semibold w-100" style={{ backgroundColor: '#0A6E3F', color: '#fff', borderRadius: 8, fontSize: 14, padding: '0.75rem', border: 'none', opacity: histLoading ? 0.7 : 1 }}>
+                {histLoading ? <><span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14, borderWidth: 2 }} />جاري التحميل...</> : '🔍 بحث'}
               </button>
             </div>
           </div>
 
           {histSeances.length === 0 && !histLoading && (
-            <div className="text-center py-4 text-muted" style={{ fontSize: 13 }}>
-              Lancez une recherche pour afficher les séances
-            </div>
+            <div className="text-center py-4 text-muted" style={{ fontSize: 13 }}>ابدأ بحثاً لعرض الجلسات</div>
           )}
 
           {histSeances.length > 0 && (
             <div className="table-responsive">
               <div className="d-flex align-items-center gap-2 mb-2">
                 <span className="badge rounded-pill" style={{ backgroundColor: '#d1fae5', color: '#065f46', fontSize: 12 }}>
-                  {histSeances.length} séance(s) trouvée(s)
+                  {histSeances.length} جلسة
                 </span>
               </div>
               <table className="table table-hover mb-0" style={{ fontSize: 13 }}>
                 <thead style={{ backgroundColor: '#f0fdf4', borderBottom: '2px solid #d1fae5' }}>
                   <tr>
-                    <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Date</th>
-                    <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Classe</th>
-                    <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>N° Séance</th>
-                    <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Récitateur</th>
-                    <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>Présents</th>
-                    <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>Mémorisés</th>
-                    <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>Total</th>
-                    <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Détails</th>
+                    <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>التاريخ</th>
+                    <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>الفصل</th>
+                    <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>رقم الجلسة</th>
+                    <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>المسمع</th>
+                    <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>الحضور</th>
+                    <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>المحفوظ</th>
+                    <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>المجموع</th>
+                    <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>التفاصيل</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -420,16 +360,14 @@ export default function SeanceCoranPage() {
                         <tr key={s.id ?? idx} style={{ cursor: 'pointer' }} onClick={() => setHistExpanded(expanded ? null : (s.id ?? idx))}>
                           <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
                             <span className="fw-semibold" style={{ color: '#111827' }}>
-                              {s.date ? new Date(s.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                              {s.date ? new Date(s.date).toLocaleDateString('ar-SA', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                             </span>
                           </td>
                           <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
-                            <span className="badge rounded-pill" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 600 }}>
-                              {s.classeNiveau ?? '—'}
-                            </span>
+                            <span className="badge rounded-pill" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 600 }}>{s.classeNiveau ?? '—'}</span>
                           </td>
                           <td className="py-2 px-3" style={{ verticalAlign: 'middle', color: '#6b7280' }}>
-                            Séance {s.numeroSeance ?? 1}
+                            الجلسة {s.numeroSeance ?? 1}
                           </td>
                           <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
                             <div className="d-flex align-items-center gap-1">
@@ -446,12 +384,10 @@ export default function SeanceCoranPage() {
                           <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
                             <span className="badge" style={{ backgroundColor: '#fef9c3', color: '#854d0e', fontWeight: 700 }}>{memorises}</span>
                           </td>
-                          <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle', color: '#6b7280' }}>
-                            {total}
-                          </td>
+                          <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle', color: '#6b7280' }}>{total}</td>
                           <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
                             <button className="btn btn-sm" style={{ backgroundColor: '#e8f5e9', color: '#0A6E3F', borderRadius: 6, fontSize: 12 }}>
-                              {expanded ? 'Masquer ▲' : 'Détails ▼'}
+                              {expanded ? 'إخفاء ▲' : 'تفاصيل ▼'}
                             </button>
                           </td>
                         </tr>
@@ -460,32 +396,28 @@ export default function SeanceCoranPage() {
                             <td colSpan={8} className="p-3" style={{ backgroundColor: '#f9fafb' }}>
                               <div className="bg-white rounded-3 p-3">
                                 <h6 className="fw-bold mb-3" style={{ fontSize: 13, color: '#0A6E3F' }}>
-                                  Détails — {s.date ? new Date(s.date).toLocaleDateString('fr-FR') : ''} · {s.classeNiveau}
+                                  تفاصيل — {s.date ? new Date(s.date).toLocaleDateString('ar-SA') : ''} · {s.classeNiveau}
                                 </h6>
                                 <table className="table table-sm mb-0" style={{ fontSize: 12 }}>
                                   <thead style={{ backgroundColor: '#f0fdf4' }}>
                                     <tr>
-                                      <th>Élève</th>
-                                      <th>Matricule</th>
-                                      <th>Sourate</th>
-                                      <th className="text-center">V. Début</th>
-                                      <th className="text-center">V. Fin</th>
-                                      <th className="text-center">Présence</th>
-                                      <th className="text-center">Mémorisation</th>
+                                      <th>الطالب</th>
+                                      <th>رقم التعريف</th>
+                                      <th>السورة</th>
+                                      <th className="text-center">آية البداية</th>
+                                      <th className="text-center">آية النهاية</th>
+                                      <th className="text-center">الحضور</th>
+                                      <th className="text-center">الحفظ</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {recits.map((r: any) => {
-                                      const niveauColors: Record<string, { bg: string; color: string; label: string }> = {
-                                        MEMORISE:     { bg: '#d1fae5', color: '#065f46', label: 'Mémorisé' },
-                                        PARTIEL:      { bg: '#fef9c3', color: '#854d0e', label: 'Partiel' },
-                                        NON_MEMORISE: { bg: '#fee2e2', color: '#991b1b', label: 'Non mémorisé' },
-                                        ABSENT:       { bg: '#f3f4f6', color: '#6b7280', label: 'Absent' },
-                                      };
                                       const niv = niveauColors[r.niveauMemorisation] ?? niveauColors['NON_MEMORISE'];
                                       return (
                                         <tr key={r.id} style={{ opacity: r.present ? 1 : 0.6 }}>
-                                          <td className="fw-semibold">{r.elevePrenom} {r.eleveNom}</td>
+                                          <td className="fw-semibold" style={{ direction: 'rtl' }}>
+                                            {r.elevePrenom} {r.eleveNom}
+                                          </td>
                                           <td>
                                             {r.matricule
                                               ? <span className="badge" style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontFamily: 'monospace', fontSize: 10 }}>{r.matricule}</span>
@@ -496,9 +428,7 @@ export default function SeanceCoranPage() {
                                           <td className="text-center">{r.versetFin ?? '—'}</td>
                                           <td className="text-center">{r.present ? '✅' : '❌'}</td>
                                           <td className="text-center">
-                                            <span className="badge rounded-pill" style={{ backgroundColor: niv.bg, color: niv.color, fontSize: 10 }}>
-                                              {niv.label}
-                                            </span>
+                                            <span className="badge rounded-pill" style={{ backgroundColor: niv.bg, color: niv.color, fontSize: 10 }}>{niv.label}</span>
                                           </td>
                                         </tr>
                                       );
@@ -523,82 +453,55 @@ export default function SeanceCoranPage() {
       <form className="rounded-4 p-4" style={{ backgroundColor: '#ffffff', boxShadow: '0 2px 16px rgba(10,110,63,0.08)', border: '1px solid #e8f5e9' }} onSubmit={(e) => e.preventDefault()}>
         <div className="d-flex align-items-center gap-2 mb-4">
           <div style={{ width: 4, height: 20, backgroundColor: '#0A6E3F', borderRadius: 2 }} />
-          <span className="fw-semibold" style={{ fontSize: 13, color: '#374151' }}>Paramètres de la séance — إعدادات الجلسة</span>
+          <span className="fw-semibold" style={{ fontSize: 13, color: '#374151' }}>إعدادات الجلسة</span>
         </div>
         <div className="row g-3">
           <div className="col-12 col-md-2">
             <label className="form-label fw-semibold d-flex align-items-center gap-1" style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase' }}>
-              📅 Date de la séance
+              📅 تاريخ الجلسة
             </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="form-control"
-              style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}
-            />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="form-control" style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }} />
           </div>
           <div className="col-12 col-md-2">
             <label className="form-label fw-semibold d-flex align-items-center gap-1" style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase' }}>
-              🔢 N° Séance
+              🔢 رقم الجلسة
             </label>
-            <select
-              value={numeroSeance}
-              onChange={(e) => setNumeroSeance(Number(e.target.value))}
-              className="form-select"
-              style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}
-            >
-              <option value={1}>Séance 1 (Matin)</option>
-              <option value={2}>Séance 2 (Après-midi)</option>
-              <option value={3}>Séance 3</option>
+            <select value={numeroSeance} onChange={(e) => setNumeroSeance(Number(e.target.value))} className="form-select" style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}>
+              <option value={1}>الجلسة 1 (الصباح)</option>
+              <option value={2}>الجلسة 2 (بعد الظهر)</option>
+              <option value={3}>الجلسة 3</option>
             </select>
           </div>
           <div className="col-12 col-md-3">
             <label className="form-label fw-semibold d-flex align-items-center gap-1" style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase' }}>
-              🏫 Classe — الفصل
+              🏫 الفصل
             </label>
-            <select
-              value={selectedClasse}
-              onChange={(e) => setSelectedClasse(e.target.value ? Number(e.target.value) : '')}
-              className="form-select"
-              style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}
-            >
-              <option value="">Choisir une classe</option>
+            <select value={selectedClasse} onChange={(e) => setSelectedClasse(e.target.value ? Number(e.target.value) : '')} className="form-select" style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}>
+              <option value="">اختر الفصل</option>
               {classes.map((c) => (
-                <option key={c.id} value={c.id}>{c.niveau}</option>
+                <option key={c.id} value={c.id}>{translateNiveau(c.niveau)}</option>
               ))}
             </select>
           </div>
 
-          {/* Récitateur */}
           <div className="col-12 col-md-3">
             <label className="form-label fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>
-              {role === 'RECITATEUR' ? 'المسمع (Récitateur)' : 'Récitateur / Enseignant'}
+              {role === 'RECITATEUR' ? 'المسمع' : 'المسمع / المعلم'}
             </label>
             {role === 'RECITATEUR' ? (
-              /* RECITATEUR connecté : champ verrouillé sur son nom */
-              <div
-                className="form-control d-flex align-items-center gap-2"
-                style={{ borderRadius: 8, border: '1px solid #d1fae5', backgroundColor: '#f0fdf4', fontSize: 14, color: '#0A6E3F', fontWeight: 600, cursor: 'default' }}
-              >
+              <div className="form-control d-flex align-items-center gap-2" style={{ borderRadius: 8, border: '1px solid #d1fae5', backgroundColor: '#f0fdf4', fontSize: 14, color: '#0A6E3F', fontWeight: 600, cursor: 'default' }}>
                 <span style={{ fontSize: 16 }}>🎧</span>
                 <span>
                   {enseignants.find((e: any) => e.id === selectedEnseignant)
                     ? `${enseignants.find((e: any) => e.id === selectedEnseignant).prenom || ''} ${enseignants.find((e: any) => e.id === selectedEnseignant).nom || ''}`.trim()
-                    : `${prenom || ''} ${nom || ''}`.trim() || 'Récitateur connecté'}
+                    : `${prenom || ''} ${nom || ''}`.trim() || 'المسمع المتصل'}
                 </span>
               </div>
             ) : (
-              /* ADMIN / ENSEIGNANT : select libre */
-              <select
-                value={selectedEnseignant}
-                onChange={(e) => setSelectedEnseignant(e.target.value ? Number(e.target.value) : '')}
-                className="form-select"
-                style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}
-              >
-                <option value="">Choisir un récitateur</option>
+              <select value={selectedEnseignant} onChange={(e) => setSelectedEnseignant(e.target.value ? Number(e.target.value) : '')} className="form-select" style={{ borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: 14 }}>
+                <option value="">اختر المسمع</option>
                 {enseignants.length === 0 ? (
-                  <option disabled>Aucun récitateur disponible</option>
+                  <option disabled>لا يوجد مسمع متاح</option>
                 ) : (
                   enseignants.map((e: any) => (
                     <option key={e.id} value={e.id}>
@@ -615,7 +518,6 @@ export default function SeanceCoranPage() {
 
       {selectedClasse && (
         <>
-          {/* Statistiques */}
           <SeanceStatsBar
             presents={stats.presents}
             memorises={stats.memorises}
@@ -629,46 +531,38 @@ export default function SeanceCoranPage() {
             <div className="p-4 d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(90deg, #f0fdf4 0%, #ffffff 100%)', borderBottom: '1px solid #e8f5e9' }}>
               <div className="d-flex align-items-center gap-2">
                 <div style={{ width: 4, height: 20, backgroundColor: '#0A6E3F', borderRadius: 2 }} />
-                <h5 className="fw-bold mb-0" style={{ fontSize: 16, color: '#0A6E3F' }}>
-                  Liste des élèves — قائمة الطلاب
-                </h5>
+                <h5 className="fw-bold mb-0" style={{ fontSize: 16, color: '#0A6E3F' }}>قائمة الطلاب</h5>
               </div>
-              <button
-                onClick={marquerTousPresents}
-                className="btn btn-sm fw-medium"
-                style={{ backgroundColor: '#0A6E3F', color: '#fff', borderRadius: 8, border: 'none' }}
-              >
-                ✅ Marquer tous présents
+              <button onClick={marquerTousPresents} className="btn btn-sm fw-medium" style={{ backgroundColor: '#0A6E3F', color: '#fff', borderRadius: 8, border: 'none' }}>
+                ✅ تعليم الكل حاضرين
               </button>
             </div>
             <div className="table-responsive">
               {loading ? (
-                <SkeletonTable rows={5} columns={6} />
+                <SkeletonTable rows={5} columns={12} />
               ) : (
                 <table className="table align-middle mb-0" style={{ fontSize: 13 }}>
                   <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
                     <tr>
-                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>Présence</th>
-                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Prénom</th>
-                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Nom</th>
-                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>Matricule</th>
-                      <th className="py-3 px-2 fw-bold text-uppercase text-end" style={{ color: '#374151', fontSize: 11 }}>الاسم</th>
-                      <th className="py-3 px-2 fw-bold text-uppercase text-end" style={{ color: '#374151', fontSize: 11 }}>اللقب</th>
-                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>Classe</th>
-                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Sourate</th>
-                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>V. Début</th>
-                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>V. Fin</th>
-                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Mémorisation</th>
-                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Statut</th>
-                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Récitateur</th>
-                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>Remarques</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>الحضور</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>الاسم</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>اللقب</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>رقم التعريف</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>الفصل</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>السورة</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>آية البداية</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase text-center" style={{ color: '#374151', fontSize: 11 }}>آية النهاية</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>الحفظ</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>الحالة</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>المسمع</th>
+                      <th className="py-3 px-2 fw-bold text-uppercase" style={{ color: '#374151', fontSize: 11 }}>ملاحظات</th>
                     </tr>
                   </thead>
                   <tbody>
                     {eleves.length === 0 ? (
                       <tr>
-                        <td colSpan={14} className="text-center py-5 text-muted">
-                          Sélectionnez une classe pour charger les élèves
+                        <td colSpan={12} className="text-center py-5 text-muted">
+                          اختر فصلاً لتحميل الطلاب
                         </td>
                       </tr>
                     ) : (
@@ -696,14 +590,14 @@ export default function SeanceCoranPage() {
             </div>
           </div>
 
-          {/* Panneau erreurs de révision manquante */}
+          {/* Panneau erreurs de révision */}
           {revisionErrors.length > 0 && (
             <div className="rounded-3 p-4" style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderLeft: '4px solid #ea580c' }}>
               <div className="d-flex align-items-start gap-3">
                 <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
                 <div className="flex-grow-1">
                   <div className="fw-bold mb-2" style={{ fontSize: 14, color: '#9a3412' }}>
-                    Révisions manquantes — لم تتم المراجعة
+                    مراجعات ناقصة
                   </div>
                   <ul className="mb-3 ps-3" style={{ fontSize: 13, color: '#7c2d12' }}>
                     {revisionErrors.map((msg, i) => (
@@ -711,21 +605,12 @@ export default function SeanceCoranPage() {
                     ))}
                   </ul>
                   <div className="d-flex align-items-center gap-3 flex-wrap">
-                    <a
-                      href="/ar/revision"
-                      className="btn btn-sm fw-semibold"
-                      style={{ backgroundColor: '#ea580c', color: '#fff', borderRadius: 8, fontSize: 12, textDecoration: 'none' }}
-                    >
-                      🔁 Aller à la page Révisions
+                    <a href="/ar/revision" className="btn btn-sm fw-semibold" style={{ backgroundColor: '#ea580c', color: '#fff', borderRadius: 8, fontSize: 12, textDecoration: 'none' }}>
+                      🔁 الذهاب إلى صفحة المراجعة
                     </a>
                     <label className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', fontSize: 13, color: '#9a3412' }}>
-                      <input
-                        type="checkbox"
-                        checked={!verifierRevision}
-                        onChange={(e) => setVerifierRevision(!e.target.checked)}
-                        style={{ width: 16, height: 16, accentColor: '#ea580c' }}
-                      />
-                      Ignorer la vérification et enregistrer quand même
+                      <input type="checkbox" checked={!verifierRevision} onChange={(e) => setVerifierRevision(!e.target.checked)} style={{ width: 16, height: 16, accentColor: '#ea580c' }} />
+                      تجاهل التحقق والحفظ على أي حال
                     </label>
                   </div>
                 </div>
@@ -736,87 +621,57 @@ export default function SeanceCoranPage() {
           {/* Bouton sauvegarder */}
           <div className="d-flex align-items-center justify-content-between gap-3">
             <label className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', fontSize: 13, color: '#6b7280' }}>
-              <input
-                type="checkbox"
-                checked={verifierRevision}
-                onChange={(e) => {
-                  setVerifierRevision(e.target.checked);
-                  setRevisionErrors([]);
-                }}
-                style={{ width: 16, height: 16, accentColor: '#0A6E3F' }}
-              />
-              Vérifier que les versets ont été révisés avant récitation
+              <input type="checkbox" checked={verifierRevision} onChange={(e) => { setVerifierRevision(e.target.checked); setRevisionErrors([]); }} style={{ width: 16, height: 16, accentColor: '#0A6E3F' }} />
+              التحقق من مراجعة الآيات قبل التلاوة
             </label>
-            <button
-              onClick={handleEnregistrerSeance}
-              disabled={saving}
-              className="btn fw-semibold text-white d-flex align-items-center gap-2 px-4"
-              style={{ backgroundColor: '#0A6E3F', borderRadius: 10, fontSize: 14, opacity: saving ? 0.7 : 1, border: 'none' }}
-            >
-              {saving && (
-                <span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14, borderWidth: 2 }} />
-              )}
-              {saving ? 'Enregistrement...' : '💾 Enregistrer la séance'}
+            <button onClick={handleEnregistrerSeance} disabled={saving} className="btn fw-semibold text-white d-flex align-items-center gap-2 px-4" style={{ backgroundColor: '#0A6E3F', borderRadius: 10, fontSize: 14, opacity: saving ? 0.7 : 1, border: 'none' }}>
+              {saving && <span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14, borderWidth: 2 }} />}
+              {saving ? 'جاري الحفظ...' : '💾 حفظ الجلسة'}
             </button>
           </div>
         </>
       )}
 
-      {/* Récapitulatif des dernières récitations enregistrées */}
+      {/* Récapitulatif des dernières récitations */}
       {dernieresRecitations.length > 0 && (
         <div className="rounded-4 overflow-hidden" style={{ border: '1px solid #d1fae5', boxShadow: '0 2px 12px rgba(10,110,63,0.07)' }}>
           <div className="p-3 d-flex align-items-center justify-content-between" style={{ background: 'linear-gradient(90deg, #f0fdf4 0%, #ffffff 100%)', borderBottom: '1px solid #d1fae5' }}>
             <div className="d-flex align-items-center gap-2">
               <div style={{ width: 4, height: 18, backgroundColor: '#0A6E3F', borderRadius: 2 }} />
-              <span className="fw-bold" style={{ fontSize: 14, color: '#0A6E3F' }}>
-                📋 Dernières récitations enregistrées
-              </span>
+              <span className="fw-bold" style={{ fontSize: 14, color: '#0A6E3F' }}>📋 آخر التلاوات المسجلة</span>
               <span className="badge rounded-pill" style={{ backgroundColor: '#d1fae5', color: '#0A6E3F', fontSize: 12, fontWeight: 600 }}>
-                {dernieresRecitations.filter((r: any) => r.present).length} présent(s)
+                {dernieresRecitations.filter((r: any) => r.present).length} حاضر
               </span>
               <span className="badge rounded-pill" style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontSize: 11 }}>
-                Séance #{dernierNumeroSeance} — {derniereDateSeance ? new Date(derniereDateSeance).toLocaleDateString('fr-FR') : ''}
+                الجلسة #{dernierNumeroSeance} — {derniereDateSeance ? new Date(derniereDateSeance).toLocaleDateString('ar-SA') : ''}
               </span>
             </div>
-            <button
-              onClick={() => setDernieresRecitations([])}
-              className="btn-close"
-              style={{ fontSize: 10 }}
-              aria-label="Fermer"
-            />
+            <button onClick={() => setDernieresRecitations([])} className="btn-close" style={{ fontSize: 10 }} />
           </div>
           <div className="table-responsive">
             <table className="table table-hover mb-0" style={{ fontSize: 13 }}>
               <thead style={{ backgroundColor: '#f8fffe' }}>
                 <tr>
-                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Prénom</th>
-                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Nom</th>
-                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Matricule</th>
-                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Sourate</th>
-                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>V. Début</th>
-                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>V. Fin</th>
-                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Mémorisation</th>
-                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>Présence</th>
+                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>الاسم</th>
+                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>اللقب</th>
+                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>رقم التعريف</th>
+                  <th className="py-2 px-3 fw-semibold" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>السورة</th>
+                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>آية البداية</th>
+                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>آية النهاية</th>
+                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>الحفظ</th>
+                  <th className="py-2 px-3 fw-semibold text-center" style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb' }}>الحضور</th>
                 </tr>
               </thead>
               <tbody>
                 {dernieresRecitations.map((r: any) => {
-                  const niveauColors: Record<string, { bg: string; color: string; label: string }> = {
-                    MEMORISE:     { bg: '#d1fae5', color: '#065f46', label: 'Mémorisé' },
-                    PARTIEL:      { bg: '#fef9c3', color: '#854d0e', label: 'Partiel' },
-                    NON_MEMORISE: { bg: '#fee2e2', color: '#991b1b', label: 'Non mémorisé' },
-                    ABSENT:       { bg: '#f3f4f6', color: '#6b7280', label: 'Absent' },
-                  };
                   const niv = niveauColors[r.niveauMemorisation] ?? niveauColors['NON_MEMORISE'];
                   return (
                     <tr key={r.id} style={{ opacity: r.present ? 1 : 0.6 }}>
-                      <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>{r.elevePrenom}</td>
-                      <td className="py-2 px-3 fw-semibold" style={{ verticalAlign: 'middle' }}>{r.eleveNom}</td>
+                      <td className="py-2 px-3" style={{ verticalAlign: 'middle', direction: 'rtl' }}>{r.elevePrenom}</td>
+                      <td className="py-2 px-3 fw-semibold" style={{ verticalAlign: 'middle', direction: 'rtl' }}>{r.eleveNom}</td>
                       <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
                         {r.matricule ? (
-                          <span className="badge rounded-pill" style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontSize: 10, fontFamily: 'monospace' }}>
-                            {r.matricule}
-                          </span>
+                          <span className="badge rounded-pill" style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontSize: 10, fontFamily: 'monospace' }}>{r.matricule}</span>
                         ) : <span style={{ color: '#d1d5db' }}>—</span>}
                       </td>
                       <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
@@ -831,9 +686,7 @@ export default function SeanceCoranPage() {
                         {r.versetFin ? <span className="badge" style={{ backgroundColor: '#f0fdf4', color: '#0A6E3F', fontWeight: 700 }}>{r.versetFin}</span> : <span style={{ color: '#d1d5db' }}>—</span>}
                       </td>
                       <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
-                        <span className="badge rounded-pill" style={{ backgroundColor: niv.bg, color: niv.color, fontSize: 11, fontWeight: 600 }}>
-                          {niv.label}
-                        </span>
+                        <span className="badge rounded-pill" style={{ backgroundColor: niv.bg, color: niv.color, fontSize: 11, fontWeight: 600 }}>{niv.label}</span>
                       </td>
                       <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
                         <span style={{ fontSize: 16 }}>{r.present ? '✅' : '❌'}</span>
@@ -847,46 +700,40 @@ export default function SeanceCoranPage() {
         </div>
       )}
 
-      {/* ── 5 dernières séances enregistrées ── */}
+      {/* آخر الجلسات المسجلة */}
       <div className="rounded-4 overflow-hidden" style={{ border: '1px solid #e8f5e9', boxShadow: '0 2px 12px rgba(10,110,63,0.06)' }}>
         <div className="p-3 d-flex align-items-center justify-content-between" style={{ background: 'linear-gradient(90deg, #f0fdf4 0%, #ffffff 100%)', borderBottom: '1px solid #e8f5e9' }}>
           <div className="d-flex align-items-center gap-2">
             <div style={{ width: 4, height: 18, backgroundColor: '#0A6E3F', borderRadius: 2 }} />
-            <span className="fw-bold" style={{ fontSize: 14, color: '#0A6E3F' }}>🕐 Dernières séances enregistrées</span>
+            <span className="fw-bold" style={{ fontSize: 14, color: '#0A6E3F' }}>🕐 آخر الجلسات المسجلة</span>
             <span className="badge rounded-pill" style={{ backgroundColor: '#d1fae5', color: '#065f46', fontSize: 11, fontWeight: 600 }}>
-              {loadingDernieres ? '...' : `${dernieresSeances.length} séance(s)`}
+              {loadingDernieres ? '...' : `${dernieresSeances.length} جلسة`}
             </span>
           </div>
-          <button
-            onClick={fetchDernieresSeances}
-            className="btn btn-sm fw-medium d-flex align-items-center gap-1"
-            style={{ fontSize: 12, color: '#0A6E3F', backgroundColor: 'transparent', border: '1px solid #bbf7d0', borderRadius: 8 }}
-          >
-            🔄 Actualiser
+          <button onClick={fetchDernieresSeances} className="btn btn-sm fw-medium d-flex align-items-center gap-1" style={{ fontSize: 12, color: '#0A6E3F', backgroundColor: 'transparent', border: '1px solid #bbf7d0', borderRadius: 8 }}>
+            🔄 تحديث
           </button>
         </div>
 
         {loadingDernieres ? (
           <div className="p-4 text-center text-muted" style={{ fontSize: 13 }}>
             <span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14, borderWidth: 2 }} />
-            Chargement...
+            جاري التحميل...
           </div>
         ) : dernieresSeances.length === 0 ? (
-          <div className="p-4 text-center text-muted" style={{ fontSize: 13 }}>
-            Aucune séance enregistrée ces 7 derniers jours
-          </div>
+          <div className="p-4 text-center text-muted" style={{ fontSize: 13 }}>لا توجد جلسات مسجلة في آخر 30 يوماً</div>
         ) : (
           <div className="table-responsive">
             <table className="table table-hover mb-0" style={{ fontSize: 13 }}>
               <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
                 <tr>
-                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Date</th>
-                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Classe</th>
-                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>N° Séance</th>
-                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>Récitateur</th>
-                  <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>Présents</th>
-                  <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>Mémorisés</th>
-                  <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>Total élèves</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>التاريخ</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>الفصل</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>رقم الجلسة</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase" style={{ fontSize: 11, color: '#6b7280' }}>المسمع</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>الحضور</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>المحفوظ</th>
+                  <th className="py-2 px-3 fw-semibold text-uppercase text-center" style={{ fontSize: 11, color: '#6b7280' }}>مجموع الطلاب</th>
                 </tr>
               </thead>
               <tbody>
@@ -900,17 +747,13 @@ export default function SeanceCoranPage() {
                     <tr key={s.id ?? idx}>
                       <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
                         <span className="fw-semibold" style={{ color: '#111827' }}>
-                          {s.date ? new Date(s.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                          {s.date ? new Date(s.date).toLocaleDateString('ar-SA', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                         </span>
                       </td>
                       <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
-                        <span className="badge rounded-pill" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 600 }}>
-                          {s.classeNiveau ?? '—'}
-                        </span>
+                        <span className="badge rounded-pill" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 600 }}>{s.classeNiveau ?? '—'}</span>
                       </td>
-                      <td className="py-2 px-3" style={{ verticalAlign: 'middle', color: '#6b7280' }}>
-                        Séance {s.numeroSeance ?? 1}
-                      </td>
+                      <td className="py-2 px-3" style={{ verticalAlign: 'middle', color: '#6b7280' }}>الجلسة {s.numeroSeance ?? 1}</td>
                       <td className="py-2 px-3" style={{ verticalAlign: 'middle' }}>
                         <span style={{ color: '#374151', fontWeight: 500 }}>{s.enseignantNom ?? '—'}</span>
                       </td>
@@ -923,9 +766,7 @@ export default function SeanceCoranPage() {
                       <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle' }}>
                         <span className="badge" style={{ backgroundColor: '#fef9c3', color: '#854d0e', fontWeight: 700 }}>{memorises}</span>
                       </td>
-                      <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle', color: '#6b7280' }}>
-                        {total}
-                      </td>
+                      <td className="py-2 px-3 text-center" style={{ verticalAlign: 'middle', color: '#6b7280' }}>{total}</td>
                     </tr>
                   );
                 })}
@@ -935,28 +776,12 @@ export default function SeanceCoranPage() {
         )}
       </div>
 
-      {/* Résultat de l'enregistrement — toujours visible même après reset du formulaire */}
+      {/* Résultat de l'enregistrement */}
       {saveResult && (
-        <div
-          className="rounded-3 p-3 d-flex align-items-start gap-3"
-          style={{
-            backgroundColor: saveResult.type === 'success' ? '#f0fdf4' : '#fef2f2',
-            border: `1px solid ${saveResult.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
-            borderLeft: `4px solid ${saveResult.type === 'success' ? '#0A6E3F' : '#dc2626'}`,
-          }}
-        >
-          <span style={{ fontSize: 20, flexShrink: 0 }}>
-            {saveResult.type === 'success' ? '✅' : '❌'}
-          </span>
-          <span style={{ fontSize: 14, fontWeight: 600, color: saveResult.type === 'success' ? '#15803d' : '#dc2626', flex: 1 }}>
-            {saveResult.message}
-          </span>
-          <button
-            onClick={() => setSaveResult(null)}
-            className="btn-close"
-            style={{ fontSize: 10, flexShrink: 0 }}
-            aria-label="Fermer"
-          />
+        <div className="rounded-3 p-3 d-flex align-items-start gap-3" style={{ backgroundColor: saveResult.type === 'success' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${saveResult.type === 'success' ? '#bbf7d0' : '#fecaca'}`, borderLeft: `4px solid ${saveResult.type === 'success' ? '#0A6E3F' : '#dc2626'}` }}>
+          <span style={{ fontSize: 20, flexShrink: 0 }}>{saveResult.type === 'success' ? '✅' : '❌'}</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: saveResult.type === 'success' ? '#15803d' : '#dc2626', flex: 1 }}>{saveResult.message}</span>
+          <button onClick={() => setSaveResult(null)} className="btn-close" style={{ fontSize: 10, flexShrink: 0 }} />
         </div>
       )}
     </div>
