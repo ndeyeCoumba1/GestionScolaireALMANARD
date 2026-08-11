@@ -11,8 +11,8 @@
 
 > [!NOTE]
 > Dans ce dépôt GitHub, le projet est organisé en branches :
-> *   **Branche `principal`** : Contient le code source du **Backend** (Spring Boot + PostgreSQL).
-> *   **Branche Frontend** : Contient le code source du **Frontend** (React + Vite + Tailwind CSS).
+> *   **Branche `main`** : Contient le code source du **Backend** (Spring Boot + PostgreSQL).
+> *   **Branche `frontend`** : Contient le code source du **Frontend** (React + Vite + Tailwind CSS).
 
 ---
 
@@ -25,7 +25,7 @@
 5. [Architecture Technique](#5-architecture-technique)
 6. [Installation et Configuration](#6-installation-et-configuration)
 7. [Sécurité et Rôles Utilisateurs](#7-sécurité-et-rôles-utilisateurs)
-8. [Structure du Projet (Branche `principal`)](#8-structure-du-projet)
+8. [Structure du Projet (Branche `main`)](#8-structure-du-projet)
 
 ---
 
@@ -175,10 +175,10 @@ Le système sécurise les accès à l'aide de jetons **JSON Web Tokens (JWT)**. 
 
 ---
 
-## 8. Structure du Projet (Branche `principal`)
+## 8. Structure du Projet (Branche `main`)
 
 ```text
-GestionScolaireALMANARD (Branch: principal)
+GestionScolaireALMANARD (Branch: main)
 │
 ├── .idea/                              # Fichiers de configuration IDE
 │
